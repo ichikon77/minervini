@@ -448,6 +448,7 @@ def generate_html(results, output_path, removed_tickers=None):
   <nav class="nav">
     <a href="index.html">米国株 (Minervini)</a>
     <a href="haitou.html" class="active">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が過去""" + str(PBR_HISTORY_YEARS) + """年最低値+10%以内</p>

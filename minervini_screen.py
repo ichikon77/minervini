@@ -386,6 +386,7 @@ def generate_html(results, output_path, removed_tickers=None):
   <nav class="nav">
     <a href="index.html" class="active">米国株 (Minervini)</a>
     <a href="haitou.html">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
   </nav>
   <h1>Minervini Trend Template Screening <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | S&P500 + NASDAQ100 | RS >= """ + str(RS_THRESHOLD) + """</p>
