@@ -1,0 +1,17 @@
+# 履歴・状態ファイル
+*_history.json
+*_prev.json
+
+# ログ
+*.txt
+
+# デバッグ・セットアップ用スクリプト（一時的なもの）
+debug_*.py
+debug_*.bat
+patch_*.py
+setup_*.bat
+fix_*.bat
+
+# Python
+__pycache__/
+*.pyc

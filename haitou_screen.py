@@ -1,0 +1,561 @@
+"""
+Japan Prime Dividend Screener
+==============================
+条件: 配当利回り3%以上 かつ PBRが過去1年以内の最低値+10%を下回る
+対象: 東証プライム全銘柄
+出力: HTMLレポート (haitou.html) + GitHub Pages自動push
+"""
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import requests
+import json
+import subprocess
+from datetime import datetime, timedelta
+import warnings
+import time
+import os
+import io
+
+warnings.filterwarnings("ignore")
+
+# ─────────────────────────────────────────
+# 設定
+# ─────────────────────────────────────────
+DIVIDEND_YIELD_MIN = 3.0        # 配当利回り閾値 (%)
+PBR_MARGIN = 0.10               # 最低PBR + 10% 以内
+PRICE_HISTORY_DAYS = 400        # 取得日数（価格データ用バッファ込み）
+PBR_HISTORY_YEARS = 2           # PBR最低値の参照期間（年）
+BATCH_SIZE = 50                 # yfinanceバッチサイズ
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+HISTORY_FILE = os.path.join(SCRIPT_DIR, "haitou_history.json")
+PREV_FILE    = os.path.join(SCRIPT_DIR, "haitou_prev.json")
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0.0.0 Safari/537.36"
+}
+
+# ─────────────────────────────────────────
+# ユニバース取得（日経225 + TOPIX）
+# ─────────────────────────────────────────
+def get_universe():
+    print("[1/5] ユニバース取得中（TOPIXプライム）...")
+    topix = get_topix_from_jpx()
+    print("  合計: " + str(len(topix)) + "銘柄")
+    return topix
+
+def get_nikkei225():
+    """Wikipediaから日経225銘柄を取得（コード分布で妥当性を検証）"""
+    try:
+        url = "https://en.wikipedia.org/wiki/Nikkei_225"
+        html = requests.get(url, headers=HEADERS, timeout=15).text
+        tables = pd.read_html(io.StringIO(html))
+
+        best_tickers = []
+        best_score = 0
+
+        for table in tables:
+            for col in table.columns:
+                vals = table[col].dropna().astype(str).tolist()
+                candidates = [v.strip() for v in vals if v.strip().isdigit() and len(v.strip()) == 4]
+                if len(candidates) < 50:
+                    continue
+                # 妥当性チェック: 本物の株コードは千の位が複数にまたがる
+                # (例: 1332, 4063, 6758, 9984 など)
+                # 西暦年のようなデータは 1900-2030 に集中するためスコアが低くなる
+                codes_int = [int(c) for c in candidates]
+                thousands = set(c // 1000 for c in codes_int)
+                score = len(thousands)
+                if score > best_score:
+                    best_score = score
+                    best_tickers = [c + ".T" for c in candidates]
+
+        if best_tickers and best_score >= 3:
+            print("  日経225: " + str(len(best_tickers)) + "銘柄")
+            return best_tickers
+        print("  日経225: Wikipedia取得失敗、JPXにフォールバック")
+        return []
+    except Exception as e:
+        print("  日経225取得エラー: " + str(e))
+        return []
+
+def get_topix_from_jpx():
+    """JPX公式ファイルからTOPIX（プライム市場）銘柄を取得"""
+    url_xls = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
+
+    def parse_jpx_df(df):
+        df.columns = df.columns.str.strip()
+        market_col = next((c for c in df.columns if "市場" in str(c)), None)
+        code_col   = next((c for c in df.columns if "コード" in str(c)), None)
+        if market_col is None or code_col is None:
+            raise ValueError("列が見つかりません: " + str(df.columns.tolist()))
+        prime_df = df[df[market_col].astype(str).str.contains("プライム", na=False)]
+        codes = prime_df[code_col].astype(str).str.zfill(4).tolist()
+        return [c + ".T" for c in codes if c.isdigit() and len(c) == 4]
+
+    try:
+        resp = requests.get(url_xls, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+        # openpyxl を優先（xlrd より互換性が高い）
+        try:
+            df = pd.read_excel(io.BytesIO(resp.content), engine="openpyxl")
+        except Exception:
+            df = pd.read_excel(io.BytesIO(resp.content), engine="xlrd")
+        tickers = parse_jpx_df(df)
+        print("  TOPIX(プライム): " + str(len(tickers)) + "銘柄")
+        return tickers
+    except Exception as e:
+        print("  TOPIX取得エラー: " + str(e))
+        return []
+
+# ─────────────────────────────────────────
+# データ取得
+# ─────────────────────────────────────────
+def download_data(tickers):
+    print("[2/5] 価格データ取得中（" + str(len(tickers)) + "銘柄）...")
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=PRICE_HISTORY_DAYS)
+
+    all_data = {}
+    batches = [tickers[i:i+BATCH_SIZE] for i in range(0, len(tickers), BATCH_SIZE)]
+
+    for i, batch in enumerate(batches):
+        print("  バッチ " + str(i+1) + "/" + str(len(batches)) + "...", end="\r")
+        try:
+            raw = yf.download(
+                batch,
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                auto_adjust=True,
+                progress=False,
+                group_by="ticker",
+                threads=True,
+            )
+            if len(batch) == 1:
+                ticker = batch[0]
+                if not raw.empty:
+                    all_data[ticker] = raw
+            else:
+                for ticker in batch:
+                    try:
+                        df = raw[ticker].dropna(how="all")
+                        if len(df) >= 50:
+                            all_data[ticker] = df
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("\n  バッチエラー: " + str(e))
+        time.sleep(0.5)
+
+    print("\n  データ取得完了: " + str(len(all_data)) + "銘柄")
+    return all_data
+
+# ─────────────────────────────────────────
+# ファンダメンタルデータ取得
+# ─────────────────────────────────────────
+def get_fundamental(ticker):
+    """yfinance で配当利回り・PBR・銘柄名を取得"""
+    try:
+        info = yf.Ticker(ticker).info
+        dividend_yield = info.get("dividendYield", None)
+        pbr = info.get("priceToBook", None)
+        if dividend_yield is not None:
+            # 0.1以下なら小数（例: 0.0598）→ ×100して%に変換
+            # 0.1より大きければすでに%単位（例: 0.94 = 0.94%）→ そのまま
+            if dividend_yield <= 0.1:
+                dividend_yield = dividend_yield * 100
+        # 銘柄名: shortNameを優先、なければlongName、先頭6文字
+        name = info.get("shortName", "") or info.get("longName", "") or ""
+        name = name[:6]
+        return dividend_yield, pbr, name
+    except Exception:
+        return None, None, ""
+
+# ─────────────────────────────────────────
+# PBR 過去1年最低値の計算
+# ─────────────────────────────────────────
+def get_pbr_history_min(ticker, current_pbr):
+    """
+    yfinance の quarterly balance sheet から BPS を計算し、
+    過去1年間の株価÷BPS で PBR 推移を求め最低値を返す。
+    BPS が取れない場合は current_pbr をそのまま使う。
+    """
+    try:
+        t = yf.Ticker(ticker)
+        bs = t.quarterly_balance_sheet
+        if bs is None or bs.empty:
+            return current_pbr
+
+        # BPS = 株主資本 / 発行済み株式数
+        equity_rows = [r for r in bs.index if "Stockholders" in str(r) or "stockholders" in str(r) or "Equity" in str(r)]
+        if not equity_rows:
+            return current_pbr
+        equity = bs.loc[equity_rows[0]]  # 直近
+
+        shares_info = t.info.get("sharesOutstanding", None)
+        if not shares_info or shares_info == 0:
+            return current_pbr
+
+        bps = float(equity.iloc[0]) / shares_info
+
+        # 過去2年の株価を取得して PBR 時系列を作成
+        hist = t.history(period=str(PBR_HISTORY_YEARS) + "y")
+        if hist.empty:
+            return current_pbr
+
+        pbr_series = hist["Close"] / bps
+        pbr_min = float(pbr_series.min())
+        return pbr_min if pbr_min > 0 else current_pbr
+    except Exception:
+        return current_pbr
+
+# ─────────────────────────────────────────
+# スクリーニング実行
+# ─────────────────────────────────────────
+def run_screen(all_data):
+    print("[3/5] ファンダメンタル取得＆スクリーニング中...")
+    results = []
+    total = len(all_data)
+
+    for idx, (ticker, df) in enumerate(all_data.items()):
+        print("  " + str(idx+1) + "/" + str(total) + " " + ticker + "          ", end="\r")
+
+        div_yield, pbr, name = get_fundamental(ticker)
+
+        # 配当利回り3%以上チェック
+        if div_yield is None or div_yield < DIVIDEND_YIELD_MIN:
+            continue
+        if pbr is None or pbr <= 0:
+            continue
+
+        # PBR 過去1年最低値を取得
+        pbr_1y_min = get_pbr_history_min(ticker, pbr)
+
+        # 条件: 現在のPBR < (過去1年最低PBR × 1.10)
+        pbr_threshold = pbr_1y_min * (1 + PBR_MARGIN)
+        if pbr >= pbr_threshold:
+            continue
+
+        # 株価情報
+        price = float(df["Close"].iloc[-1])
+
+        results.append({
+            "ticker": ticker,
+            "name": name,
+            "price": price,
+            "dividend_yield": round(div_yield, 2),
+            "pbr": round(pbr, 2),
+            "pbr_1y_min": round(pbr_1y_min, 2),
+            "pbr_threshold": round(pbr_threshold, 2),
+        })
+
+        time.sleep(0.2)  # API負荷軽減
+
+    results.sort(key=lambda x: x["dividend_yield"], reverse=True)
+    print("\n  通過銘柄: " + str(len(results)) + "銘柄")
+    return results
+
+# ─────────────────────────────────────────
+# 履歴管理
+# ─────────────────────────────────────────
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+def load_prev_tickers():
+    if os.path.exists(PREV_FILE):
+        with open(PREV_FILE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    return set()
+
+def save_prev_tickers(tickers):
+    with open(PREV_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(tickers), f, ensure_ascii=False, indent=2)
+
+def update_history(results, history):
+    today = datetime.today().strftime("%Y-%m-%d")
+    for r in results:
+        ticker = r["ticker"]
+        if ticker not in history:
+            history[ticker] = today
+            r["first_seen"] = today
+            r["is_new"] = True
+        else:
+            r["first_seen"] = history[ticker]
+            r["is_new"] = (history[ticker] == today)
+    save_history(history)
+    return results
+
+# ─────────────────────────────────────────
+# 銘柄名取得（yfinance shortName）
+# ─────────────────────────────────────────
+_name_cache = {}
+def get_company_name(ticker):
+    if ticker in _name_cache:
+        return _name_cache[ticker]
+    try:
+        info = yf.Ticker(ticker).info
+        name = info.get("shortName", "") or info.get("longName", "") or ticker
+        # 末尾の ".T" や英語表記を短縮
+        _name_cache[ticker] = name[:20]
+        return _name_cache[ticker]
+    except Exception:
+        return ticker
+
+# ─────────────────────────────────────────
+# HTMLレポート生成
+# ─────────────────────────────────────────
+def generate_html(results, output_path, removed_tickers=None):
+    date_str = datetime.today().strftime("%Y年%m月%d日")
+    count = len(results)
+
+    rows = ""
+    for r in results:
+        div = r["dividend_yield"]
+        if div >= 5.0:
+            div_color = "#22c55e"
+        elif div >= 4.0:
+            div_color = "#84cc16"
+        else:
+            div_color = "#f59e0b"
+
+        is_new = r.get("is_new", False)
+        first_seen = r.get("first_seen", "-")
+        new_badge = ' <span class="new-badge">NEW</span>' if is_new else ""
+        row_class = ' class="new-row"' if is_new else ""
+
+        code = r["ticker"].replace(".T", "")
+        yahoo_url = "https://finance.yahoo.co.jp/quote/" + r["ticker"]
+        pbr_diff_pct = round((r["pbr"] / r["pbr_1y_min"] - 1) * 100, 1)
+
+        name = r.get("name", "")
+
+        rows += """
+        <tr""" + row_class + """>
+          <td class="ticker"><a href=\"""" + yahoo_url + """\" target="_blank">""" + code + """</a>""" + new_badge + """</td>
+          <td class="name">""" + name + """</td>
+          <td style="color:""" + div_color + """; font-weight:bold;">""" + str(div) + """%</td>
+          <td>""" + "{:,.0f}".format(r["price"]) + """円</td>
+          <td>""" + str(r["pbr"]) + """x</td>
+          <td>""" + str(r["pbr_1y_min"]) + """x</td>
+          <td>""" + str(r["pbr_threshold"]) + """x</td>
+          <td class="pct" style="color:#f87171;">""" + str(pbr_diff_pct) + """%</td>
+          <td class="first-seen">""" + first_seen + """</td>
+        </tr>"""
+
+    html = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配当スクリーニング（東証プライム） - """ + date_str + """</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 16px; }
+  .badge {
+    display: inline-block;
+    background: #065f46;
+    color: #6ee7b7;
+    border-radius: 12px;
+    padding: 2px 12px;
+    font-size: 0.85rem;
+    margin-left: 8px;
+  }
+  .nav {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+  }
+  .nav a {
+    color: #60a5fa;
+    text-decoration: none;
+    background: #1e293b;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 0.8rem; color: #94a3b8; }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th {
+    background: #1e293b;
+    color: #94a3b8;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+  tbody tr:hover { background: #1e293b; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+  .ticker a { font-weight: bold; color: #34d399; font-size: 0.95rem; text-decoration: none; }
+  .ticker a:hover { text-decoration: underline; }
+  .name { color: #cbd5e1; font-size: 0.82rem; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+  .pct { color: #94a3b8; }
+  .first-seen { color: #64748b; font-size: 0.8rem; }
+  .new-badge {
+    display: inline-block;
+    background: #dc2626;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: bold;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .new-row { background: rgba(220, 38, 38, 0.08) !important; }
+  .new-row:hover { background: rgba(220, 38, 38, 0.15) !important; }
+  .cond-legend { margin-top: 20px; font-size: 0.78rem; color: #64748b; line-height: 1.8; }
+  .updated { text-align: right; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+  .removed-section { margin-top: 28px; border-top: 1px solid #1e293b; padding-top: 16px; }
+  .removed-title { font-size: 0.85rem; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }
+  .removed-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .removed-ticker {
+    background: #1e293b;
+    color: #f87171;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html">米国株 (Minervini)</a>
+    <a href="haitou.html" class="active">日本株 (配当)</a>
+  </nav>
+  <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
+  <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が過去""" + str(PBR_HISTORY_YEARS) + """年最低値+10%以内</p>
+  <div class="legend">
+    <span><span class="dot" style="background:#22c55e"></span>配当5%+</span>
+    <span><span class="dot" style="background:#84cc16"></span>配当4-5%</span>
+    <span><span class="dot" style="background:#f59e0b"></span>配当3-4%</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>コード</th>
+        <th>銘柄名</th>
+        <th>配当利回り</th>
+        <th>株価</th>
+        <th>現在PBR</th>
+        <th>2年最低PBR</th>
+        <th>閾値(最低+10%)</th>
+        <th>最低比</th>
+        <th>初回検出</th>
+      </tr>
+    </thead>
+    <tbody>""" + rows + """</tbody>
+  </table>
+  <div class="cond-legend">
+    条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; 過去""" + str(PBR_HISTORY_YEARS) + """年最低PBR × 1.10（バリュー圏に押し目）
+  </div>
+  <p class="updated">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M") + """</p>
+""" + ("""
+  <div class="removed-section">
+    <div class="removed-title">本日リストから除外された銘柄</div>
+    <div class="removed-list">""" + "".join(['<span class="removed-ticker">' + t.replace(".T","") + '</span>' for t in sorted(removed_tickers)]) + """</div>
+  </div>
+""" if removed_tickers else "") + """
+</body>
+</html>"""
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print("  レポート出力完了: " + output_path)
+
+# ─────────────────────────────────────────
+# GitHub Pages自動push
+# ─────────────────────────────────────────
+def push_to_github():
+    print("[5/5] GitHub Pagesに公開中...")
+    try:
+        today = datetime.today().strftime("%Y-%m-%d")
+        subprocess.run(["git", "-C", SCRIPT_DIR, "add", "haitou.html"], check=True)
+        subprocess.run(["git", "-C", SCRIPT_DIR, "commit", "-m", "update haitou report " + today], check=True)
+    except subprocess.CalledProcessError as e:
+        print("  commit失敗: " + str(e))
+        return
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", SCRIPT_DIR, "stash"], check=False)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase"], check=True)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "stash", "pop"], check=False)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
+            print("  公開完了: https://ichikon77.github.io/minervini/haitou.html")
+            return
+        except subprocess.CalledProcessError as e:
+            print("  push失敗（試行" + str(attempt) + "/5）: " + str(e))
+            time.sleep(10)
+    print("  push最終失敗")
+
+# ─────────────────────────────────────────
+# メイン
+# ─────────────────────────────────────────
+def main():
+    import time as _time
+    start_time = _time.time()
+    print("=" * 50)
+    print("  Japan Dividend Screener (Nikkei225 + TOPIX)")
+    print("=" * 50)
+
+    tickers = get_universe()
+    if not tickers:
+        print("ERROR: ユニバース取得失敗")
+        return
+
+    all_data = download_data(tickers)
+    results = run_screen(all_data)
+
+    print("[4/5] 履歴更新中...")
+    history = load_history()
+    results = update_history(results, history)
+    new_count = sum(1 for r in results if r.get("is_new"))
+    if new_count:
+        print("  NEW: " + str(new_count) + "銘柄が新規エントリー")
+
+    prev_tickers = load_prev_tickers()
+    current_tickers = set(r["ticker"] for r in results)
+    removed_tickers = prev_tickers - current_tickers
+    if removed_tickers:
+        print("  REMOVED: " + str(len(removed_tickers)) + "銘柄が除外 (" + ", ".join(sorted(removed_tickers)) + ")")
+    save_prev_tickers(current_tickers)
+
+    output_path = os.path.join(SCRIPT_DIR, "haitou.html")
+    generate_html(results, output_path, removed_tickers=removed_tickers)
+
+    push_to_github()
+
+    elapsed = _time.time() - start_time
+    print("=" * 50)
+    print("  完了: " + str(round(elapsed, 1)) + "秒")
+    print("  URL: https://ichikon77.github.io/minervini/haitou.html")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    main()
