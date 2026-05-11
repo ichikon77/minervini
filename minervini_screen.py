@@ -2,7 +2,7 @@
 Minervini Trend Template Screener
 ==================================
 条件1〜7 + RSレーティング(>=70)でS&P500+NASDAQ100を毎日スクリーニング
-出力: HTMLレポート (minervini_report.html)
+出力: HTMLレポート (minervini_report.html) + GitHub Pages自動push
 """
 
 import yfinance as yf
@@ -11,6 +11,7 @@ import numpy as np
 import requests
 import io
 import json
+import subprocess
 from datetime import datetime, timedelta
 import warnings
 import time
@@ -26,9 +27,10 @@ PRICE_HISTORY_DAYS = 400   # 取得する日数（200日MA計算のバッファ�
 BATCH_SIZE = 50            # yfinanceバッチ取得サイズ
 MA200_TREND_DAYS = 20      # 条件3: 何営業日前と比較するか
 
-# 履歴ファイル（スクリプトと同じフォルダに保存）
+# スクリプトと同じフォルダを基準にする
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE = os.path.join(SCRIPT_DIR, "minervini_history.json")
+PREV_FILE = os.path.join(SCRIPT_DIR, "minervini_prev.json")
 
 # ─────────────────────────────────────────
 # ユニバース取得
@@ -38,22 +40,19 @@ HEADERS = {
 }
 
 def get_sp500_tickers():
-    """WikipediaからS&P500構成銘柄を取得"""
     try:
         url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
         html = requests.get(url, headers=HEADERS, timeout=15).text
         tables = pd.read_html(io.StringIO(html))
         df = tables[0]
         tickers = df["Symbol"].tolist()
-        # BRK.B → BRK-B など yfinance形式に変換
         tickers = [t.replace(".", "-") for t in tickers]
         return tickers
     except Exception as e:
-        print(f"S&P500取得エラー: {e}")
+        print("S&P500取得エラー: " + str(e))
         return []
 
 def get_nasdaq100_tickers():
-    """WikipediaからNASDAQ100構成銘柄を取得"""
     try:
         url = "https://en.wikipedia.org/wiki/Nasdaq-100"
         html = requests.get(url, headers=HEADERS, timeout=15).text
@@ -67,23 +66,22 @@ def get_nasdaq100_tickers():
                 return tickers
         return []
     except Exception as e:
-        print(f"NASDAQ100取得エラー: {e}")
+        print("NASDAQ100取得エラー: " + str(e))
         return []
 
 def get_universe():
-    print("📋 ユニバース取得中...")
+    print("[1/5] ユニバース取得中...")
     sp500 = get_sp500_tickers()
     ndq100 = get_nasdaq100_tickers()
     universe = list(set(sp500 + ndq100))
-    print(f"  S&P500: {len(sp500)}銘柄 / NASDAQ100: {len(ndq100)}銘柄 / 合計(重複除く): {len(universe)}銘柄")
+    print("  S&P500: " + str(len(sp500)) + "銘柄 / NASDAQ100: " + str(len(ndq100)) + "銘柄 / 合計: " + str(len(universe)) + "銘柄")
     return universe
 
 # ─────────────────────────────────────────
 # データ取得
 # ─────────────────────────────────────────
 def download_data(tickers):
-    """yfinanceで一括ダウンロード"""
-    print(f"\n📥 価格データ取得中（{len(tickers)}銘柄）...")
+    print("[2/5] 価格データ取得中（" + str(len(tickers)) + "銘柄）...")
     end_date = datetime.today()
     start_date = end_date - timedelta(days=PRICE_HISTORY_DAYS)
 
@@ -91,7 +89,7 @@ def download_data(tickers):
     batches = [tickers[i:i+BATCH_SIZE] for i in range(0, len(tickers), BATCH_SIZE)]
 
     for i, batch in enumerate(batches):
-        print(f"  バッチ {i+1}/{len(batches)} ({len(batch)}銘柄)...", end="\r")
+        print("  バッチ " + str(i+1) + "/" + str(len(batches)) + "...", end="\r")
         try:
             raw = yf.download(
                 batch,
@@ -115,32 +113,25 @@ def download_data(tickers):
                     except Exception:
                         pass
         except Exception as e:
-            print(f"\n  バッチエラー: {e}")
+            print("\n  バッチエラー: " + str(e))
         time.sleep(0.3)
 
-    print(f"\n  データ取得完了: {len(all_data)}銘柄")
+    print("\n  データ取得完了: " + str(len(all_data)) + "銘柄")
     return all_data
 
 # ─────────────────────────────────────────
 # RS レーティング計算
 # ─────────────────────────────────────────
 def calc_rs_rating(all_data):
-    """
-    IBD式RSレーティングの近似計算
-    過去12ヶ月のパフォーマンスを計算（直近3ヶ月を2倍ウェイト）
-    全銘柄のパーセンタイルで1〜99にスケール
-    """
-    print("\n📊 RSレーティング計算中...")
+    print("[3/5] RSレーティング計算中...")
     scores = {}
     for ticker, df in all_data.items():
         try:
             close = df["Close"]
             if len(close) < 252:
                 continue
-            # 直近3ヶ月（63営業日）と12ヶ月（252営業日）パフォーマンス
             perf_3m = (close.iloc[-1] / close.iloc[-63] - 1) * 100
             perf_12m = (close.iloc[-1] / close.iloc[-252] - 1) * 100
-            # 直近3ヶ月を2倍ウェイト（IBDの近似）
             score = (perf_3m * 2 + perf_12m) / 3
             scores[ticker] = score
         except Exception:
@@ -150,36 +141,27 @@ def calc_rs_rating(all_data):
         return {}
 
     score_series = pd.Series(scores)
-    # パーセンタイルランクに変換（1〜99）
     rs_ratings = {}
     for ticker, score in scores.items():
         percentile = (score_series < score).sum() / len(score_series) * 98 + 1
         rs_ratings[ticker] = round(percentile, 1)
 
-    print(f"  RS計算完了: {len(rs_ratings)}銘柄")
+    print("  RS計算完了: " + str(len(rs_ratings)) + "銘柄")
     return rs_ratings
 
 # ─────────────────────────────────────────
 # トレンドテンプレート判定
 # ─────────────────────────────────────────
 def check_trend_template(ticker, df):
-    """
-    ミネルヴィニのトレンドテンプレート条件1〜7を判定
-    Returns: (passed: bool, details: dict)
-    """
     close = df["Close"]
     if len(close) < 252:
         return False, {}
 
     price = close.iloc[-1]
-
-    # 各移動平均
     ma50  = close.rolling(50).mean().iloc[-1]
     ma150 = close.rolling(150).mean().iloc[-1]
     ma200 = close.rolling(200).mean().iloc[-1]
     ma200_20d_ago = close.rolling(200).mean().iloc[-MA200_TREND_DAYS - 1]
-
-    # 52週高値・安値
     high_52w = close.iloc[-252:].max()
     low_52w  = close.iloc[-252:].min()
 
@@ -211,43 +193,38 @@ def check_trend_template(ticker, df):
 # 履歴管理
 # ─────────────────────────────────────────
 def load_history():
-    """
-    履歴ファイルを読み込む
-    形式: { "AAPL": "2025-05-01", "MSFT": "2025-04-20", ... }
-    キー=銘柄コード、値=初回通過日
-    """
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 def save_history(history):
-    """履歴ファイルを保存"""
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
-def update_history(results, history):
-    """
-    今回の通過銘柄で履歴を更新し、各銘柄にNEWフラグと初回日を付与
-    """
-    today = datetime.today().strftime("%Y-%m-%d")
-    # 前回までの通過銘柄セット（今日より前に記録されたもの）
-    prev_tickers = set(history.keys())
+def load_prev_tickers():
+    """前回のリスト銘柄を読み込む"""
+    if os.path.exists(PREV_FILE):
+        with open(PREV_FILE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    return set()
 
+def save_prev_tickers(tickers):
+    """今回のリスト銘柄を保存（次回の比較用）"""
+    with open(PREV_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(tickers), f, ensure_ascii=False, indent=2)
+
+def update_history(results, history):
+    today = datetime.today().strftime("%Y-%m-%d")
     for r in results:
         ticker = r["ticker"]
         if ticker not in history:
-            # 初めて通過 → 今日の日付を記録
             history[ticker] = today
             r["first_seen"] = today
             r["is_new"] = True
         else:
             r["first_seen"] = history[ticker]
-            # 前回実行時になかった銘柄 = NEW（初回日が今日）
             r["is_new"] = (history[ticker] == today)
-
-    # 今回通過しなかった銘柄は履歴から削除しない（過去の記録として残す）
-    # ただし、今回の通過銘柄セットを返して表示に使う
     save_history(history)
     return results
 
@@ -255,13 +232,13 @@ def update_history(results, history):
 # スクリーニング実行
 # ─────────────────────────────────────────
 def run_screen(all_data, rs_ratings):
-    print("\n🔍 スクリーニング実行中...")
+    print("[4/5] スクリーニング実行中...")
     results = []
 
     for ticker, df in all_data.items():
         rs = rs_ratings.get(ticker, 0)
         if rs < RS_THRESHOLD:
-            continue  # RSフィルター
+            continue
 
         passed, details = check_trend_template(ticker, df)
         if passed:
@@ -271,15 +248,14 @@ def run_screen(all_data, rs_ratings):
                 **details,
             })
 
-    # RS降順ソート
     results.sort(key=lambda x: x["rs_rating"], reverse=True)
-    print(f"  通過銘柄: {len(results)}銘柄")
+    print("  通過銘柄: " + str(len(results)) + "銘柄")
     return results
 
 # ─────────────────────────────────────────
 # HTMLレポート生成
 # ─────────────────────────────────────────
-def generate_html(results, output_path):
+def generate_html(results, output_path, removed_tickers=None):
     date_str = datetime.today().strftime("%Y年%m月%d日")
     count = len(results)
 
@@ -294,46 +270,46 @@ def generate_html(results, output_path):
             rs_color = "#f59e0b"
 
         def c(v):
-            return "✅" if v else "❌"
+            return "OK" if v else "NG"
 
         is_new = r.get("is_new", False)
         first_seen = r.get("first_seen", "-")
         new_badge = ' <span class="new-badge">NEW</span>' if is_new else ""
         row_class = ' class="new-row"' if is_new else ""
 
-        rows += f"""
-        <tr{row_class}>
-          <td class="ticker">{r['ticker']}{new_badge}</td>
-          <td style="color:{rs_color}; font-weight:bold;">{rs}</td>
-          <td>${r['price']:,.2f}</td>
-          <td>${r['ma50']:,.2f}</td>
-          <td>${r['ma150']:,.2f}</td>
-          <td>${r['ma200']:,.2f}</td>
-          <td>${r['low_52w']:,.2f}</td>
-          <td>${r['high_52w']:,.2f}</td>
-          <td class="pct">+{r['from_52w_low_pct']:.1f}%</td>
-          <td class="pct">{r['from_52w_high_pct']:.1f}%</td>
-          <td>{c(r['cond1'])}{c(r['cond2'])}{c(r['cond3'])}{c(r['cond4'])}{c(r['cond5'])}{c(r['cond6'])}{c(r['cond7'])}</td>
-          <td class="first-seen">{first_seen}</td>
+        rows += """
+        <tr""" + row_class + """>
+          <td class="ticker">""" + r['ticker'] + new_badge + """</td>
+          <td style="color:""" + rs_color + """; font-weight:bold;">""" + str(rs) + """</td>
+          <td>$""" + "{:,.2f}".format(r['price']) + """</td>
+          <td>$""" + "{:,.2f}".format(r['ma50']) + """</td>
+          <td>$""" + "{:,.2f}".format(r['ma150']) + """</td>
+          <td>$""" + "{:,.2f}".format(r['ma200']) + """</td>
+          <td>$""" + "{:,.2f}".format(r['low_52w']) + """</td>
+          <td>$""" + "{:,.2f}".format(r['high_52w']) + """</td>
+          <td class="pct">+""" + "{:.1f}".format(r['from_52w_low_pct']) + """%</td>
+          <td class="pct">""" + "{:.1f}".format(r['from_52w_high_pct']) + """%</td>
+          <td>""" + c(r['cond1']) + c(r['cond2']) + c(r['cond3']) + c(r['cond4']) + c(r['cond5']) + c(r['cond6']) + c(r['cond7']) + """</td>
+          <td class="first-seen">""" + first_seen + """</td>
         </tr>"""
 
-    html = f"""<!DOCTYPE html>
+    html = """<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Minervini スクリーニング - {date_str}</title>
+<title>Minervini Screening - """ + date_str + """</title>
 <style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #0f172a;
     color: #e2e8f0;
     padding: 24px;
-  }}
-  h1 {{ font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }}
-  .subtitle {{ color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }}
-  .badge {{
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .badge {
     display: inline-block;
     background: #1e40af;
     color: #bfdbfe;
@@ -341,14 +317,12 @@ def generate_html(results, output_path):
     padding: 2px 12px;
     font-size: 0.85rem;
     margin-left: 8px;
-  }}
-  .legend {{
-    display: flex; gap: 16px; margin-bottom: 16px; font-size: 0.8rem; color: #94a3b8;
-  }}
-  .legend span {{ display: flex; align-items: center; gap: 4px; }}
-  .dot {{ width: 10px; height: 10px; border-radius: 50%; display: inline-block; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.85rem; }}
-  thead th {{
+  }
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 0.8rem; color: #94a3b8; }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th {
     background: #1e293b;
     color: #94a3b8;
     padding: 10px 12px;
@@ -357,17 +331,13 @@ def generate_html(results, output_path):
     position: sticky;
     top: 0;
     white-space: nowrap;
-  }}
-  tbody tr:hover {{ background: #1e293b; }}
-  tbody td {{
-    padding: 9px 12px;
-    border-bottom: 1px solid #1e293b;
-    white-space: nowrap;
-  }}
-  .ticker {{ font-weight: bold; color: #60a5fa; font-size: 0.95rem; }}
-  .pct {{ color: #94a3b8; }}
-  .first-seen {{ color: #64748b; font-size: 0.8rem; }}
-  .new-badge {{
+  }
+  tbody tr:hover { background: #1e293b; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+  .ticker { font-weight: bold; color: #60a5fa; font-size: 0.95rem; }
+  .pct { color: #94a3b8; }
+  .first-seen { color: #64748b; font-size: 0.8rem; }
+  .new-badge {
     display: inline-block;
     background: #dc2626;
     color: white;
@@ -377,41 +347,110 @@ def generate_html(results, output_path):
     border-radius: 4px;
     margin-left: 6px;
     vertical-align: middle;
-    letter-spacing: 0.05em;
-  }}
-  .new-row {{ background: rgba(220, 38, 38, 0.08) !important; }}
-  .new-row:hover {{ background: rgba(220, 38, 38, 0.15) !important; }}
-  .cond-legend {{ margin-top: 20px; font-size: 0.78rem; color: #64748b; line-height: 1.8; }}
-  .updated {{ text-align: right; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
+  }
+  .new-row { background: rgba(220, 38, 38, 0.08) !important; }
+  .new-row:hover { background: rgba(220, 38, 38, 0.15) !important; }
+  .cond-legend { margin-top: 20px; font-size: 0.78rem; color: #64748b; line-height: 1.8; }
+  .nav {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+  }
+  .nav a {
+    color: #60a5fa;
+    text-decoration: none;
+    background: #1e293b;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .updated { text-align: right; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+  .removed-section { margin-top: 28px; border-top: 1px solid #1e293b; padding-top: 16px; }
+  .removed-title { font-size: 0.85rem; color: #94a3b8; margin-bottom: 10px; font-weight: 600; }
+  .removed-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .removed-ticker {
+    background: #1e293b;
+    color: #f87171;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
-  <h1>📈 Minervini トレンドテンプレート スクリーニング <span class="badge">{count}銘柄通過</span></h1>
-  <p class="subtitle">{date_str} ｜ ユニバース: S&P500 + NASDAQ100 ｜ RSレーティング ≥ {RS_THRESHOLD}</p>
+  <nav class="nav">
+    <a href="index.html" class="active">米国株 (Minervini)</a>
+    <a href="haitou.html">日本株 (配当)</a>
+  </nav>
+  <h1>Minervini Trend Template Screening <span class="badge">""" + str(count) + """ passed</span></h1>
+  <p class="subtitle">""" + date_str + """ | S&P500 + NASDAQ100 | RS >= """ + str(RS_THRESHOLD) + """</p>
   <div class="legend">
-    <span><span class="dot" style="background:#22c55e"></span>RS 90以上</span>
-    <span><span class="dot" style="background:#84cc16"></span>RS 80〜89</span>
-    <span><span class="dot" style="background:#f59e0b"></span>RS 70〜79</span>
+    <span><span class="dot" style="background:#22c55e"></span>RS 90+</span>
+    <span><span class="dot" style="background:#84cc16"></span>RS 80-89</span>
+    <span><span class="dot" style="background:#f59e0b"></span>RS 70-79</span>
   </div>
   <table>
     <thead>
       <tr>
-        <th>銘柄</th><th>RS</th><th>現在値</th><th>MA50</th><th>MA150</th><th>MA200</th>
-        <th>52W安値</th><th>52W高値</th><th>安値比</th><th>高値比</th><th>条件 1〜7</th><th>初回通過日</th>
+        <th>Ticker</th><th>RS</th><th>Price</th><th>MA50</th><th>MA150</th><th>MA200</th>
+        <th>52W Low</th><th>52W High</th><th>vs Low</th><th>vs High</th><th>Cond 1-7</th><th>First Seen</th>
       </tr>
     </thead>
-    <tbody>{rows}</tbody>
+    <tbody>""" + rows + """</tbody>
   </table>
   <div class="cond-legend">
-    条件チェック順: ①株価>MA150&MA200 ②MA150>MA200 ③MA200上昇中(20営業日比) ④MA50>MA150&MA200 ⑤株価>MA50 ⑥52W安値+30%以上 ⑦52W高値の75%以上
+    Cond: 1=Price>MA150&MA200 2=MA150>MA200 3=MA200 uptrend 4=MA50>MA150&MA200 5=Price>MA50 6=+30% from 52W Low 7=within 25% of 52W High
   </div>
-  <p class="updated">生成: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>
+  <p class="updated">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M") + """</p>
+""" + ("""
+  <div class="removed-section">
+    <div class="removed-title">本日リストから除外された銘柄</div>
+    <div class="removed-list">""" + "".join(['<span class="removed-ticker">' + t + '</span>' for t in sorted(removed_tickers)]) + """</div>
+  </div>
+""" if removed_tickers else "") + """
 </body>
 </html>"""
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"\n✅ レポート出力: {output_path}")
+    index_path = os.path.join(os.path.dirname(output_path), "index.html")
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print("  レポート出力完了")
+
+# ─────────────────────────────────────────
+# GitHub Pages自動push
+# ─────────────────────────────────────────
+def push_to_github():
+    print("[5/5] GitHub Pagesに公開中...")
+    today = datetime.today().strftime("%Y-%m-%d")
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add", "index.html", "minervini_report.html"], check=True)
+    result = subprocess.run(["git", "-C", SCRIPT_DIR, "commit", "-m", "update report " + today], capture_output=True)
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            print("  変更なし（既にコミット済み）、pushのみ実行")
+        else:
+            print("  commit失敗: " + msg)
+            return
+    # pushはリトライ付き（他スクリプトとの衝突対策）
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", SCRIPT_DIR, "stash"], check=False)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase"], check=True)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "stash", "pop"], check=False)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
+            print("  公開完了: https://ichikon77.github.io/minervini/")
+            return
+        except subprocess.CalledProcessError as e:
+            print("  push失敗（試行" + str(attempt) + "/5）: " + str(e))
+            time.sleep(10)
+    print("  push最終失敗")
 
 # ─────────────────────────────────────────
 # メイン
@@ -419,31 +458,42 @@ def generate_html(results, output_path):
 def main():
     start_time = time.time()
     print("=" * 50)
-    print("  Minervini トレンドテンプレート スクリーナー")
+    print("  Minervini Trend Template Screener")
     print("=" * 50)
 
     tickers = get_universe()
     if not tickers:
-        print("❌ ユニバース取得失敗")
+        print("ERROR: ユニバース取得失敗")
         return
 
     all_data = download_data(tickers)
     rs_ratings = calc_rs_rating(all_data)
     results = run_screen(all_data, rs_ratings)
 
-    # 履歴と照合してNEWフラグ・初回日を付与
     history = load_history()
     results = update_history(results, history)
     new_count = sum(1 for r in results if r.get("is_new"))
     if new_count:
-        print(f"  🆕 本日の新規エントリー: {new_count}銘柄")
+        print("  NEW: " + str(new_count) + "銘柄が新規エントリー")
+
+    # 前回リストとの差分（除外銘柄）を計算
+    prev_tickers = load_prev_tickers()
+    current_tickers = set(r["ticker"] for r in results)
+    removed_tickers = prev_tickers - current_tickers
+    if removed_tickers:
+        print("  REMOVED: " + str(len(removed_tickers)) + "銘柄が除外 (" + ", ".join(sorted(removed_tickers)) + ")")
+    save_prev_tickers(current_tickers)
 
     output_path = os.path.join(SCRIPT_DIR, "minervini_report.html")
-    generate_html(results, output_path)
+    generate_html(results, output_path, removed_tickers=removed_tickers)
+
+    push_to_github()
 
     elapsed = time.time() - start_time
-    print(f"\n⏱️  総処理時間: {elapsed:.1f}秒")
-    print(f"📄 レポートを開いてください: {output_path}")
+    print("=" * 50)
+    print("  完了: " + str(round(elapsed, 1)) + "秒")
+    print("  URL: https://ichikon77.github.io/minervini/")
+    print("=" * 50)
 
 if __name__ == "__main__":
     main()

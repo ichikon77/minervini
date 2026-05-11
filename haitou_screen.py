@@ -494,13 +494,16 @@ def generate_html(results, output_path, removed_tickers=None):
 # ─────────────────────────────────────────
 def push_to_github():
     print("[5/5] GitHub Pagesに公開中...")
-    try:
-        today = datetime.today().strftime("%Y-%m-%d")
-        subprocess.run(["git", "-C", SCRIPT_DIR, "add", "haitou.html"], check=True)
-        subprocess.run(["git", "-C", SCRIPT_DIR, "commit", "-m", "update haitou report " + today], check=True)
-    except subprocess.CalledProcessError as e:
-        print("  commit失敗: " + str(e))
-        return
+    today = datetime.today().strftime("%Y-%m-%d")
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add", "haitou.html"], check=True)
+    result = subprocess.run(["git", "-C", SCRIPT_DIR, "commit", "-m", "update haitou report " + today], capture_output=True)
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            print("  変更なし（既にコミット済み）、pushのみ実行")
+        else:
+            print("  commit失敗: " + msg)
+            return
     for attempt in range(1, 6):
         try:
             subprocess.run(["git", "-C", SCRIPT_DIR, "stash"], check=False)
