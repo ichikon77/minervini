@@ -2,6 +2,9 @@
 *_history.json
 *_prev.json
 
+# 裁定取引の蓄積データはバックアップのためGitHubにもpushする（除外の除外）
+!saitei_history.json
+
 # ログ
 *.txt
 
