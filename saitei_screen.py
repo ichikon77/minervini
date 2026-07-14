@@ -261,9 +261,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html" class="active">裁定取引</a>
   </nav>
-  <h1>裁定取引に係る現物ポジション
-    <span class="badge">{count} 営業日</span>
-  </h1>
+  <h1>裁定取引に係る現物ポジション</h1>
   <p class="subtitle">最新: {latest_date} | 出所: 東京証券取引所「裁定取引の状況」 | 単位: 千株</p>
   <div class="table-wrap">
   <table>
@@ -282,7 +280,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・「２．裁定取引に係る現物ポジション」の売り/買いポジション株数の合計（当限＋翌限以降）。<br>
     ・JPXは毎営業日16時頃に前々営業日分を公表。<br>
-    ・<a href="{jpx_url}" style="color:#60a5fa">JPX 裁定取引ページ</a>
+    ・<a href="{jpx_url}" style="color:#60a5fa">JPX 裁定取引ページ</a><br>
+    ・<a href="https://gendai.media/articles/-/158923?imp=0" style="color:#60a5fa">清原氏インタビュー記事</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
