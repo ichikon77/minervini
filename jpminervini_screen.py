@@ -813,6 +813,7 @@ def generate_html(results, output_path, removed_tickers=None):
 </style>
 </head>
 <body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;">🐶 かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
     <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html">日本株 (配当)</a>

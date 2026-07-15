@@ -469,6 +469,7 @@ def generate_html(results, output_path, removed_tickers=None):
 </style>
 </head>
 <body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;">🐶 かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
     <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html" class="active">日本株 (配当)</a>
@@ -600,4 +601,11 @@ def main():
 
     push_to_github()
 
-    elapsed = _time.t
+    elapsed = _time.time() - start_time
+    print("=" * 50)
+    print("  完了: " + str(round(elapsed, 1)) + "秒")
+    print("  URL: https://ichikon77.github.io/minervini/haitou.html")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    main()

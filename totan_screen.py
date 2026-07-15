@@ -283,6 +283,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;">🐶 かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
     <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html">日本株 (配当)</a>
@@ -291,7 +292,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="totan.html" class="active">日銀利上げ確率</a>
   </nav>
   <h1>日銀会合ごとの利上げ織り込み比率</h1>
-  <p class="subtitle">最新: {latest_date} | 出所: 東短リサーチ/東短ICAP（日銀会合OIS気配より） | 単位: %</p>
+  <p class="subtitle">最新: {latest_date} | 最終更新: {updated} | 出所: 東短リサーチ/東短ICAP（日銀会合OIS気配より） | 単位: %</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -330,7 +331,8 @@ def fmt_pct(v):
 
 
 def generate_html(hist):
-    meetings = sorted({m for rec in hist.values() for m in rec}, key=meeting_sort_key)
+    # 新しい会合ほど左に表示（降順）。新会合が出たら左端に追加される
+    meetings = sorted({m for rec in hist.values() for m in rec}, key=meeting_sort_key, reverse=True)
     dates = sorted(hist.keys(), reverse=True)
 
     header_cells = "\n".join(f'        <th>{m}会合</th>' for m in meetings)
