@@ -247,8 +247,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   td:first-child {{ text-align: left; color: #94a3b8; }}
   tr:hover td {{ background: #16213a; }}
-  td.sell {{ color: #f87171; }}
-  td.buy {{ color: #4ade80; }}
+  td.sell {{ color: #b48a8a; }}          /* 売り: 落ち着いたローズグレー */
+  td.buy {{ color: #4ade80; }}           /* 買い: 通常は緑 */
+  td.buy-warn {{ color: #f87171; font-weight: bold; }}  /* 買い100万千株超: 赤太字 */
   .latest-row td {{ background: rgba(30,64,175,0.18); font-weight: bold; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.8; }}
@@ -304,10 +305,12 @@ def generate_html(hist):
         rec = hist[d]
         cls = ' class="latest-row"' if i == 0 else ""
         dd = d.replace("-", "/")
+        buy = rec.get("買い_合計")
+        buy_cls = "buy-warn" if (buy is not None and buy > 1_000_000) else "buy"
         rows.append(
             f'      <tr{cls}><td>{dd}</td>'
             f'<td class="sell">{fmt_num(rec.get("売り_合計"))}</td>'
-            f'<td class="buy">{fmt_num(rec.get("買い_合計"))}</td></tr>'
+            f'<td class="{buy_cls}">{fmt_num(buy)}</td></tr>'
         )
     html = HTML_TEMPLATE.format(
         latest_date=dates[0].replace("-", "/") if dates else "-",
