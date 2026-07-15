@@ -335,7 +335,7 @@ def get_company_name(ticker):
 # HTMLレポート生成
 # ─────────────────────────────────────────
 def generate_html(results, output_path, removed_tickers=None):
-    date_str = datetime.today().strftime("%Y年%m月%d日")
+    date_str = "最終更新: " + datetime.today().strftime("%Y-%m-%d %H:%M")
     count = len(results)
 
     rows = ""
@@ -469,7 +469,7 @@ def generate_html(results, output_path, removed_tickers=None):
 </style>
 </head>
 <body>
-  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;">🐶 かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="15" height="15" viewBox="0 0 32 32" style="vertical-align:-2px; margin-right:3px"><polygon points="3,1 13,9 1,15" fill="#262626"/><polygon points="29,1 19,9 31,15" fill="#262626"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="11" cy="13" r="1.8" fill="#c98f52"/><circle cx="21" cy="13" r="1.8" fill="#c98f52"/><circle cx="11.3" cy="16.5" r="1.5" fill="#0a0a0a"/><circle cx="20.7" cy="16.5" r="1.5" fill="#0a0a0a"/><circle cx="11.8" cy="16" r="0.5" fill="#e2e8f0"/><circle cx="21.2" cy="16" r="0.5" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21.5" rx="2" ry="1.4" fill="#1a1a1a"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
     <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html" class="active">日本株 (配当)</a>
