@@ -818,6 +818,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="haitou.html">日本株 (配当)</a>
     <a href="jpminervini.html" class="active">日本株 (Minervini)</a>
     <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
   </nav>
   <h1>Japan Minervini Screening <span class="badge">{count} passed</span></h1>
   <p class="subtitle">{date} | TOPIXプライム | RS >= {rs_th}（TOPIXプライム全銘柄ベース）</p>

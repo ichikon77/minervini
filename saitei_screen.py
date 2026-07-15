@@ -260,6 +260,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="haitou.html">日本株 (配当)</a>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html" class="active">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
   </nav>
   <h1>裁定取引に係る現物ポジション</h1>
   <p class="subtitle">最新: {latest_date} | 出所: 東京証券取引所「裁定取引の状況」 | 単位: 千株</p>

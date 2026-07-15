@@ -874,6 +874,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="haitou.html">日本株 (配当)</a>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
   </nav>
   <h1>Minervini Trend Template Screening
     <span class="badge">{count} passed</span>

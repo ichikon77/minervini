@@ -474,6 +474,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="haitou.html" class="active">日本株 (配当)</a>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が閾値以内 かつ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上</p>
@@ -599,11 +600,4 @@ def main():
 
     push_to_github()
 
-    elapsed = _time.time() - start_time
-    print("=" * 50)
-    print("  完了: " + str(round(elapsed, 1)) + "秒")
-    print("  URL: https://ichikon77.github.io/minervini/haitou.html")
-    print("=" * 50)
-
-if __name__ == "__main__":
-    main()
+    elapsed = _time.t
