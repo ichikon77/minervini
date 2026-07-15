@@ -103,11 +103,11 @@ def download_data(tickers):
             if len(batch) == 1:
                 ticker = batch[0]
                 if not raw.empty:
-                    all_data[ticker] = raw
+                    all_data[ticker] = raw.dropna(subset=["Close"])
             else:
                 for ticker in batch:
                     try:
-                        df = raw[ticker].dropna()
+                        df = raw[ticker].dropna(subset=["Close"])
                         if len(df) >= 210:
                             all_data[ticker] = df
                     except Exception:
@@ -387,6 +387,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="index.html" class="active">米国株 (Minervini)</a>
     <a href="haitou.html">日本株 (配当)</a>
     <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="minervini_report_v2.html">米国株 v2 (押し目分析)</a>
   </nav>
   <h1>Minervini Trend Template Screening <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | S&P500 + NASDAQ100 | RS >= """ + str(RS_THRESHOLD) + """</p>

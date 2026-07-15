@@ -24,7 +24,8 @@ warnings.filterwarnings("ignore")
 # 設定
 # ─────────────────────────────────────────
 DIVIDEND_YIELD_MIN = 3.0        # 配当利回り閾値 (%)
-PBR_MARGIN = 0.10               # 最低PBR + 10% 以内
+MARKET_CAP_MIN_OKUYEN = 500     # 時価総額フィルター（億円）
+PBR_THRESHOLD_RATIO = 0.25      # 閾値係数: (2年最高-最低) × ratio + 最低
 PRICE_HISTORY_DAYS = 400        # 取得日数（価格データ用バッファ込み）
 PBR_HISTORY_YEARS = 2           # PBR最低値の参照期間（年）
 BATCH_SIZE = 50                 # yfinanceバッチサイズ
@@ -138,11 +139,11 @@ def download_data(tickers):
             if len(batch) == 1:
                 ticker = batch[0]
                 if not raw.empty:
-                    all_data[ticker] = raw
+                    all_data[ticker] = raw.dropna(subset=["Close"])
             else:
                 for ticker in batch:
                     try:
-                        df = raw[ticker].dropna(how="all")
+                        df = raw[ticker].dropna(subset=["Close"])
                         if len(df) >= 50:
                             all_data[ticker] = df
                     except Exception:
@@ -158,7 +159,7 @@ def download_data(tickers):
 # ファンダメンタルデータ取得
 # ─────────────────────────────────────────
 def get_fundamental(ticker):
-    """yfinance で配当利回り・PBR・銘柄名を取得"""
+    """yfinance で配当利回り・PBR・銘柄名・時価総額を取得"""
     try:
         info = yf.Ticker(ticker).info
         dividend_yield = info.get("dividendYield", None)
@@ -171,47 +172,52 @@ def get_fundamental(ticker):
         # 銘柄名: shortNameを優先、なければlongName、先頭6文字
         name = info.get("shortName", "") or info.get("longName", "") or ""
         name = name[:6]
-        return dividend_yield, pbr, name
+        # 時価総額（円）
+        market_cap = info.get("marketCap", None)
+        return dividend_yield, pbr, name, market_cap
     except Exception:
-        return None, None, ""
+        return None, None, "", None
 
 # ─────────────────────────────────────────
 # PBR 過去1年最低値の計算
 # ─────────────────────────────────────────
-def get_pbr_history_min(ticker, current_pbr):
+def get_pbr_history_minmax(ticker, current_pbr):
     """
     yfinance の quarterly balance sheet から BPS を計算し、
-    過去1年間の株価÷BPS で PBR 推移を求め最低値を返す。
+    過去2年間の株価÷BPS で PBR 推移を求め最低値・最高値を返す。
     BPS が取れない場合は current_pbr をそのまま使う。
     """
     try:
         t = yf.Ticker(ticker)
         bs = t.quarterly_balance_sheet
         if bs is None or bs.empty:
-            return current_pbr
+            return current_pbr, current_pbr
 
         # BPS = 株主資本 / 発行済み株式数
         equity_rows = [r for r in bs.index if "Stockholders" in str(r) or "stockholders" in str(r) or "Equity" in str(r)]
         if not equity_rows:
-            return current_pbr
+            return current_pbr, current_pbr
         equity = bs.loc[equity_rows[0]]  # 直近
 
         shares_info = t.info.get("sharesOutstanding", None)
         if not shares_info or shares_info == 0:
-            return current_pbr
+            return current_pbr, current_pbr
 
         bps = float(equity.iloc[0]) / shares_info
 
         # 過去2年の株価を取得して PBR 時系列を作成
         hist = t.history(period=str(PBR_HISTORY_YEARS) + "y")
         if hist.empty:
-            return current_pbr
+            return current_pbr, current_pbr
 
         pbr_series = hist["Close"] / bps
         pbr_min = float(pbr_series.min())
-        return pbr_min if pbr_min > 0 else current_pbr
+        pbr_max = float(pbr_series.max())
+        if pbr_min <= 0:
+            return current_pbr, current_pbr
+        return pbr_min, pbr_max
     except Exception:
-        return current_pbr
+        return current_pbr, current_pbr
 
 # ─────────────────────────────────────────
 # スクリーニング実行
@@ -224,7 +230,7 @@ def run_screen(all_data):
     for idx, (ticker, df) in enumerate(all_data.items()):
         print("  " + str(idx+1) + "/" + str(total) + " " + ticker + "          ", end="\r")
 
-        div_yield, pbr, name = get_fundamental(ticker)
+        div_yield, pbr, name, market_cap = get_fundamental(ticker)
 
         # 配当利回り3%以上チェック
         if div_yield is None or div_yield < DIVIDEND_YIELD_MIN:
@@ -232,25 +238,38 @@ def run_screen(all_data):
         if pbr is None or pbr <= 0:
             continue
 
-        # PBR 過去1年最低値を取得
-        pbr_1y_min = get_pbr_history_min(ticker, pbr)
+        # PBR 過去2年最低値・最高値を取得
+        pbr_1y_min, pbr_1y_max = get_pbr_history_minmax(ticker, pbr)
 
-        # 条件: 現在のPBR < (過去1年最低PBR × 1.10)
-        pbr_threshold = pbr_1y_min * (1 + PBR_MARGIN)
+        # 閾値: (2年最高PBR - 2年最低PBR) × PBR_THRESHOLD_RATIO + 2年最低PBR
+        pbr_threshold = (pbr_1y_max - pbr_1y_min) * PBR_THRESHOLD_RATIO + pbr_1y_min
         if pbr >= pbr_threshold:
             continue
 
         # 株価情報
         price = float(df["Close"].iloc[-1])
 
+        # 時価総額（億円）
+        market_cap_oku = round(market_cap / 1e8) if market_cap else None
+
+        # 時価総額フィルター
+        if market_cap_oku is None or market_cap_oku < MARKET_CAP_MIN_OKUYEN:
+            continue
+
+        pbr_range = pbr_1y_max - pbr_1y_min
+        zone_pct = round((pbr - pbr_1y_min) / pbr_range * 100, 1) if pbr_range > 0 else None
+
         results.append({
             "ticker": ticker,
             "name": name,
+            "market_cap_oku": market_cap_oku,
             "price": price,
             "dividend_yield": round(div_yield, 2),
             "pbr": round(pbr, 2),
             "pbr_1y_min": round(pbr_1y_min, 2),
+            "pbr_1y_max": round(pbr_1y_max, 2),
             "pbr_threshold": round(pbr_threshold, 2),
+            "zone_pct": zone_pct,
         })
 
         time.sleep(0.2)  # API負荷軽減
@@ -339,16 +358,21 @@ def generate_html(results, output_path, removed_tickers=None):
         pbr_diff_pct = round((r["pbr"] / r["pbr_1y_min"] - 1) * 100, 1)
 
         name = r.get("name", "")
+        market_cap_oku = r.get("market_cap_oku", None)
+        market_cap_str = "{:,}億円".format(market_cap_oku) if market_cap_oku else "-"
 
         rows += """
         <tr""" + row_class + """>
           <td class="ticker"><a href=\"""" + yahoo_url + """\" target="_blank">""" + code + """</a>""" + new_badge + """</td>
           <td class="name">""" + name + """</td>
+          <td style="color:#94a3b8; text-align:right;">""" + market_cap_str + """</td>
           <td style="color:""" + div_color + """; font-weight:bold;">""" + str(div) + """%</td>
           <td>""" + "{:,.0f}".format(r["price"]) + """円</td>
           <td>""" + str(r["pbr"]) + """x</td>
           <td>""" + str(r["pbr_1y_min"]) + """x</td>
+          <td>""" + str(r["pbr_1y_max"]) + """x</td>
           <td>""" + str(r["pbr_threshold"]) + """x</td>
+          <td class="pct" style="color:#a78bfa;">""" + (str(r["zone_pct"]) + "%" if r["zone_pct"] is not None else "-") + """</td>
           <td class="pct" style="color:#f87171;">""" + str(pbr_diff_pct) + """%</td>
           <td class="first-seen">""" + first_seen + """</td>
         </tr>"""
@@ -446,12 +470,13 @@ def generate_html(results, output_path, removed_tickers=None):
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html">米国株 (Minervini)</a>
+    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html" class="active">日本株 (配当)</a>
     <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="saitei.html">裁定取引</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
-  <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が過去""" + str(PBR_HISTORY_YEARS) + """年最低値+10%以内</p>
+  <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が閾値以内 かつ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上</p>
   <div class="legend">
     <span><span class="dot" style="background:#22c55e"></span>配当5%+</span>
     <span><span class="dot" style="background:#84cc16"></span>配当4-5%</span>
@@ -462,11 +487,14 @@ def generate_html(results, output_path, removed_tickers=None):
       <tr>
         <th>コード</th>
         <th>銘柄名</th>
+        <th>時価総額</th>
         <th>配当利回り</th>
         <th>株価</th>
         <th>現在PBR</th>
         <th>2年最低PBR</th>
-        <th>閾値(最低+10%)</th>
+        <th>2年最高PBR</th>
+        <th>閾値</th>
+        <th>ゾーン％</th>
         <th>最低比</th>
         <th>初回検出</th>
       </tr>
@@ -474,7 +502,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <tbody>""" + rows + """</tbody>
   </table>
   <div class="cond-legend">
-    条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; 過去""" + str(PBR_HISTORY_YEARS) + """年最低PBR × 1.10（バリュー圏に押し目）
+    条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; (2年最高PBR－2年最低PBR)×0.3＋2年最低PBR ／ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上
   </div>
   <p class="updated">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M") + """</p>
 """ + ("""
@@ -489,6 +517,19 @@ def generate_html(results, output_path, removed_tickers=None):
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
     print("  レポート出力完了: " + output_path)
+
+# ─────────────────────────────────────────
+# TradingView用リスト生成
+# ─────────────────────────────────────────
+def generate_tradingview_list(results, output_path):
+    """ティッカーをTradingView用テキストファイルに出力（.T除去、NEWバッジ除去）"""
+    lines = []
+    for r in results:
+        ticker = r["ticker"].strip().replace(".T", "")
+        lines.append(ticker + "\t,")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print("  TradingViewリスト出力: " + output_path)
 
 # ─────────────────────────────────────────
 # GitHub Pages自動push
@@ -552,6 +593,9 @@ def main():
 
     output_path = os.path.join(SCRIPT_DIR, "haitou.html")
     generate_html(results, output_path, removed_tickers=removed_tickers)
+
+    tv_path = os.path.join(SCRIPT_DIR, "txt", "Japan High Divident.txt")
+    generate_tradingview_list(results, tv_path)
 
     push_to_github()
 
