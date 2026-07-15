@@ -19,3 +19,6 @@ fix_*.bat
 # Python
 __pycache__/
 *.pyc
+
+# 一時ファイル（OCR作業用画像）
+_totan_*.png
