@@ -2,9 +2,10 @@
 *_history.json
 *_prev.json
 
-# 裁定取引・日銀利上げ確率の蓄積データはバックアップのためGitHubにもpushする（除外の除外）
+# 裁定取引・日銀利上げ確率・売買代金の蓄積データはバックアップのためGitHubにもpushする（除外の除外）
 !saitei_history.json
 !totan_history.json
+!daikin_history.json
 
 # ログ
 *.txt
