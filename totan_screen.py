@@ -398,9 +398,7 @@ def push_to_github():
 
     for attempt in range(1, 6):
         try:
-            subprocess.run(["git", "-C", SCRIPT_DIR, "stash"],           check=False)
-            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase"], check=True)
-            subprocess.run(["git", "-C", SCRIPT_DIR, "stash", "pop"],    check=False)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase", "--autostash"], check=True)
             subprocess.run(["git", "-C", SCRIPT_DIR, "push"],            check=True)
             log("  Done: https://ichikon77.github.io/minervini/totan.html")
             return
