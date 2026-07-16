@@ -72,9 +72,24 @@ TESSERACT = None  # main()で設定
 # -----------------------------------------
 # ページから表画像を取得
 # -----------------------------------------
+def fetch_with_retry(url, tries=5, timeout=60, wait=120):
+    """サイト不調(504等)に備え、失敗したら2分おきに最大5回リトライ"""
+    last_err = None
+    for i in range(1, tries + 1):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            last_err = e
+            log(f"  取得失敗 ({i}/{tries}): {e}")
+            if i < tries:
+                time.sleep(wait)
+    raise last_err
+
+
 def fetch_table_image():
-    r = requests.get(PAGE_URL, headers=HEADERS, timeout=30)
-    r.raise_for_status()
+    r = fetch_with_retry(PAGE_URL)
     # 本文中の /wp-content/uploads/ 配下のpng（1枚目が表、2枚目がグラフ）
     imgs = re.findall(r'<img[^>]+src="(https://www\.tokyotanshi\.co\.jp/wp-content/uploads/[^"]+\.png)"', r.text)
     if not imgs:
@@ -83,7 +98,10 @@ def fetch_table_image():
     # サムネイルサイズ表記（-1030x341など）を外してフル解像度を取得
     full_url = re.sub(r'-\d+x\d+(\.png)$', r'\1', url)
     for u in (full_url, url):
-        resp = requests.get(u, headers=HEADERS, timeout=30)
+        try:
+            resp = fetch_with_retry(u, tries=3)
+        except Exception:
+            continue
         if resp.status_code == 200:
             path = os.path.join(SCRIPT_DIR, "_totan_table.png")
             with open(path, "wb") as f:

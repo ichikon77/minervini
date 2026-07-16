@@ -1,10 +1,9 @@
 @echo off
-chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
 set PYTHONUNBUFFERED=1
 
-rem ── 排他ロック: 他のスクリーナー実行中は待つ（最大60分、以後強行）──
+rem -- exclusive lock: wait while another screener is running (max 60 min, then force) --
 set LOCKDIR=C:\Users\ichik\Documents\minervini\_screener.lock
 set /a tries=0
 :acquire

@@ -818,11 +818,18 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="minervini_report_v2.html">米国株 (Minervini)</a>
     <a href="haitou.html">日本株 (配当)</a>
     <a href="jpminervini.html" class="active">日本株 (Minervini)</a>
+<<<<<<< Updated upstream
     <a href="saitei.html">裁定取引</a>
     <a href="totan.html">日銀利上げ確率</a>
   </nav>
   <h1>Japan Minervini Screening <span class="badge">{count} passed</span></h1>
   <p class="subtitle">{date} | TOPIXプライム | RS >= {rs_th}（TOPIXプライム全銘柄ベース）</p>
+=======
+    <a href="minervini_report_v2.html">米国株 v2 (押し目分析)</a>
+  </nav>
+  <h1>Japan Minervini Screening <span class="badge">""" + str(count) + """ passed</span></h1>
+  <p class="subtitle">""" + date_str + """ | TOPIXプライム | RS >= """ + str(RS_THRESHOLD) + """（TOPIXプライム全銘柄ベース）</p>
+>>>>>>> Stashed changes
   <div class="legend">
     <span><span class="dot" style="background:#22c55e"></span>RS 90+</span>
     <span><span class="dot" style="background:#84cc16"></span>RS 80-89</span>
