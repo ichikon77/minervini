@@ -308,6 +308,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html">裁定取引</a>
     <a href="totan.html" class="active">日銀利上げ確率</a>
+    <a href="daikin.html">売買代金</a>
   </nav>
   <h1>日銀会合ごとの利上げ織り込み比率</h1>
   <p class="subtitle">最終更新: {updated} | 出所: 東短リサーチ/東短ICAP（日銀会合OIS気配より） | 単位: %</p>
