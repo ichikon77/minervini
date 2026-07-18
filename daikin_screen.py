@@ -265,6 +265,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="daikin.html" class="active">売買代金</a>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
+    <a href="gaikoku.html">海外投資家</a>
   </nav>
   <h1>売買代金ランキング TOP200</h1>
   <p class="subtitle">最終更新: {updated} | 出所: Yahoo!ファイナンス | 直近{days}営業日分 | 売買代金は億円</p>
