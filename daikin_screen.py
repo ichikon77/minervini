@@ -266,6 +266,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
     <a href="gaikoku.html">海外投資家</a>
+    <a href="touraku.html">騰落レシオ</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>売買代金ランキング TOP200</h1>
