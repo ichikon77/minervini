@@ -211,7 +211,8 @@ HTML_HEAD = """<!DOCTYPE html>
   tr:hover td {{ filter: brightness(1.3); }}
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
-  td.now {{ background: rgba(30,64,175,0.5); color: #bfdbfe; font-weight: bold; }}
+  td.below {{ background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }}  /* 現値のすぐ下 = 水色 */
+  td.above {{ background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }}    /* 現値のすぐ上 = 薄赤 */
   td.pbrline {{ color: #7dd3fc; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
@@ -237,7 +238,9 @@ HTML_HEAD = """<!DOCTYPE html>
   <h1>日経平均 理論株価（PER・PBRレンジ）</h1>
   <p class="subtitle">最終更新: {updated} | 出所: nikkei225jp.com | EPS=日経平均÷PER、BPS=日経平均÷PBR</p>
   <div class="legend">
-    <span class="chip" style="background:rgba(30,64,175,0.5); color:#bfdbfe">現在の日経平均に最も近い理論株価</span>
+    <span class="chip" style="background:rgba(14,116,144,0.55); color:#a5f3fc">現値のすぐ下の理論株価</span>
+    <span class="chip" style="background:rgba(190,60,60,0.4); color:#fecaca">現値のすぐ上の理論株価</span>
+    <span>この2セルの間に現在の日経平均がいる</span>
     <span class="chip" style="color:#7dd3fc">理論PBR = 過去の底値PBR水準（BPS×0.87 / ×0.82）</span>
   </div>
   <div class="table-wrap">
@@ -287,9 +290,18 @@ def generate_html(hist):
         diff = r.get("前日差")
         diff_s = "-" if diff is None else f'<span class="{"pos" if diff > 0 else ("neg" if diff < 0 else "")}">{diff:+,.2f}</span>'
 
-        # 理論株価22本のうち現在値に最も近い列
+        # 現値を挟む2セルだけハイライト（すぐ下=水色 / すぐ上=薄赤）
         theos = [round(eps * p) for p in PER_LEVELS]
-        nearest = min(range(len(theos)), key=lambda i: abs(theos[i] - nikkei))
+        lower_i = upper_i = None
+        for i2 in range(len(theos) - 1):
+            if theos[i2] <= nikkei < theos[i2 + 1]:
+                lower_i, upper_i = i2, i2 + 1
+                break
+        if lower_i is None:  # レンジ外（全部上 or 全部下）
+            if nikkei < theos[0]:
+                upper_i = 0
+            else:
+                lower_i = len(theos) - 1
 
         cells = [f'<td>{d.replace("-", "/")}</td>',
                  f'<td>{nikkei:,.2f}</td>',
@@ -305,8 +317,10 @@ def generate_html(hist):
             cls = []
             if i == 0:
                 cls.append('sep')
-            if i == nearest:
-                cls.append('now')
+            if i == lower_i:
+                cls.append('below')
+            elif i == upper_i:
+                cls.append('above')
             attr = f' class="{" ".join(cls)}"' if cls else ''
             cells.append(f'<td{attr}>{t:,}</td>')
         rows.append('      <tr>' + "".join(cells) + '</tr>')
@@ -383,14 +397,11 @@ def main():
     if added:
         enrich(hist)
         save_history(hist)
-        latest = max(hist)
-        r = hist[latest]
-        log(f"追記: {added}日分（計 {len(hist)}日） 最新 {latest}: PER={r['PER']} EPS={r['EPS']:,.0f}")
+        log(f"追記: {added}日分（計 {len(hist)}日）")
     else:
         log("新しいデータはありませんでした")
 
     if not hist:
-        log("データがないためHTMLは生成しません")
         return
 
     generate_html(hist)
