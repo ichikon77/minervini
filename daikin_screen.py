@@ -3,9 +3,10 @@
 Yahoo!ファイナンス「売買代金上位ランキング」自動記録 → HTML出力 → GitHub Pages公開
 
 https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh (1-50位)
-https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily&page=2 (51-100位)
+https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily&page=2..4 (51-200位)
 
-- 毎日100位まで取得し daikin_history.json に蓄積（直近15営業日分のみ保持）
+- 毎日200位まで取得し daikin_history.json に蓄積（直近15営業日分のみ保持）
+  ※2026-07-16以前の過去データ（エクセル由来）は100位まで
 - daikin.html を生成して git push（他スクリーナーと同方式）
 - 表示: 新しい日付が左。順位/コード/名称/取引値/前日比%/売買代金 + 順位変動（連続日数）
 """
@@ -25,7 +26,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 URLS = [
     "https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily",
     "https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily&page=2",
+    "https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily&page=3",
+    "https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh?market=all&term=daily&page=4",
 ]
+TOP_N = 200  # 記録する順位数
 
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "daikin_history.json")
 REPORT_HTML = "daikin.html"
@@ -116,12 +120,12 @@ def fetch_today():
             })
         time.sleep(2)
 
-    if len(entries) < 100:
-        raise ValueError(f"取得件数が不足: {len(entries)}件（100件必要）")
+    if len(entries) < TOP_N:
+        raise ValueError(f"取得件数が不足: {len(entries)}件（{TOP_N}件必要）")
     entries.sort(key=lambda x: x["rank"])
     if as_of is None:
         as_of = datetime.date.today().isoformat()
-    return as_of, entries[:100]
+    return as_of, entries[:TOP_N]
 
 
 # -----------------------------------------
@@ -260,13 +264,14 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="totan.html">日銀利上げ確率</a>
     <a href="daikin.html" class="active">売買代金</a>
   </nav>
-  <h1>売買代金ランキング TOP100</h1>
+  <h1>売買代金ランキング TOP200</h1>
   <p class="subtitle">最終更新: {updated} | 出所: Yahoo!ファイナンス | 直近{days}営業日分 | 売買代金は億円</p>
   <div class="blocks">
 {blocks}
   </div>
   <p class="note">
-    ・変動列: 前日からの順位変動。↑3=3日連続で順位上昇中、↓2=2日連続下落中、→=変わらず、NEW=前日圏外（100位以下）から登場。<br>
+    ・変動列: 前日からの順位変動。↑3=3日連続で順位上昇中、↓2=2日連続下落中、→=変わらず、NEW=前日圏外から登場。<br>
+    ・2026/07/16以前の過去データは100位まで（エクセル記録からの取り込み）。07/17以降は200位まで。<br>
     ・<a href="https://finance.yahoo.co.jp/stocks/ranking/tradingValueHigh" style="color:#60a5fa">Yahoo!ファイナンス 売買代金ランキング</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
@@ -389,7 +394,7 @@ def main():
     else:
         hist[as_of] = entries
         hist = save_history(hist)
-        log(f"記録: {as_of}  100銘柄（保持: {len(hist)}日分）")
+        log(f"記録: {as_of}  {len(entries)}銘柄（保持: {len(hist)}日分）")
 
     if not hist:
         log("データがないためHTMLは生成しません")
