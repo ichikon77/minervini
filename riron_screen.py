@@ -362,4 +362,101 @@ def generate_html(hist):
             if i == 0:
                 cls.append('sep')
             if i == lower_i:
-                cls.appen
+                cls.append('below')
+            elif i == upper_i:
+                cls.append('above')
+            attr = f' class="{" ".join(cls)}"' if cls else ''
+            cells.append(f'<td{attr}>{t:,}</td>')
+        rows.append('      <tr>' + "".join(cells) + '</tr>')
+
+    html = HTML_HEAD.format(
+        latest_date=dates[0].replace("-", "/") if dates else "-",
+        per_headers=per_headers,
+        rows="\n".join(rows),
+        src_url=PAGE_URL,
+        updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
+    path = os.path.join(SCRIPT_DIR, REPORT_HTML)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+    log(f"HTML出力: {path}")
+
+
+# -----------------------------------------
+# GitHub Pages 自動 push
+# -----------------------------------------
+def push_to_github():
+    log("GitHub Pages に公開中...")
+    today = datetime.date.today().isoformat()
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
+                    os.path.basename(HISTORY_JSON), ".gitignore",
+                    "riron_screen.py", "riron_run.bat"], check=True)
+    result = subprocess.run(
+        ["git", "-C", SCRIPT_DIR, "commit", "-m", "update riron report " + today],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            log("  commit skip (already committed)")
+        else:
+            log("  commit failed: " + msg)
+            return
+
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase", "--autostash"], check=True)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
+            log("  Done: https://ichikon77.github.io/minervini/riron.html")
+            return
+        except subprocess.CalledProcessError as e:
+            log(f"  push failed (attempt {attempt}/5): {e}")
+            time.sleep(10)
+    log("  push failed finally")
+
+
+# -----------------------------------------
+# main
+# -----------------------------------------
+def main():
+    log("日経平均 理論株価 チェック開始")
+
+    hist = load_history()
+
+    try:
+        daily = fetch_daily()
+    except Exception as e:
+        log(f"エラー: データの取得に失敗しました: {e}")
+        sys.exit(1)
+
+    log(f"サイト上のデータ: {len(daily)}日分 ({min(daily)} ～ {max(daily)})")
+
+    added = 0
+    for d, rec in daily.items():
+        if d in hist:
+            continue
+        hist[d] = rec
+        added += 1
+
+    if added:
+        enrich(hist)
+        save_history(hist)
+        log(f"追記: {added}日分（計 {len(hist)}日）")
+    else:
+        log("新しいデータはありませんでした")
+
+    if not hist:
+        return
+
+    generate_html(hist)
+
+    if "--nopush" in sys.argv:
+        log("--nopush 指定のため git push はスキップ")
+    else:
+        push_to_github()
+
+    log("完了")
+
+
+if __name__ == "__main__":
+    main()
