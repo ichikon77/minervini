@@ -6,6 +6,7 @@
 !saitei_history.json
 !totan_history.json
 !daikin_history.json
+!shinyou_history.json
 
 # ログ
 *.txt
