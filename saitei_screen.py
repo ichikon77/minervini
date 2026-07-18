@@ -269,6 +269,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="gaikoku.html">海外投資家</a>
     <a href="touraku.html">騰落レシオ</a>
     <a href="karauri.html">空売り比率</a>
+    <a href="riron.html">理論株価</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>裁定取引に係る現物ポジション</h1>
