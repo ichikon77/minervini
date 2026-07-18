@@ -211,6 +211,11 @@ HTML_HEAD = """<!DOCTYPE html>
   tr:hover td {{ filter: brightness(1.3); }}
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
+  td.roe {{ color: #c4b5fd; }}                                                            /* 暗黙ROE（紫） */
+  td.cheap {{ background: rgba(14,116,144,0.3); color: #a5f3fc; }}                       /* 割安（薄青） */
+  td.deep-cheap {{ background: rgba(2,132,199,0.65); color: #e0f2fe; font-weight: bold; }} /* 歴史的割安（濃青） */
+  td.hot {{ background: rgba(190,60,60,0.28); color: #fecaca; }}                          /* 過熱気味（薄赤） */
+  td.deep-hot {{ background: rgba(220,38,38,0.6); color: #fee2e2; font-weight: bold; }}   /* 歴史的過熱（濃赤） */
   td.below {{ background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }}  /* 現値のすぐ下 = 水色 */
   td.above {{ background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }}    /* 現値のすぐ上 = 薄赤 */
   td.pbrline {{ color: #7dd3fc; }}
@@ -232,7 +237,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="gaikoku.html">海外投資家</a>
     <a href="touraku.html">騰落レシオ</a>
     <a href="karauri.html">空売り比率</a>
-    <a href="riron.html" class="active">理論株価</a>
+    <a href="riron.html" class="active">日経理論株価</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>日経平均 理論株価（PER・PBRレンジ）</h1>
@@ -253,6 +258,7 @@ HTML_HEAD = """<!DOCTYPE html>
         <th>PER</th>
         <th>PBR</th>
         <th>EPS</th>
+        <th>ROE</th>
         <th>BPS</th>
         <th class="sep">PBR0.87</th>
         <th>PBR0.82</th>
@@ -265,14 +271,51 @@ HTML_HEAD = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
+    ・PER/PBR列の色: <span style="background:rgba(2,132,199,0.65); padding:1px 6px">濃青</span> = 歴史的割安（PER&lt;13 / PBR&lt;1.2）、
+    <span style="background:rgba(14,116,144,0.3); padding:1px 6px">薄青</span> = 割安（PER&lt;17.5 / PBR&lt;1.3）、
+    <span style="background:rgba(190,60,60,0.28); padding:1px 6px">薄赤</span> = 過熱気味（PER&gt;19 / PBR&gt;1.8）、
+    <span style="background:rgba(220,38,38,0.6); padding:1px 6px">濃赤</span> = 歴史的過熱（PER&gt;20 / PBR&gt;1.9）。<br>
+    <br>
+    <b style="color:#94a3b8">【仮説メモ】</b><br>
+    ・<b>仮説① 歴史的買い場</b>: PERとPBRが両方「濃青」＝2つの物差しが揃って割安。過去17年で2012年6月（アベノミクス前夜）と2025年4月（関税ショック底）のみ。数年に一度の大底シグナル。<br>
+    ・<b>仮説② 成長相場の押し目</b>: PERが薄青×PBRが薄赤の「ねじれ」＋<b>EPSが増加基調</b>＝利益成長に株価が追いついていない状態。2026年に7回出現（5/18-20, 6/8, 6/10-11, 7/17）、うち検証可能な6回は5〜10営業日後に+7%以上で反発。<br>
+    ・<b>注意</b>: 同じねじれでもEPSが減少中なら業績崩壊型（2009年リーマン後: PER40超は利益消滅の見かけ）。買い場ではなく警戒。ねじれを見たらまずEPS列の推移を確認すること。<br>
+    <br>
     ・理論株価 = EPS × 各PER。現在の日経平均がどのPER水準にいるか、青いセルの位置で分かる。<br>
     ・理論PBR = BPS × 0.87 / 0.82（過去の暴落時に底となったPBR水準。ここまで下がると歴史的底値圏）。<br>
+    ・ROE = PBR ÷ PER（暗黙ROE）。日経平均全体の「稼ぐ力」。2009年3%台→2010年代8%前後→2026年10%超と構造的に上昇。PBRの高さが正当化されるかはROE次第で、ROEが崩れる兆候が出たら高PBRは警戒。<br>
     ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 日経平均PER</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
 """
+
+
+def per_class(v):
+    """PER: <13 濃青 / <17.5 薄青 / >20 濃赤 / >19 薄赤"""
+    if v < 13:
+        return ' class="deep-cheap"'
+    if v < 17.5:
+        return ' class="cheap"'
+    if v > 20:
+        return ' class="deep-hot"'
+    if v > 19:
+        return ' class="hot"'
+    return ""
+
+
+def pbr_class(v):
+    """PBR: <1.2 濃青 / <1.3 薄青 / >1.9 濃赤 / >1.8 薄赤"""
+    if v < 1.2:
+        return ' class="deep-cheap"'
+    if v < 1.3:
+        return ' class="cheap"'
+    if v > 1.9:
+        return ' class="deep-hot"'
+    if v > 1.8:
+        return ' class="hot"'
+    return ""
 
 
 def generate_html(hist):
@@ -306,9 +349,10 @@ def generate_html(hist):
         cells = [f'<td>{d.replace("-", "/")}</td>',
                  f'<td>{nikkei:,.2f}</td>',
                  f'<td>{diff_s}</td>',
-                 f'<td>{r["PER"]:.2f}</td>',
-                 f'<td>{r["PBR"]:.2f}</td>',
+                 f'<td{per_class(r["PER"])}>{r["PER"]:.2f}</td>',
+                 f'<td{pbr_class(r["PBR"])}>{r["PBR"]:.2f}</td>',
                  f'<td>{eps:,.2f}</td>',
+                 f'<td class="roe">{r["PBR"] / r["PER"] * 100:.1f}%</td>',
                  f'<td>{bps:,.2f}</td>']
         for j, lv in enumerate(PBR_LEVELS):
             sep = ' sep' if j == 0 else ''
@@ -318,101 +362,4 @@ def generate_html(hist):
             if i == 0:
                 cls.append('sep')
             if i == lower_i:
-                cls.append('below')
-            elif i == upper_i:
-                cls.append('above')
-            attr = f' class="{" ".join(cls)}"' if cls else ''
-            cells.append(f'<td{attr}>{t:,}</td>')
-        rows.append('      <tr>' + "".join(cells) + '</tr>')
-
-    html = HTML_HEAD.format(
-        latest_date=dates[0].replace("-", "/") if dates else "-",
-        per_headers=per_headers,
-        rows="\n".join(rows),
-        src_url=PAGE_URL,
-        updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-    )
-    path = os.path.join(SCRIPT_DIR, REPORT_HTML)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(html)
-    log(f"HTML出力: {path}")
-
-
-# -----------------------------------------
-# GitHub Pages 自動 push
-# -----------------------------------------
-def push_to_github():
-    log("GitHub Pages に公開中...")
-    today = datetime.date.today().isoformat()
-    subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
-                    os.path.basename(HISTORY_JSON), ".gitignore",
-                    "riron_screen.py", "riron_run.bat"], check=True)
-    result = subprocess.run(
-        ["git", "-C", SCRIPT_DIR, "commit", "-m", "update riron report " + today],
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
-        if "nothing to commit" in msg:
-            log("  commit skip (already committed)")
-        else:
-            log("  commit failed: " + msg)
-            return
-
-    for attempt in range(1, 6):
-        try:
-            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase", "--autostash"], check=True)
-            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
-            log("  Done: https://ichikon77.github.io/minervini/riron.html")
-            return
-        except subprocess.CalledProcessError as e:
-            log(f"  push failed (attempt {attempt}/5): {e}")
-            time.sleep(10)
-    log("  push failed finally")
-
-
-# -----------------------------------------
-# main
-# -----------------------------------------
-def main():
-    log("日経平均 理論株価 チェック開始")
-
-    hist = load_history()
-
-    try:
-        daily = fetch_daily()
-    except Exception as e:
-        log(f"エラー: データの取得に失敗しました: {e}")
-        sys.exit(1)
-
-    log(f"サイト上のデータ: {len(daily)}日分 ({min(daily)} ～ {max(daily)})")
-
-    added = 0
-    for d, rec in daily.items():
-        if d in hist:
-            continue
-        hist[d] = rec
-        added += 1
-
-    if added:
-        enrich(hist)
-        save_history(hist)
-        log(f"追記: {added}日分（計 {len(hist)}日）")
-    else:
-        log("新しいデータはありませんでした")
-
-    if not hist:
-        return
-
-    generate_html(hist)
-
-    if "--nopush" in sys.argv:
-        log("--nopush 指定のため git push はスキップ")
-    else:
-        push_to_github()
-
-    log("完了")
-
-
-if __name__ == "__main__":
-    main()
+                cls.appen
