@@ -8,6 +8,7 @@
 !daikin_history.json
 !shinyou_history.json
 !shutai_history.json
+!gaikoku_history.json
 
 # ログ
 *.txt
