@@ -43,9 +43,10 @@
     <a href="karauri.html">空売り比率</a>
     <a href="riron.html">日経理論株価</a>
     <a href="spriron.html">SP500理論株価</a>
+    <a href="flow.html">資金フロー</a>
     <a href="map.html" class="active">デッキの見方</a>
   </nav>
-  <h1>デッキの見方 — 14ページのつながり</h1>
+  <h1>デッキの見方 — 15ページのつながり</h1>
   <p class="subtitle">マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄選び。ボックスをクリックで各ページへ。</p>
 
   <div class="diagram-wrap">
@@ -59,14 +60,14 @@
       </marker>
     </defs>
 
-    <!-- ══ レイヤー見出し ══ -->
+    <!-- レイヤー見出し -->
     <text x="20" y="34" fill="#a78bfa" font-size="13" font-weight="bold">① マクロ・バリュエーション — 相場の「物差し」</text>
     <text x="20" y="248" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路（裁定の連鎖）</text>
     <text x="20" y="480" fill="#fbbf24" font-size="13" font-weight="bold">③ 市場の温度計 — 過熱と売られすぎ</text>
     <text x="20" y="712" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
     <text x="20" y="878" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄選び</text>
 
-    <!-- ══ ① マクロ・バリュエーション ══ -->
+    <!-- ① マクロ・バリュエーション -->
     <a href="totan.html">
       <rect x="40" y="50" width="300" height="88" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
       <text x="190" y="76" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日銀利上げ確率</text>
@@ -85,18 +86,15 @@
       <text x="890" y="96" text-anchor="middle" fill="#94a3b8" font-size="11">予想PER×予想EPS（週次更新）</text>
       <text x="890" y="114" text-anchor="middle" fill="#94a3b8" font-size="11">コロナ底14.62 〜 過去最高26の物差し</text>
     </a>
-    <!-- totan → riron -->
     <line x1="340" y1="94" x2="388" y2="94" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="364" y="84" text-anchor="middle" fill="#94a3b8" font-size="10">金利↑=PER↓</text>
-    <!-- riron ⇔ spriron -->
     <line x1="690" y1="94" x2="738" y2="94" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
     <text x="714" y="84" text-anchor="middle" fill="#94a3b8" font-size="10">日米比較</text>
 
-    <!-- ①→② -->
     <line x1="540" y1="138" x2="540" y2="225" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="552" y="186" fill="#94a3b8" font-size="11">物差しの位置を踏まえ、実際のお金の流れを見る</text>
 
-    <!-- ══ ② 需給 ══ -->
+    <!-- ② 需給 -->
     <a href="gaikoku.html">
       <rect x="40" y="264" width="300" height="96" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
       <text x="190" y="290" text-anchor="middle" fill="#bfdbfe" font-size="15" font-weight="bold">海外投資家</text>
@@ -118,7 +116,6 @@
       <text x="890" y="328" text-anchor="middle" fill="#94a3b8" font-size="11">海外 vs 個人は鏡写しになりがち</text>
       <text x="890" y="346" text-anchor="middle" fill="#94a3b8" font-size="11">信託銀行 = 年金（GPIF）の逆張り</text>
     </a>
-    <!-- gaikoku → saitei → shutai -->
     <line x1="340" y1="300" x2="388" y2="300" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
     <text x="364" y="284" text-anchor="middle" fill="#93c5fd" font-size="10">先物買い→</text>
     <text x="364" y="322" text-anchor="middle" fill="#93c5fd" font-size="10">裁定組成</text>
@@ -126,11 +123,10 @@
     <text x="714" y="284" text-anchor="middle" fill="#93c5fd" font-size="10">解消=売り</text>
     <text x="714" y="322" text-anchor="middle" fill="#93c5fd" font-size="10">(証券自己)</text>
 
-    <!-- ②→③ -->
     <line x1="540" y1="360" x2="540" y2="456" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="552" y="414" fill="#94a3b8" font-size="11">需給の偏りは「温度」として現れる</text>
 
-    <!-- ══ ③ 温度計 ══ -->
+    <!-- ③ 温度計 -->
     <a href="shinyou.html">
       <rect x="40" y="496" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
       <text x="190" y="522" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">信用評価率</text>
@@ -153,22 +149,28 @@
       <text x="890" y="578" text-anchor="middle" fill="#94a3b8" font-size="11">35未満の下落 = 実需売り主体を疑う</text>
     </a>
 
-    <!-- ③→④ -->
     <line x1="540" y1="592" x2="540" y2="688" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="646" fill="#94a3b8" font-size="11">需給と温度が「どの銘柄に」現れているかを特定</text>
+    <text x="552" y="646" fill="#94a3b8" font-size="11">需給と温度が「どこに」現れているかを特定</text>
 
-    <!-- ══ ④ 資金の行き先 ══ -->
-    <a href="daikin.html">
-      <rect x="390" y="728" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
-      <text x="540" y="754" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">売買代金 TOP200</text>
-      <text x="540" y="774" text-anchor="middle" fill="#94a3b8" font-size="11">↑連続 = 資金流入の継続、NEW = 初動</text>
-      <text x="540" y="792" text-anchor="middle" fill="#94a3b8" font-size="11">101〜200位から連騰銘柄を早期発見</text>
+    <!-- ④ 資金の行き先 -->
+    <a href="flow.html">
+      <rect x="215" y="728" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+      <text x="365" y="754" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">資金フロー（世界）</text>
+      <text x="365" y="774" text-anchor="middle" fill="#94a3b8" font-size="11">資産クラス×テーマETFの騰落ヒートマップ</text>
+      <text x="365" y="792" text-anchor="middle" fill="#94a3b8" font-size="11">半導体/金/防衛/量子/インド… どこへ回る?</text>
     </a>
+    <a href="daikin.html">
+      <rect x="565" y="728" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+      <text x="715" y="754" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">売買代金 TOP200（日本）</text>
+      <text x="715" y="774" text-anchor="middle" fill="#94a3b8" font-size="11">↑連続 = 資金流入の継続、NEW = 初動</text>
+      <text x="715" y="792" text-anchor="middle" fill="#94a3b8" font-size="11">101〜200位から連騰銘柄を早期発見</text>
+    </a>
+    <line x1="515" y1="772" x2="563" y2="772" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="539" y="762" text-anchor="middle" fill="#94a3b8" font-size="10">世界→日本</text>
 
-    <!-- ④→⑤ -->
     <line x1="540" y1="816" x2="540" y2="854" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
 
-    <!-- ══ ⑤ 銘柄選び ══ -->
+    <!-- ⑤ 銘柄選び -->
     <a href="jpminervini.html">
       <rect x="40" y="894" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
       <text x="190" y="922" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
@@ -189,7 +191,7 @@
 
   <p class="note">
     <b>1日の自動更新スケジュール:</b>
-    朝8:05 米国株スクリーナー → 8:15 S&amp;P500理論株価（前夜の米国市場） →
+    朝8:05 米国株スクリーナー → 8:15 S&amp;P500理論株価 → 8:20 資金フロー（前夜の米国市場） →
     夕方17:30 裁定取引 → 18:10 日銀利上げ確率 → 18:20 売買代金 → 18:30 日本株Minervini →
     18:40 信用評価率 → 18:50 投資主体別 → 19:00 高配当 → 19:10 騰落レシオ → 19:20 空売り比率 → 19:30 日経理論株価 → 20:00 海外投資家 → 23:00 自動バックアップ。
   </p>

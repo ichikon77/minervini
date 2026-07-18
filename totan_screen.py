@@ -316,6 +316,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="karauri.html">空売り比率</a>
     <a href="riron.html">日経理論株価</a>
     <a href="spriron.html">SP500理論株価</a>
+    <a href="flow.html">資金フロー</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>日銀会合ごとの利上げ織り込み比率</h1>

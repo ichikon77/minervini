@@ -236,6 +236,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="karauri.html" class="active">空売り比率</a>
     <a href="riron.html">日経理論株価</a>
     <a href="spriron.html">SP500理論株価</a>
+    <a href="flow.html">資金フロー</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>空売り比率</h1>
