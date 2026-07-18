@@ -1,12 +1,20 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-菫｡逕ｨ隧穂ｾ｡謳咲寢邇・・菫｡逕ｨ蜿門ｼ墓ｮ矩ｫ・閾ｪ蜍戊ｨ倬鹸 竊・HTML蜃ｺ蜉・竊・GitHub Pages蜈ｬ髢・
-繝・・繧ｿ貅・ https://nikkei225jp.com/data/sinyou.php
-螳溘ョ繝ｼ繧ｿ縺ｯ繝壹・繧ｸ縺瑚ｪｭ縺ｿ霎ｼ繧 dailyweek2.json・・009蟷ｴ縺九ｉ縺ｮ騾ｱ谺｡繝・・繧ｿ・峨↓
-蜈･縺｣縺ｦ縺・ｋ縺溘ａ縲√◎繧後ｒ逶ｴ謗･蜿門ｾ励＠縺ｦ繝代・繧ｹ縺吶ｋ縲・
-- 騾ｱ谺｡繝・・繧ｿ・域ｯ朱ｱ驥第屆逕ｳ縺苓ｾｼ縺ｿ譎らせ縲∫ｿ碁ｱ轣ｫ譖憺・峩譁ｰ・・- 螻･豁ｴ縺ｯ shinyou_history.json 縺ｫ蜈ｨ譛滄俣闢・ｩ・- shinyou.html 繧堤函謌舌＠縺ｦ git push・井ｻ悶せ繧ｯ繝ｪ繝ｼ繝翫・縺ｨ蜷梧婿蠑擾ｼ・- 濶ｲ蛻・￠:
-    螢ｲ繧頑ｮ矩≡鬘・> 800,000逋ｾ荳・・ 竊・螳牙ｿ・ｳｻ・育ｷ托ｼ・    雋ｷ縺・ｮ矩≡鬘・> 5,000,000逋ｾ荳・・ 竊・隴ｦ謌堤ｳｻ・郁ｵ､・・    菫｡逕ｨ隧穂ｾ｡邇・ > -2 螟ｩ莠募恟:隱ｿ謨ｴ隴ｦ謌抵ｼ医ヴ繝ｳ繧ｯ・・/ -9縲・10 隕∬ｭｦ謌抵ｼ医が繝ｬ繝ｳ繧ｸ・・/
-                < -10 雜・ｭｦ謌抵ｼ郁ｵ､螟ｪ蟄暦ｼ・"""
+信用評価損益率・信用取引残高 自動記録 → HTML出力 → GitHub Pages公開
+
+データ源: https://nikkei225jp.com/data/sinyou.php
+実データはページが読み込む dailyweek2.json（2009年からの週次データ）に
+入っているため、それを直接取得してパースする。
+
+- 週次データ（毎週金曜申し込み時点、翌週火曜頃更新）
+- 履歴は shinyou_history.json に全期間蓄積
+- shinyou.html を生成して git push（他スクリーナーと同方式）
+- 色分け:
+    売り残金額 > 800,000百万円 → 安心系（緑）
+    買い残金額 > 5,000,000百万円 → 警戒系（赤）
+    信用評価率: > -2 天井圏:調整警戒（ピンク） / -9〜-10 要警戒（オレンジ） /
+                < -10 超警戒（赤太字）
+"""
 
 import os
 import re
@@ -26,8 +34,8 @@ DATA_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/dailyweek2.json"
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "shinyou_history.json")
 REPORT_HTML = "shinyou.html"
 
-SELL_ALERT = 800_000      # 螢ｲ繧頑ｮ矩≡鬘搾ｼ育卆荳・・・・ 雜・∴縺溘ｉ螳牙ｿ・ｳｻ
-BUY_ALERT = 5_000_000     # 雋ｷ縺・ｮ矩≡鬘搾ｼ育卆荳・・・・ 雜・∴縺溘ｉ隴ｦ謌堤ｳｻ
+SELL_ALERT = 800_000      # 売り残金額（百万円）: 超えたら安心系
+BUY_ALERT = 5_000_000     # 買い残金額（百万円）: 超えたら警戒系
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -35,8 +43,8 @@ HEADERS = {
     "Referer": PAGE_URL,
 }
 
-FIELDS = ["螢ｲ繧頑ｮ区椢謨ｰ", "螢ｲ繧頑ｮ矩≡鬘・, "螢ｲ繧頑ｮ句､牙喧", "雋ｷ縺・ｮ区椢謨ｰ", "雋ｷ縺・ｮ矩≡鬘・,
-          "雋ｷ縺・ｮ句､牙喧", "菫｡逕ｨ蛟咲紫", "菫｡逕ｨ隧穂ｾ｡邇・]
+FIELDS = ["売り残枚数", "売り残金額", "売り残変化", "買い残枚数", "買い残金額",
+          "買い残変化", "信用倍率", "信用評価率"]
 
 
 def log(msg):
@@ -44,7 +52,8 @@ def log(msg):
 
 
 # -----------------------------------------
-# 繝・・繧ｿ蜿門ｾ・# -----------------------------------------
+# データ取得
+# -----------------------------------------
 def _fetch_requests(url, timeout):
     r = requests.get(url, headers=HEADERS, timeout=timeout)
     r.raise_for_status()
@@ -52,7 +61,7 @@ def _fetch_requests(url, timeout):
 
 
 def _fetch_curl(url, timeout):
-    """requests縺・03縺ｧ蠑ｾ縺九ｌ繧句ｴ蜷医・繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ・・url縺ｯ繝悶Λ繧ｦ繧ｶ縺ｫ霑代＞謖吝虚・・""
+    """requestsが403で弾かれる場合のフォールバック（curlはブラウザに近い挙動）"""
     cmd = ["curl", "-sL", "--max-time", str(timeout),
            "-A", HEADERS["User-Agent"],
            "-e", PAGE_URL,
@@ -62,14 +71,14 @@ def _fetch_curl(url, timeout):
            url]
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
     if r.returncode != 0 or not r.stdout or len(r.stdout) < 1000:
-        raise RuntimeError(f"curl蜿門ｾ怜､ｱ謨・(rc={r.returncode}, len={len(r.stdout or '')})")
+        raise RuntimeError(f"curl取得失敗 (rc={r.returncode}, len={len(r.stdout or '')})")
     if "403" in r.stdout[:200] and "Forbidden" in r.stdout[:500]:
         raise RuntimeError("curl: 403 Forbidden")
     return r.stdout
 
 
 def _fetch_powershell(url, timeout):
-    """Windows邏疲ｭ｣HTTP繧ｹ繧ｿ繝・け邨檎罰・医ヶ繝ｩ繧ｦ繧ｶ縺ｨ蜷檎ｭ峨↓謇ｱ繧上ｌ繧・☆縺・ｼ・""
+    """Windows純正HTTPスタック経由（ブラウザと同等に扱われやすい）"""
     ps = (
         f"$ProgressPreference='SilentlyContinue'; "
         f"$r = Invoke-WebRequest -UseBasicParsing -Uri '{url}' -TimeoutSec {timeout} "
@@ -83,7 +92,7 @@ def _fetch_powershell(url, timeout):
                        timeout=timeout + 30)
     if r.returncode != 0 or not r.stdout or len(r.stdout) < 1000:
         err = (r.stderr or "")[:200]
-        raise RuntimeError(f"PowerShell蜿門ｾ怜､ｱ謨・(len={len(r.stdout or '')}) {err}")
+        raise RuntimeError(f"PowerShell取得失敗 (len={len(r.stdout or '')}) {err}")
     return r.stdout
 
 
@@ -98,24 +107,25 @@ def fetch_with_retry(url, tries=3, timeout=60, wait=45):
                 return fn(url, timeout)
             except Exception as e:
                 last_err = e
-                log(f"  蜿門ｾ怜､ｱ謨・[{method}] ({i}/{tries}): {e}")
+                log(f"  取得失敗 [{method}] ({i}/{tries}): {e}")
         if i < tries:
             time.sleep(wait)
     raise last_err
 
 
 def fetch_weekly_data():
-    """dailyweek2.json 縺九ｉ (譌･莉露SO, {蛻・ 蛟､}) 縺ｮ繝ｪ繧ｹ繝医ｒ霑斐☆・域律莉俶・鬆・ｼ・
-    JSON陦後・讒矩: [繧ｿ繧､繝繧ｹ繧ｿ繝ｳ繝洋s, 譌･邨悟ｹｳ蝮・ 蜃ｺ譚･鬮・,
-                   螢ｲ繧頑ｮ区椢謨ｰ, 螢ｲ繧頑ｮ矩≡鬘・ 雋ｷ縺・ｮ区椢謨ｰ, 雋ｷ縺・ｮ矩≡鬘・
-                   菫｡逕ｨ隧穂ｾ｡邇・ 菫｡逕ｨ蛟咲紫, ...謚戊ｳ・Κ髢蛻･繝・・繧ｿ...]
-    菫｡逕ｨ繝・・繧ｿ縺後↑縺・｡鯉ｼ育ｩｺ譁・ｭ暦ｼ峨・繧ｹ繧ｭ繝・・
+    """dailyweek2.json から (日付ISO, {列: 値}) のリストを返す（日付昇順）
+
+    JSON行の構造: [タイムスタンプms, 日経平均, 出来高?,
+                   売り残枚数, 売り残金額, 買い残枚数, 買い残金額,
+                   信用評価率, 信用倍率, ...投資部門別データ...]
+    信用データがない行（空文字）はスキップ
     """
     s = fetch_with_retry(DATA_URL)
     start = s.find('[')
     end = s.rfind(']')
     if start < 0 or end < 0:
-        raise ValueError("繝・・繧ｿJSON縺ｮ蠖｢蠑上′諠ｳ螳壹→逡ｰ縺ｪ繧翫∪縺・)
+        raise ValueError("データJSONの形式が想定と異なります")
     raw = json.loads(s[start:end + 1].replace('""', 'null'))
 
     out = []
@@ -125,31 +135,34 @@ def fetch_weekly_data():
         try:
             d = datetime.datetime.fromtimestamp(row[0] / 1000).date()
             rec = {
-                "螢ｲ繧頑ｮ区椢謨ｰ": float(row[3]),
-                "螢ｲ繧頑ｮ矩≡鬘・: float(row[4]),
-                "雋ｷ縺・ｮ区椢謨ｰ": float(row[5]),
-                "雋ｷ縺・ｮ矩≡鬘・: float(row[6]),
-                "菫｡逕ｨ隧穂ｾ｡邇・: float(row[7]),
-                "菫｡逕ｨ蛟咲紫": float(row[8]),
-                "螢ｲ繧頑ｮ句､牙喧": None,  # 蠕後〒蜑埼ｱ豈斐°繧芽ｨ育ｮ・                "雋ｷ縺・ｮ句､牙喧": None,
+                "売り残枚数": float(row[3]),
+                "売り残金額": float(row[4]),
+                "買い残枚数": float(row[5]),
+                "買い残金額": float(row[6]),
+                "信用評価率": float(row[7]),
+                "信用倍率": float(row[8]),
+                "売り残変化": None,  # 後で前週比から計算
+                "買い残変化": None,
             }
         except (TypeError, ValueError):
             continue
         out.append((d.isoformat(), rec))
 
     out.sort(key=lambda x: x[0])
-    # 蜑埼ｱ豈費ｼ磯≡鬘阪・螟牙喧邇・ｼ峨ｒ險育ｮ・    for i in range(1, len(out)):
+    # 前週比（金額の変化率）を計算
+    for i in range(1, len(out)):
         prev = out[i - 1][1]
         cur = out[i][1]
-        if prev["螢ｲ繧頑ｮ矩≡鬘・]:
-            cur["螢ｲ繧頑ｮ句､牙喧"] = round((cur["螢ｲ繧頑ｮ矩≡鬘・] / prev["螢ｲ繧頑ｮ矩≡鬘・] - 1) * 100, 2)
-        if prev["雋ｷ縺・ｮ矩≡鬘・]:
-            cur["雋ｷ縺・ｮ句､牙喧"] = round((cur["雋ｷ縺・ｮ矩≡鬘・] / prev["雋ｷ縺・ｮ矩≡鬘・] - 1) * 100, 2)
+        if prev["売り残金額"]:
+            cur["売り残変化"] = round((cur["売り残金額"] / prev["売り残金額"] - 1) * 100, 2)
+        if prev["買い残金額"]:
+            cur["買い残変化"] = round((cur["買い残金額"] / prev["買い残金額"] - 1) * 100, 2)
     return out
 
 
 # -----------------------------------------
-# 螻･豁ｴ・・SON・・# -----------------------------------------
+# 履歴（JSON）
+# -----------------------------------------
 def load_history():
     if os.path.exists(HISTORY_JSON):
         with open(HISTORY_JSON, encoding="utf-8") as f:
@@ -163,13 +176,14 @@ def save_history(hist):
 
 
 # -----------------------------------------
-# HTML蜃ｺ蜉・# -----------------------------------------
+# HTML出力
+# -----------------------------------------
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>菫｡逕ｨ隧穂ｾ｡謳咲寢邇・・菫｡逕ｨ谿・- {latest_date}</title>
+<title>信用評価損益率・信用残 - {latest_date}</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
@@ -208,53 +222,54 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .latest-row td {{ background: rgba(30,64,175,0.18); font-weight: bold; }}
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
-  /* 螢ｲ繧頑ｮ矩≡鬘・80荳・ｶ・= 雋ｷ縺・綾縺玲悄蠕・ｼ育ｷ代ワ繧､繝ｩ繧､繝茨ｼ・*/
+  /* 売り残金額 80万超 = 買い戻し期待（緑ハイライト） */
   td.sell-calm {{ background: rgba(34,197,94,0.22); color: #86efac; font-weight: bold; }}
-  /* 雋ｷ縺・ｮ矩≡鬘・500荳・ｶ・= 隴ｦ謌堤ｳｻ・郁ｵ､繝上う繝ｩ繧､繝茨ｼ・*/
+  /* 買い残金額 500万超 = 警戒系（赤ハイライト） */
   td.buy-warn {{ background: rgba(220,38,38,0.25); color: #fca5a5; font-weight: bold; }}
-  /* 菫｡逕ｨ隧穂ｾ｡邇・・繧｢繝ｩ繝ｼ繝・*/
-  .rate-top {{ background: rgba(236,72,153,0.25); color: #f9a8d4; font-weight: bold; }}  /* > -2 螟ｩ莠募恟:隱ｿ謨ｴ隴ｦ謌・*/
+  /* 信用評価率のアラート */
+  .rate-top {{ background: rgba(236,72,153,0.25); color: #f9a8d4; font-weight: bold; }}  /* > -2 天井圏:調整警戒 */
   .rate-normal {{ color: #e2e8f0; }}
-  .rate-caution {{ color: #fbbf24; font-weight: bold; }}       /* -9 縲・-10 隕∬ｭｦ謌・*/
-  .rate-danger {{ background: rgba(220,38,38,0.3); color: #f87171; font-weight: bold; }} /* < -10 雜・ｭｦ謌・*/
+  .rate-caution {{ color: #fbbf24; font-weight: bold; }}       /* -9 〜 -10 要警戒 */
+  .rate-danger {{ background: rgba(220,38,38,0.3); color: #f87171; font-weight: bold; }} /* < -10 超警戒 */
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
 </style>
 </head>
 <body>
-  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>縺九・繝√Ρ繝ｯ縺ｮ蛻・梵繝・ャ繧ｭ・・a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>・・/div>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
-    <a href="minervini_report_v2.html">邀ｳ蝗ｽ譬ｪ (Minervini)</a>
-    <a href="haitou.html">譌･譛ｬ譬ｪ (驟榊ｽ・</a>
-    <a href="jpminervini.html">譌･譛ｬ譬ｪ (Minervini)</a>
-    <a href="saitei.html">陬∝ｮ壼叙蠑・/a>
-    <a href="totan.html">譌･驫蛻ｩ荳翫￡遒ｺ邇・/a>
-    <a href="daikin.html">螢ｲ雋ｷ莉｣驥・/a>
-    <a href="shinyou.html" class="active">菫｡逕ｨ隧穂ｾ｡邇・/a>
+    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
+    <a href="haitou.html">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
+    <a href="daikin.html">売買代金</a>
+    <a href="shinyou.html" class="active">信用評価率</a>
+    <a href="shutai.html">投資主体別</a>
   </nav>
-  <h1>菫｡逕ｨ隧穂ｾ｡謳咲寢邇・・菫｡逕ｨ蜿門ｼ墓ｮ矩ｫ・/h1>
-  <p class="subtitle">譛邨よ峩譁ｰ: {updated} | 蜃ｺ謇: nikkei225jp.com | 騾ｱ谺｡・磯≡譖懃筏霎ｼ譎らせ・・| 譫壽焚:蜊・ｪ 驥鷹｡・逋ｾ荳・・</p>
+  <h1>信用評価損益率・信用取引残高</h1>
+  <p class="subtitle">最終更新: {updated} | 出所: nikkei225jp.com | 週次（金曜申込時点） | 枚数:千株 金額:百万円</p>
   <div class="legend">
-    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">螢ｲ繧頑ｮ矩≡鬘・{sell_alert:,}雜・= 雋ｷ縺・綾縺玲悄蠕・/span>
-    <span class="chip" style="background:rgba(220,38,38,0.25); color:#fca5a5">雋ｷ縺・ｮ矩≡鬘・{buy_alert:,}雜・= 隴ｦ謌・/span>
+    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">売り残金額 {sell_alert:,}超 = 買い戻し期待</span>
+    <span class="chip" style="background:rgba(220,38,38,0.25); color:#fca5a5">買い残金額 {buy_alert:,}超 = 警戒</span>
     <span>|</span>
-    <span class="rate-top" style="padding:1px 8px">隧穂ｾ｡邇・&gt;-2 螟ｩ莠募恟:隱ｿ謨ｴ隴ｦ謌・/span>
-    <span class="rate-caution">-9縲・10 隕∬ｭｦ謌・/span>
-    <span class="rate-danger" style="padding:1px 8px">&lt;-10 雜・ｭｦ謌・/span>
+    <span class="rate-top" style="padding:1px 8px">評価率 &gt;-2 天井圏:調整警戒</span>
+    <span class="rate-caution">-9〜-10 要警戒</span>
+    <span class="rate-danger" style="padding:1px 8px">&lt;-10 超警戒</span>
   </div>
   <div class="table-wrap">
   <table>
     <thead>
       <tr>
-        <th>譌･莉・/th>
-        <th>螢ｲ繧頑ｮ区椢謨ｰ</th>
-        <th>螢ｲ繧頑ｮ矩≡鬘・/th>
-        <th>螢ｲ繧頑ｮ句､牙喧</th>
-        <th>雋ｷ縺・ｮ区椢謨ｰ</th>
-        <th>雋ｷ縺・ｮ矩≡鬘・/th>
-        <th>雋ｷ縺・ｮ句､牙喧</th>
-        <th>菫｡逕ｨ蛟咲紫</th>
-        <th>菫｡逕ｨ隧穂ｾ｡邇・/th>
+        <th>日付</th>
+        <th>売り残枚数</th>
+        <th>売り残金額</th>
+        <th>売り残変化</th>
+        <th>買い残枚数</th>
+        <th>買い残金額</th>
+        <th>買い残変化</th>
+        <th>信用倍率</th>
+        <th>信用評価率</th>
       </tr>
     </thead>
     <tbody>
@@ -263,11 +278,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
-    繝ｻ菫｡逕ｨ隧穂ｾ｡邇・= 菫｡逕ｨ雋ｷ縺・ｒ縺励※縺・ｋ莠ｺ縺溘■縺ｮ蟷ｳ蝮・性縺ｿ謳咲寢邇・ｼ・・峨ょ性縺ｿ謳阪′蟆上＆縺・ｼ・2雜・ｼ会ｼ晏､ｩ莠募恟縺ｧ隱ｿ謨ｴ隴ｦ謌偵・15%蜑ｲ繧後〒蠎募､蝨上→縺輔ｌ繧九・br>
-    繝ｻ螢ｲ繧頑ｮ九′螟壹＞・・0荳・ｶ・ｼ会ｼ晏ｰ・擂縺ｮ雋ｷ縺・綾縺暦ｼ郁ｲｷ縺・悸蜉幢ｼ峨′遨阪∩荳翫′縺｣縺ｦ縺・ｋ迥ｶ諷九・br>
-    繝ｻ<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 菫｡逕ｨ隧穂ｾ｡謳咲寢邇・/a>
+    ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。含み損が小さい（-2超）＝天井圏で調整警戒、-15%割れで底値圏とされる。<br>
+    ・売り残が多い（80万超）＝将来の買い戻し（買い圧力）が積み上がっている状態。<br>
+    ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a>
   </p>
-  <p class="updated">譛邨よ峩譁ｰ: {updated}</p>
+  <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
 """
@@ -297,24 +312,25 @@ def rate_class(v):
 
 
 def generate_html(hist):
-    dates = sorted(hist.keys(), reverse=True)  # 譛譁ｰ縺御ｸ・    rows = []
+    dates = sorted(hist.keys(), reverse=True)  # 最新が上
+    rows = []
     for i, d in enumerate(dates):
         r = hist[d]
         cls = ' class="latest-row"' if i == 0 else ""
-        sell_cls = ' class="sell-calm"' if (r.get("螢ｲ繧頑ｮ矩≡鬘・) or 0) > SELL_ALERT else ""
-        buy_cls = ' class="buy-warn"' if (r.get("雋ｷ縺・ｮ矩≡鬘・) or 0) > BUY_ALERT else ""
-        rc = rate_class(r.get("菫｡逕ｨ隧穂ｾ｡邇・))
-        rate_v = r.get("菫｡逕ｨ隧穂ｾ｡邇・)
+        sell_cls = ' class="sell-calm"' if (r.get("売り残金額") or 0) > SELL_ALERT else ""
+        buy_cls = ' class="buy-warn"' if (r.get("買い残金額") or 0) > BUY_ALERT else ""
+        rc = rate_class(r.get("信用評価率"))
+        rate_v = r.get("信用評価率")
         rate_s = f"{rate_v:+.2f}" if rate_v is not None else "-"
-        bairitsu = r.get("菫｡逕ｨ蛟咲紫")
+        bairitsu = r.get("信用倍率")
         rows.append(
             f'      <tr{cls}><td>{d.replace("-", "/")}</td>'
-            f'<td>{fmt_int(r.get("螢ｲ繧頑ｮ区椢謨ｰ"))}</td>'
-            f'<td{sell_cls}>{fmt_int(r.get("螢ｲ繧頑ｮ矩≡鬘・))}</td>'
-            f'<td>{fmt_pct(r.get("螢ｲ繧頑ｮ句､牙喧"))}</td>'
-            f'<td>{fmt_int(r.get("雋ｷ縺・ｮ区椢謨ｰ"))}</td>'
-            f'<td{buy_cls}>{fmt_int(r.get("雋ｷ縺・ｮ矩≡鬘・))}</td>'
-            f'<td>{fmt_pct(r.get("雋ｷ縺・ｮ句､牙喧"))}</td>'
+            f'<td>{fmt_int(r.get("売り残枚数"))}</td>'
+            f'<td{sell_cls}>{fmt_int(r.get("売り残金額"))}</td>'
+            f'<td>{fmt_pct(r.get("売り残変化"))}</td>'
+            f'<td>{fmt_int(r.get("買い残枚数"))}</td>'
+            f'<td{buy_cls}>{fmt_int(r.get("買い残金額"))}</td>'
+            f'<td>{fmt_pct(r.get("買い残変化"))}</td>'
             f'<td>{bairitsu if bairitsu is not None else "-"}</td>'
             f'<td class="{rc}">{rate_s}</td></tr>'
         )
@@ -330,14 +346,14 @@ def generate_html(hist):
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
-    log(f"HTML蜃ｺ蜉・ {path}")
+    log(f"HTML出力: {path}")
 
 
 # -----------------------------------------
-# GitHub Pages 閾ｪ蜍・push
+# GitHub Pages 自動 push
 # -----------------------------------------
 def push_to_github():
-    log("GitHub Pages 縺ｫ蜈ｬ髢倶ｸｭ...")
+    log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
                     os.path.basename(HISTORY_JSON), ".gitignore",
@@ -370,17 +386,17 @@ def push_to_github():
 # main
 # -----------------------------------------
 def main():
-    log("菫｡逕ｨ隧穂ｾ｡謳咲寢邇・繝√ぉ繝・け髢句ｧ・)
+    log("信用評価損益率 チェック開始")
 
     hist = load_history()
 
     try:
         weekly = fetch_weekly_data()
     except Exception as e:
-        log(f"繧ｨ繝ｩ繝ｼ: 繝・・繧ｿ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆: {e}")
+        log(f"エラー: データの取得に失敗しました: {e}")
         sys.exit(1)
 
-    log(f"繧ｵ繧､繝井ｸ翫・繝・・繧ｿ: {len(weekly)}騾ｱ蛻・({weekly[0][0]} ・・{weekly[-1][0]})")
+    log(f"サイト上のデータ: {len(weekly)}週分 ({weekly[0][0]} ～ {weekly[-1][0]})")
 
     added = 0
     for d, rec in weekly:
@@ -388,26 +404,26 @@ def main():
             continue
         hist[d] = rec
         added += 1
-        log(f"霑ｽ險・ {d}  隧穂ｾ｡邇・{rec['菫｡逕ｨ隧穂ｾ｡邇・]:+.2f}% 螢ｲ繧頑ｮ・{rec['螢ｲ繧頑ｮ矩≡鬘・]:,.0f} 雋ｷ縺・ｮ・{rec['雋ｷ縺・ｮ矩≡鬘・]:,.0f}")
+        log(f"追記: {d}  評価率={rec['信用評価率']:+.2f}% 売り残={rec['売り残金額']:,.0f} 買い残={rec['買い残金額']:,.0f}")
 
     if added:
         save_history(hist)
-        log(f"螻･豁ｴ菫晏ｭ・ {len(hist)}騾ｱ蛻・)
+        log(f"履歴保存: {len(hist)}週分")
     else:
-        log("譁ｰ縺励＞繝・・繧ｿ縺ｯ縺ゅｊ縺ｾ縺帙ｓ縺ｧ縺励◆")
+        log("新しいデータはありませんでした")
 
     if not hist:
-        log("繝・・繧ｿ縺後↑縺・◆繧？TML縺ｯ逕滓・縺励∪縺帙ｓ")
+        log("データがないためHTMLは生成しません")
         return
 
     generate_html(hist)
 
     if "--nopush" in sys.argv:
-        log("--nopush 謖・ｮ壹・縺溘ａ git push 縺ｯ繧ｹ繧ｭ繝・・")
+        log("--nopush 指定のため git push はスキップ")
     else:
         push_to_github()
 
-    log("螳御ｺ・)
+    log("完了")
 
 
 if __name__ == "__main__":
