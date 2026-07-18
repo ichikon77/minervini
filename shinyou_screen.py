@@ -245,6 +245,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="totan.html">日銀利上げ確率</a>
     <a href="daikin.html">売買代金</a>
     <a href="shinyou.html" class="active">信用評価率</a>
+    <a href="shutai.html">投資主体別</a>
   </nav>
   <h1>信用評価損益率・信用取引残高</h1>
   <p class="subtitle">最終更新: {updated} | 出所: nikkei225jp.com | 週次（金曜申込時点） | 枚数:千株 金額:百万円</p>
@@ -412,18 +413,4 @@ def main():
         log("新しいデータはありませんでした")
 
     if not hist:
-        log("データがないためHTMLは生成しません")
-        return
-
-    generate_html(hist)
-
-    if "--nopush" in sys.argv:
-        log("--nopush 指定のため git push はスキップ")
-    else:
-        push_to_github()
-
-    log("完了")
-
-
-if __name__ == "__main__":
-    main()
+        log("データが
