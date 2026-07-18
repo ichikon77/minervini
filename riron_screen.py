@@ -1,0 +1,407 @@
+# -*- coding: utf-8 -*-
+"""
+日経平均 理論株価 自動記録 → HTML出力 → GitHub Pages公開
+
+データ源: https://nikkei225jp.com/data/per.php
+実データは daily2.json（2009年からの日次）。col12=PER, col13=PBR。
+
+- EPS = 日経平均 ÷ PER、BPS = 日経平均 ÷ PBR（エクセルと同方式、一致検証済み）
+- 理論PBR: BPS × 0.87 / BPS × 0.82（過去の底値PBR水準）
+- 理論株価: EPS × PER(10.5〜21.0、0.5刻み22本)
+- 現在の日経平均に最も近い理論株価のセルをハイライト（いまのPER位置が分かる）
+- 最新が上。履歴は riron_history.json に蓄積
+"""
+
+import os
+import re
+import sys
+import json
+import time
+import subprocess
+import datetime
+
+import requests
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+PAGE_URL = "https://nikkei225jp.com/data/per.php"
+DATA_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/daily2.json"
+
+HISTORY_JSON = os.path.join(SCRIPT_DIR, "riron_history.json")
+REPORT_HTML = "riron.html"
+
+PBR_LEVELS = [0.87, 0.82]
+PER_LEVELS = [10.5 + 0.5 * i for i in range(22)]  # 10.5〜21.0
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    "Referer": PAGE_URL,
+}
+
+
+def log(msg):
+    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
+
+
+# -----------------------------------------
+# データ取得（requests → curl → PowerShell）
+# -----------------------------------------
+def _fetch_requests(url, timeout):
+    r = requests.get(url, headers=HEADERS, timeout=timeout)
+    r.raise_for_status()
+    return r.text
+
+
+def _fetch_curl(url, timeout):
+    cmd = ["curl", "-sL", "--max-time", str(timeout),
+           "-A", HEADERS["User-Agent"],
+           "-e", PAGE_URL,
+           "-H", "Accept: */*",
+           "-H", "Accept-Language: ja,en-US;q=0.9",
+           "--compressed",
+           url]
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+    if r.returncode != 0 or not r.stdout or len(r.stdout) < 1000:
+        raise RuntimeError(f"curl取得失敗 (rc={r.returncode}, len={len(r.stdout or '')})")
+    if "403" in r.stdout[:200] and "Forbidden" in r.stdout[:500]:
+        raise RuntimeError("curl: 403 Forbidden")
+    return r.stdout
+
+
+def _fetch_powershell(url, timeout):
+    ps = (
+        f"$ProgressPreference='SilentlyContinue'; "
+        f"$r = Invoke-WebRequest -UseBasicParsing -Uri '{url}' -TimeoutSec {timeout} "
+        f"-Headers @{{'Referer'='{PAGE_URL}'; 'Accept-Language'='ja,en-US;q=0.9'}} "
+        f"-UserAgent '{HEADERS['User-Agent']}'; "
+        f"[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+        f"$r.Content"
+    )
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                       capture_output=True, text=True, encoding="utf-8", errors="ignore",
+                       timeout=timeout + 30)
+    if r.returncode != 0 or not r.stdout or len(r.stdout) < 1000:
+        raise RuntimeError(f"powershell取得失敗 (rc={r.returncode}, len={len(r.stdout or '')})")
+    return r.stdout
+
+
+def fetch_with_retry(url, tries=4, timeout=60, wait=45):
+    methods = [("requests", _fetch_requests), ("curl", _fetch_curl)]
+    if os.name == "nt":
+        methods.append(("powershell", _fetch_powershell))
+    last_err = None
+    for i in range(1, tries + 1):
+        for name, fn in methods:
+            try:
+                return fn(url, timeout)
+            except Exception as e:
+                last_err = e
+                log(f"  [{name}]方式は不可、次の方式へ ({i}/{tries})")
+        if i < tries:
+            time.sleep(wait)
+    raise last_err
+
+
+def fetch_daily():
+    """{日付ISO: {日経平均, PER, PBR}} を返す"""
+    s = fetch_with_retry(DATA_URL)
+    start = s.find('[')
+    end = s.rfind(']')
+    if start < 0 or end < 0:
+        raise ValueError("データJSONの形式が想定と異なります")
+    s = s[start:end + 1].replace('""', 'null')
+    while ',,' in s:
+        s = s.replace(',,', ',null,')
+    s = s.replace('[,', '[null,').replace(',]', ',null]')
+    raw = json.loads(s)
+
+    out = {}
+    for row in raw:
+        if len(row) < 14 or row[1] is None or row[12] is None or row[13] is None:
+            continue
+        try:
+            d = datetime.datetime.fromtimestamp(row[0] / 1000).date()
+            nikkei = float(row[1])
+            per = float(row[12])
+            pbr = float(row[13])
+            if per <= 0 or pbr <= 0:
+                continue
+            out[d.isoformat()] = {"日経平均": nikkei, "PER": per, "PBR": pbr}
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def enrich(hist):
+    """EPS/BPS/前日差を計算して埋める"""
+    dates = sorted(hist.keys())
+    for i, d in enumerate(dates):
+        r = hist[d]
+        nikkei, per, pbr = r["日経平均"], r["PER"], r["PBR"]
+        r["EPS"] = round(nikkei / per, 2)
+        r["BPS"] = round(nikkei / pbr, 2)
+        r["前日差"] = round(nikkei - hist[dates[i - 1]]["日経平均"], 2) if i > 0 else None
+
+
+# -----------------------------------------
+# 履歴
+# -----------------------------------------
+def load_history():
+    if os.path.exists(HISTORY_JSON):
+        with open(HISTORY_JSON, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_history(hist):
+    with open(HISTORY_JSON, "w", encoding="utf-8") as f:
+        json.dump(hist, f, ensure_ascii=False)
+
+
+# -----------------------------------------
+# HTML出力
+# -----------------------------------------
+HTML_HEAD = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日経平均 理論株価 - {latest_date}</title>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }}
+  h1 {{ font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }}
+  .subtitle {{ color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }}
+  .nav {{ display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }}
+  .nav a {{
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }}
+  .nav a:hover {{ background: #334155; }}
+  .nav a.active {{ background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }}
+  .legend {{ display: flex; gap: 12px; margin-bottom: 14px; font-size: 0.78rem; color: #94a3b8; flex-wrap: wrap; align-items: center; }}
+  .chip {{ padding: 2px 10px; border-radius: 10px; }}
+  .table-wrap {{
+    overflow: auto;
+    max-height: calc(100vh - 200px);
+  }}
+  table {{ border-collapse: collapse; font-size: 0.8rem; }}
+  thead th {{
+    background: #1e293b; color: #94a3b8; padding: 8px 10px;
+    text-align: right; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }}
+  thead th:first-child {{
+    text-align: left; position: sticky; left: 0; z-index: 3; background: #1e293b;
+  }}
+  thead th.sep {{ border-left: 2px solid #334155; }}
+  td {{
+    padding: 5px 10px; border-bottom: 1px solid #1e293b;
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }}
+  td:first-child {{
+    text-align: left; color: #94a3b8; position: sticky; left: 0;
+    background: #0f172a; z-index: 1;
+  }}
+  td.sep {{ border-left: 2px solid #334155; }}
+  tr:hover td {{ filter: brightness(1.3); }}
+  .pos {{ color: #4ade80; }}
+  .neg {{ color: #f87171; }}
+  td.now {{ background: rgba(30,64,175,0.5); color: #bfdbfe; font-weight: bold; }}
+  td.pbrline {{ color: #7dd3fc; }}
+  .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
+  .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
+</style>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
+    <a href="haitou.html">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
+    <a href="daikin.html">売買代金</a>
+    <a href="shinyou.html">信用評価率</a>
+    <a href="shutai.html">投資主体別</a>
+    <a href="gaikoku.html">海外投資家</a>
+    <a href="touraku.html">騰落レシオ</a>
+    <a href="karauri.html">空売り比率</a>
+    <a href="riron.html" class="active">理論株価</a>
+    <a href="map.html">デッキの見方</a>
+  </nav>
+  <h1>日経平均 理論株価（PER・PBRレンジ）</h1>
+  <p class="subtitle">最終更新: {updated} | 出所: nikkei225jp.com | EPS=日経平均÷PER、BPS=日経平均÷PBR</p>
+  <div class="legend">
+    <span class="chip" style="background:rgba(30,64,175,0.5); color:#bfdbfe">現在の日経平均に最も近い理論株価</span>
+    <span class="chip" style="color:#7dd3fc">理論PBR = 過去の底値PBR水準（BPS×0.87 / ×0.82）</span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>日付</th>
+        <th>日経平均</th>
+        <th>前日差</th>
+        <th>PER</th>
+        <th>PBR</th>
+        <th>EPS</th>
+        <th>BPS</th>
+        <th class="sep">PBR0.87</th>
+        <th>PBR0.82</th>
+{per_headers}
+      </tr>
+    </thead>
+    <tbody>
+{rows}
+    </tbody>
+  </table>
+  </div>
+  <p class="note">
+    ・理論株価 = EPS × 各PER。現在の日経平均がどのPER水準にいるか、青いセルの位置で分かる。<br>
+    ・理論PBR = BPS × 0.87 / 0.82（過去の暴落時に底となったPBR水準。ここまで下がると歴史的底値圏）。<br>
+    ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 日経平均PER</a>
+  </p>
+  <p class="updated">最終更新: {updated}</p>
+</body>
+</html>
+"""
+
+
+def generate_html(hist):
+    dates = sorted(hist.keys(), reverse=True)  # 最新が上
+
+    sep_attr = ' class="sep"'
+    per_headers = "\n".join(
+        f'        <th{sep_attr if i == 0 else ""}>PER{p:g}</th>'
+        for i, p in enumerate(PER_LEVELS))
+
+    rows = []
+    for d in dates:
+        r = hist[d]
+        nikkei, eps, bps = r["日経平均"], r["EPS"], r["BPS"]
+        diff = r.get("前日差")
+        diff_s = "-" if diff is None else f'<span class="{"pos" if diff > 0 else ("neg" if diff < 0 else "")}">{diff:+,.2f}</span>'
+
+        # 理論株価22本のうち現在値に最も近い列
+        theos = [round(eps * p) for p in PER_LEVELS]
+        nearest = min(range(len(theos)), key=lambda i: abs(theos[i] - nikkei))
+
+        cells = [f'<td>{d.replace("-", "/")}</td>',
+                 f'<td>{nikkei:,.2f}</td>',
+                 f'<td>{diff_s}</td>',
+                 f'<td>{r["PER"]:.2f}</td>',
+                 f'<td>{r["PBR"]:.2f}</td>',
+                 f'<td>{eps:,.2f}</td>',
+                 f'<td>{bps:,.2f}</td>']
+        for j, lv in enumerate(PBR_LEVELS):
+            sep = ' sep' if j == 0 else ''
+            cells.append(f'<td class="pbrline{sep}">{bps * lv:,.0f}</td>')
+        for i, (p, t) in enumerate(zip(PER_LEVELS, theos)):
+            cls = []
+            if i == 0:
+                cls.append('sep')
+            if i == nearest:
+                cls.append('now')
+            attr = f' class="{" ".join(cls)}"' if cls else ''
+            cells.append(f'<td{attr}>{t:,}</td>')
+        rows.append('      <tr>' + "".join(cells) + '</tr>')
+
+    html = HTML_HEAD.format(
+        latest_date=dates[0].replace("-", "/") if dates else "-",
+        per_headers=per_headers,
+        rows="\n".join(rows),
+        src_url=PAGE_URL,
+        updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
+    path = os.path.join(SCRIPT_DIR, REPORT_HTML)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+    log(f"HTML出力: {path}")
+
+
+# -----------------------------------------
+# GitHub Pages 自動 push
+# -----------------------------------------
+def push_to_github():
+    log("GitHub Pages に公開中...")
+    today = datetime.date.today().isoformat()
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
+                    os.path.basename(HISTORY_JSON), ".gitignore",
+                    "riron_screen.py", "riron_run.bat"], check=True)
+    result = subprocess.run(
+        ["git", "-C", SCRIPT_DIR, "commit", "-m", "update riron report " + today],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            log("  commit skip (already committed)")
+        else:
+            log("  commit failed: " + msg)
+            return
+
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase", "--autostash"], check=True)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
+            log("  Done: https://ichikon77.github.io/minervini/riron.html")
+            return
+        except subprocess.CalledProcessError as e:
+            log(f"  push failed (attempt {attempt}/5): {e}")
+            time.sleep(10)
+    log("  push failed finally")
+
+
+# -----------------------------------------
+# main
+# -----------------------------------------
+def main():
+    log("日経平均 理論株価 チェック開始")
+
+    hist = load_history()
+
+    try:
+        daily = fetch_daily()
+    except Exception as e:
+        log(f"エラー: データの取得に失敗しました: {e}")
+        sys.exit(1)
+
+    log(f"サイト上のデータ: {len(daily)}日分 ({min(daily)} ～ {max(daily)})")
+
+    added = 0
+    for d, rec in daily.items():
+        if d in hist:
+            continue
+        hist[d] = rec
+        added += 1
+
+    if added:
+        enrich(hist)
+        save_history(hist)
+        latest = max(hist)
+        r = hist[latest]
+        log(f"追記: {added}日分（計 {len(hist)}日） 最新 {latest}: PER={r['PER']} EPS={r['EPS']:,.0f}")
+    else:
+        log("新しいデータはありませんでした")
+
+    if not hist:
+        log("データがないためHTMLは生成しません")
+        return
+
+    generate_html(hist)
+
+    if "--nopush" in sys.argv:
+        log("--nopush 指定のため git push はスキップ")
+    else:
+        push_to_github()
+
+    log("完了")
+
+
+if __name__ == "__main__":
+    main()
