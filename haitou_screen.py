@@ -480,6 +480,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
     <a href="gaikoku.html">海外投資家</a>
+    <a href="map.html">デッキの見方</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が閾値以内 かつ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上</p>

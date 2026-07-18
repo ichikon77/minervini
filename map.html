@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>デッキの見方 - かぶチワワの分析デッキ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .diagram-wrap { max-width: 1060px; overflow-x: auto; }
+  svg { display: block; }
+  svg a { cursor: pointer; }
+  svg a:hover rect { stroke: #60a5fa; stroke-width: 2; }
+  .note { font-size: 0.85rem; color: #94a3b8; margin-top: 20px; line-height: 2.0; max-width: 980px; }
+  .note b { color: #e2e8f0; }
+</style>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
+    <a href="haitou.html">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
+    <a href="daikin.html">売買代金</a>
+    <a href="shinyou.html">信用評価率</a>
+    <a href="shutai.html">投資主体別</a>
+    <a href="map.html" class="active">デッキの見方</a>
+  </nav>
+  <h1>デッキの見方 — 各ページのつながり</h1>
+  <p class="subtitle">マクロ → 需給 → 資金の行き先 → 銘柄選び、の流れで見る。ボックスをクリックで各ページへ。</p>
+
+  <div class="diagram-wrap">
+  <svg width="1040" height="780" viewBox="0 0 1040 780" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+      </marker>
+      <marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/>
+      </marker>
+    </defs>
+
+    <!-- ══ レイヤー見出し ══ -->
+    <text x="20" y="38" fill="#a78bfa" font-size="13" font-weight="bold">① マクロ（金利）</text>
+    <text x="20" y="150" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路</text>
+    <text x="20" y="388" fill="#fbbf24" font-size="13" font-weight="bold">③ 市場の温度計</text>
+    <text x="20" y="530" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
+    <text x="20" y="668" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄選び</text>
+
+    <!-- ══ ① マクロ ══ -->
+    <a href="totan.html">
+      <rect x="390" y="20" width="260" height="64" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="520" y="46" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日銀利上げ確率</text>
+      <text x="520" y="66" text-anchor="middle" fill="#94a3b8" font-size="11">市場が織り込む金融政策の行方</text>
+    </a>
+
+    <!-- totan → 市場全体 -->
+    <line x1="520" y1="84" x2="520" y2="128" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="532" y="110" fill="#94a3b8" font-size="11">金利観測が銀行株・グロース株・円相場を動かす</text>
+
+    <!-- ══ ② 需給: gaikoku → saitei → shutai ══ -->
+    <a href="gaikoku.html">
+      <rect x="60" y="170" width="250" height="86" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="185" y="196" text-anchor="middle" fill="#bfdbfe" font-size="15" font-weight="bold">海外投資家</text>
+      <text x="185" y="216" text-anchor="middle" fill="#94a3b8" font-size="11">現物(二市場) + 先物4本の内訳</text>
+      <text x="185" y="234" text-anchor="middle" fill="#94a3b8" font-size="11">相場の最大プレイヤーの出入り</text>
+    </a>
+
+    <a href="saitei.html">
+      <rect x="400" y="170" width="250" height="86" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="525" y="196" text-anchor="middle" fill="#bfdbfe" font-size="15" font-weight="bold">裁定取引</text>
+      <text x="525" y="216" text-anchor="middle" fill="#94a3b8" font-size="11">先物⇔現物の接着剤の「在庫」</text>
+      <text x="525" y="234" text-anchor="middle" fill="#94a3b8" font-size="11">買い残 = 予約済みの将来の売り</text>
+    </a>
+
+    <a href="shutai.html">
+      <rect x="740" y="170" width="250" height="86" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="865" y="196" text-anchor="middle" fill="#bfdbfe" font-size="15" font-weight="bold">投資主体別</text>
+      <text x="865" y="216" text-anchor="middle" fill="#94a3b8" font-size="11">誰が買って誰が売ったか</text>
+      <text x="865" y="234" text-anchor="middle" fill="#94a3b8" font-size="11">海外・個人・年金・証券自己</text>
+    </a>
+
+    <!-- gaikoku 先物 → saitei -->
+    <line x1="310" y1="196" x2="398" y2="196" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
+    <text x="354" y="186" text-anchor="middle" fill="#93c5fd" font-size="11">先物大量買い→割高</text>
+    <text x="354" y="212" text-anchor="middle" fill="#93c5fd" font-size="11">→裁定組成(買い残増)</text>
+
+    <!-- saitei → shutai -->
+    <line x1="650" y1="196" x2="738" y2="196" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
+    <text x="694" y="186" text-anchor="middle" fill="#93c5fd" font-size="11">裁定解消=現物売り</text>
+    <text x="694" y="212" text-anchor="middle" fill="#93c5fd" font-size="11">(証券自己に出る)</text>
+
+    <!-- gaikoku 現物 → shutai (下回りの曲線) -->
+    <path d="M 185,256 C 185,320 780,320 858,258" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#ar)"/>
+    <text x="522" y="298" text-anchor="middle" fill="#94a3b8" font-size="11">現物(二市場) = 投資主体別の「海外」列と同じデータ</text>
+
+    <!-- ══ ③ 温度計 ══ -->
+    <a href="shinyou.html">
+      <rect x="60" y="408" width="250" height="86" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="185" y="434" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">信用評価率</text>
+      <text x="185" y="454" text-anchor="middle" fill="#94a3b8" font-size="11">個人の含み損益 = 相場の体温</text>
+      <text x="185" y="472" text-anchor="middle" fill="#94a3b8" font-size="11">&gt;-2 天井圏 / &lt;-15 底値圏</text>
+    </a>
+
+    <a href="saitei.html">
+      <rect x="400" y="408" width="250" height="86" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="525" y="434" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">裁定買い残（再掲）</text>
+      <text x="525" y="454" text-anchor="middle" fill="#94a3b8" font-size="11">積み上がり = 先物経由の過熱</text>
+      <text x="525" y="472" text-anchor="middle" fill="#94a3b8" font-size="11">500万超は警戒(赤)</text>
+    </a>
+
+    <a href="shutai.html">
+      <rect x="740" y="408" width="250" height="86" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="865" y="434" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">個人の逆張り（再掲）</text>
+      <text x="865" y="454" text-anchor="middle" fill="#94a3b8" font-size="11">個人買い越し急増 = 下落局面</text>
+      <text x="865" y="472" text-anchor="middle" fill="#94a3b8" font-size="11">海外と個人は鏡写しになりがち</text>
+    </a>
+
+    <!-- 需給層 → 温度計層 -->
+    <line x1="185" y1="256" x2="185" y2="406" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="865" y1="256" x2="865" y2="406" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+
+    <!-- 温度計層 → 資金の行き先 -->
+    <line x1="520" y1="494" x2="520" y2="546" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="532" y="524" fill="#94a3b8" font-size="11">需給と温度感が「どの銘柄に」現れるか</text>
+
+    <!-- ══ ④ 資金の行き先 ══ -->
+    <a href="daikin.html">
+      <rect x="390" y="548" width="260" height="72" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+      <text x="520" y="574" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">売買代金 TOP200</text>
+      <text x="520" y="594" text-anchor="middle" fill="#94a3b8" font-size="11">↑連続・NEW = 資金流入の初動を検知</text>
+      <text x="520" y="610" text-anchor="middle" fill="#94a3b8" font-size="11">低位からの連騰銘柄を発掘</text>
+    </a>
+
+    <!-- daikin → screeners -->
+    <line x1="520" y1="620" x2="520" y2="672" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="532" y="650" fill="#94a3b8" font-size="11">出来高を伴う銘柄をトレンド・割安の物差しで裏付け</text>
+
+    <!-- ══ ⑤ 銘柄選び ══ -->
+    <a href="jpminervini.html">
+      <rect x="60" y="676" width="280" height="72" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="200" y="702" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
+      <text x="200" y="722" text-anchor="middle" fill="#94a3b8" font-size="11">トレンドテンプレート + RS + VCP</text>
+    </a>
+    <a href="haitou.html">
+      <rect x="380" y="676" width="280" height="72" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="520" y="702" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (配当)</text>
+      <text x="520" y="722" text-anchor="middle" fill="#94a3b8" font-size="11">高配当 × 低PBR × 時価総額500億+</text>
+    </a>
+    <a href="minervini_report_v2.html">
+      <rect x="700" y="676" width="280" height="72" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="840" y="702" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">米国株 (Minervini)</text>
+      <text x="840" y="722" text-anchor="middle" fill="#94a3b8" font-size="11">S&amp;P500 + NASDAQ100 / 押し目分析</text>
+    </a>
+  </svg>
+  </div>
+
+  <p class="note">
+    <b>使い方の例（上から下へ）:</b><br>
+    ・<b>①日銀利上げ確率</b>が上がる週は銀行株に追い風、グロース株に逆風。金利は全ての前提。<br>
+    ・<b>②海外投資家</b>が先物を大きく買うと、裁定業者が「先物売り・現物買い」を組み、<b>裁定買い残</b>が積み上がる。この解消（現物売り）は<b>投資主体別の証券自己</b>に現れる。海外の現物買いはそのまま「海外」列に出る。<br>
+    ・<b>③信用評価率</b>で個人の温度（天井圏/底値圏）、<b>裁定買い残</b>で先物経由の過熱を確認。海外の売りは個人の買い（逆張り）と鏡写しになりやすい。<br>
+    ・<b>④売買代金TOP200</b>で、その需給が実際にどの銘柄に向かっているかを特定（↑連続・NEWが初動シグナル）。<br>
+    ・<b>⑤スクリーナー</b>で、資金が入っている銘柄がトレンド（Minervini）や割安さ（配当）の基準を満たすか裏付けて、最終的な候補に絞る。
+  </p>
+  <p class="note" style="color:#475569; font-size:0.78rem;">このページは静的な解説ページです（自動更新なし）。</p>
+</body>
+</html>

@@ -267,6 +267,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
     <a href="gaikoku.html">海外投資家</a>
+    <a href="map.html">デッキの見方</a>
   </nav>
   <h1>裁定取引に係る現物ポジション</h1>
   <p class="subtitle">最終更新: {updated} | 出所: 東京証券取引所「裁定取引の状況」 | 単位: 千株</p>

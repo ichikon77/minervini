@@ -264,6 +264,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
     <a href="gaikoku.html" class="active">海外投資家</a>
+    <a href="map.html">デッキの見方</a>
   </nav>
   <h1>海外投資家 現物+先物 売買動向</h1>
   <p class="subtitle">最終更新: {updated} | 出所: JPX投資部門別取引状況・nikkei225jp.com | 週次 | 単位: 百万円（プラス=買い越し）</p>
