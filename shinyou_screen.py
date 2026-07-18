@@ -107,7 +107,7 @@ def fetch_with_retry(url, tries=3, timeout=60, wait=45):
                 return fn(url, timeout)
             except Exception as e:
                 last_err = e
-                log(f"  取得失敗 [{method}] ({i}/{tries}): {e}")
+                log(f"  [{method}]方式は不可、次の方式へ ({i}/{tries})")
         if i < tries:
             time.sleep(wait)
     raise last_err
