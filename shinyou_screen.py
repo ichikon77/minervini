@@ -250,6 +250,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="touraku.html">騰落レシオ</a>
     <a href="karauri.html">空売り比率</a>
     <a href="riron.html">日経理論株価</a>
+    <a href="spriron.html">SP500理論株価</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>信用評価損益率・信用取引残高</h1>

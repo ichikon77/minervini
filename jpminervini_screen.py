@@ -827,6 +827,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <a href="touraku.html">騰落レシオ</a>
     <a href="karauri.html">空売り比率</a>
     <a href="riron.html">日経理論株価</a>
+    <a href="spriron.html">SP500理論株価</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>Japan Minervini Screening <span class="badge">{count} passed</span></h1>

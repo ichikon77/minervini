@@ -238,6 +238,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="touraku.html">騰落レシオ</a>
     <a href="karauri.html">空売り比率</a>
     <a href="riron.html" class="active">日経理論株価</a>
+    <a href="spriron.html">SP500理論株価</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>日経平均 理論株価（PER・PBRレンジ）</h1>
@@ -430,34 +431,4 @@ def main():
         log(f"エラー: データの取得に失敗しました: {e}")
         sys.exit(1)
 
-    log(f"サイト上のデータ: {len(daily)}日分 ({min(daily)} ～ {max(daily)})")
-
-    added = 0
-    for d, rec in daily.items():
-        if d in hist:
-            continue
-        hist[d] = rec
-        added += 1
-
-    if added:
-        enrich(hist)
-        save_history(hist)
-        log(f"追記: {added}日分（計 {len(hist)}日）")
-    else:
-        log("新しいデータはありませんでした")
-
-    if not hist:
-        return
-
-    generate_html(hist)
-
-    if "--nopush" in sys.argv:
-        log("--nopush 指定のため git push はスキップ")
-    else:
-        push_to_github()
-
-    log("完了")
-
-
-if __name__ == "__main__":
-    main()
+    log(f"サイト
