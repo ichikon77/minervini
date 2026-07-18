@@ -12,7 +12,7 @@
 - 色分け:
     売り残金額 > 800,000百万円 → 安心系（緑）
     買い残金額 > 5,000,000百万円 → 警戒系（赤）
-    信用評価率: > -2 超安心（緑太字） / -9〜-10 要警戒（オレンジ） /
+    信用評価率: > -2 天井圏:調整警戒（ピンク） / -9〜-10 要警戒（オレンジ） /
                 < -10 超警戒（赤太字）
 """
 
@@ -222,12 +222,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .latest-row td {{ background: rgba(30,64,175,0.18); font-weight: bold; }}
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
-  /* 売り残金額 80万超 = 安心系（緑ハイライト） */
+  /* 売り残金額 80万超 = 買い戻し期待（緑ハイライト） */
   td.sell-calm {{ background: rgba(34,197,94,0.22); color: #86efac; font-weight: bold; }}
   /* 買い残金額 500万超 = 警戒系（赤ハイライト） */
   td.buy-warn {{ background: rgba(220,38,38,0.25); color: #fca5a5; font-weight: bold; }}
   /* 信用評価率のアラート */
-  .rate-safe {{ color: #4ade80; font-weight: bold; }}          /* > -2 超安心 */
+  .rate-top {{ background: rgba(236,72,153,0.25); color: #f9a8d4; font-weight: bold; }}  /* > -2 天井圏:調整警戒 */
   .rate-normal {{ color: #e2e8f0; }}
   .rate-caution {{ color: #fbbf24; font-weight: bold; }}       /* -9 〜 -10 要警戒 */
   .rate-danger {{ background: rgba(220,38,38,0.3); color: #f87171; font-weight: bold; }} /* < -10 超警戒 */
@@ -249,10 +249,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h1>信用評価損益率・信用取引残高</h1>
   <p class="subtitle">最終更新: {updated} | 出所: nikkei225jp.com | 週次（金曜申込時点） | 枚数:千株 金額:百万円</p>
   <div class="legend">
-    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">売り残金額 {sell_alert:,}超 = 安心</span>
+    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">売り残金額 {sell_alert:,}超 = 買い戻し期待</span>
     <span class="chip" style="background:rgba(220,38,38,0.25); color:#fca5a5">買い残金額 {buy_alert:,}超 = 警戒</span>
     <span>|</span>
-    <span class="rate-safe">評価率 &gt;-2 超安心</span>
+    <span class="rate-top" style="padding:1px 8px">評価率 &gt;-2 天井圏:調整警戒</span>
     <span class="rate-caution">-9〜-10 要警戒</span>
     <span class="rate-danger" style="padding:1px 8px">&lt;-10 超警戒</span>
   </div>
@@ -277,7 +277,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
-    ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。-3%超で天井圏、-15%割れで底値圏とされる。<br>
+    ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。含み損が小さい（-2超）＝天井圏で調整警戒、-15%割れで底値圏とされる。<br>
+    ・売り残が多い（80万超）＝将来の買い戻し（買い圧力）が積み上がっている状態。<br>
     ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
@@ -301,7 +302,7 @@ def rate_class(v):
     if v is None:
         return "rate-normal"
     if v > -2:
-        return "rate-safe"
+        return "rate-top"
     if v < -10:
         return "rate-danger"
     if v <= -9:

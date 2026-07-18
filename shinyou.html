@@ -42,12 +42,12 @@
   .latest-row td { background: rgba(30,64,175,0.18); font-weight: bold; }
   .pos { color: #4ade80; }
   .neg { color: #f87171; }
-  /* 売り残金額 80万超 = 安心系（緑ハイライト） */
+  /* 売り残金額 80万超 = 買い戻し期待（緑ハイライト） */
   td.sell-calm { background: rgba(34,197,94,0.22); color: #86efac; font-weight: bold; }
   /* 買い残金額 500万超 = 警戒系（赤ハイライト） */
   td.buy-warn { background: rgba(220,38,38,0.25); color: #fca5a5; font-weight: bold; }
   /* 信用評価率のアラート */
-  .rate-safe { color: #4ade80; font-weight: bold; }          /* > -2 超安心 */
+  .rate-top { background: rgba(236,72,153,0.25); color: #f9a8d4; font-weight: bold; }  /* > -2 天井圏:調整警戒 */
   .rate-normal { color: #e2e8f0; }
   .rate-caution { color: #fbbf24; font-weight: bold; }       /* -9 〜 -10 要警戒 */
   .rate-danger { background: rgba(220,38,38,0.3); color: #f87171; font-weight: bold; } /* < -10 超警戒 */
@@ -67,12 +67,12 @@
     <a href="shinyou.html" class="active">信用評価率</a>
   </nav>
   <h1>信用評価損益率・信用取引残高</h1>
-  <p class="subtitle">最終更新: 2026-07-18 12:41 | 出所: nikkei225jp.com | 週次（金曜申込時点） | 枚数:千株 金額:百万円</p>
+  <p class="subtitle">最終更新: 2026-07-18 12:54 | 出所: nikkei225jp.com | 週次（金曜申込時点） | 枚数:千株 金額:百万円</p>
   <div class="legend">
-    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">売り残金額 800,000超 = 安心</span>
+    <span class="chip" style="background:rgba(34,197,94,0.22); color:#86efac">売り残金額 800,000超 = 買い戻し期待</span>
     <span class="chip" style="background:rgba(220,38,38,0.25); color:#fca5a5">買い残金額 5,000,000超 = 警戒</span>
     <span>|</span>
-    <span class="rate-safe">評価率 &gt;-2 超安心</span>
+    <span class="rate-top" style="padding:1px 8px">評価率 &gt;-2 天井圏:調整警戒</span>
     <span class="rate-caution">-9〜-10 要警戒</span>
     <span class="rate-danger" style="padding:1px 8px">&lt;-10 超警戒</span>
   </div>
@@ -95,11 +95,11 @@
       <tr class="latest-row"><td>2026/07/10</td><td>403,128</td><td>795,524</td><td><span class="pos">+1.31%</span></td><td>3,806,882</td><td class="buy-warn">6,732,228</td><td><span class="neg">-0.19%</span></td><td>8.46</td><td class="rate-normal">-4.95</td></tr>
       <tr><td>2026/07/03</td><td>394,905</td><td>785,272</td><td><span class="neg">-25.48%</span></td><td>3,871,201</td><td class="buy-warn">6,745,211</td><td><span class="neg">-3.87%</span></td><td>8.59</td><td class="rate-normal">-2.78</td></tr>
       <tr><td>2026/06/26</td><td>498,572</td><td class="sell-calm">1,053,736</td><td><span class="pos">+3.70%</span></td><td>3,940,572</td><td class="buy-warn">7,016,733</td><td><span class="pos">+8.36%</span></td><td>6.66</td><td class="rate-normal">-3.09</td></tr>
-      <tr><td>2026/06/19</td><td>437,974</td><td class="sell-calm">1,016,129</td><td><span class="pos">+16.24%</span></td><td>3,915,786</td><td class="buy-warn">6,475,640</td><td><span class="pos">+1.61%</span></td><td>6.37</td><td class="rate-safe">+1.47</td></tr>
+      <tr><td>2026/06/19</td><td>437,974</td><td class="sell-calm">1,016,129</td><td><span class="pos">+16.24%</span></td><td>3,915,786</td><td class="buy-warn">6,475,640</td><td><span class="pos">+1.61%</span></td><td>6.37</td><td class="rate-top">+1.47</td></tr>
       <tr><td>2026/06/12</td><td>423,071</td><td class="sell-calm">874,200</td><td><span class="neg">-1.58%</span></td><td>3,813,468</td><td class="buy-warn">6,373,312</td><td><span class="neg">-4.82%</span></td><td>7.29</td><td class="rate-normal">-3.86</td></tr>
-      <tr><td>2026/06/05</td><td>438,612</td><td class="sell-calm">888,275</td><td><span class="neg">-1.61%</span></td><td>3,921,488</td><td class="buy-warn">6,695,866</td><td><span class="pos">+4.76%</span></td><td>7.54</td><td class="rate-safe">-0.68</td></tr>
-      <tr><td>2026/05/29</td><td>439,393</td><td class="sell-calm">902,824</td><td><span class="neg">-1.09%</span></td><td>3,854,835</td><td class="buy-warn">6,391,535</td><td><span class="pos">+5.14%</span></td><td>7.08</td><td class="rate-safe">-0.36</td></tr>
-      <tr><td>2026/05/22</td><td>458,095</td><td class="sell-calm">912,756</td><td><span class="pos">+3.85%</span></td><td>3,756,697</td><td class="buy-warn">6,079,329</td><td><span class="pos">+1.13%</span></td><td>6.66</td><td class="rate-safe">-1.38</td></tr>
+      <tr><td>2026/06/05</td><td>438,612</td><td class="sell-calm">888,275</td><td><span class="neg">-1.61%</span></td><td>3,921,488</td><td class="buy-warn">6,695,866</td><td><span class="pos">+4.76%</span></td><td>7.54</td><td class="rate-top">-0.68</td></tr>
+      <tr><td>2026/05/29</td><td>439,393</td><td class="sell-calm">902,824</td><td><span class="neg">-1.09%</span></td><td>3,854,835</td><td class="buy-warn">6,391,535</td><td><span class="pos">+5.14%</span></td><td>7.08</td><td class="rate-top">-0.36</td></tr>
+      <tr><td>2026/05/22</td><td>458,095</td><td class="sell-calm">912,756</td><td><span class="pos">+3.85%</span></td><td>3,756,697</td><td class="buy-warn">6,079,329</td><td><span class="pos">+1.13%</span></td><td>6.66</td><td class="rate-top">-1.38</td></tr>
       <tr><td>2026/05/15</td><td>446,002</td><td class="sell-calm">878,954</td><td><span class="pos">+4.55%</span></td><td>3,799,259</td><td class="buy-warn">6,011,376</td><td><span class="pos">+4.46%</span></td><td>6.84</td><td class="rate-normal">-4.47</td></tr>
       <tr><td>2026/05/01</td><td>422,455</td><td class="sell-calm">840,675</td><td><span class="neg">-14.23%</span></td><td>3,797,625</td><td class="buy-warn">5,754,752</td><td><span class="pos">+2.34%</span></td><td>6.85</td><td class="rate-normal">-4.82</td></tr>
       <tr><td>2026/04/24</td><td>461,877</td><td class="sell-calm">980,144</td><td><span class="pos">+3.89%</span></td><td>3,803,972</td><td class="buy-warn">5,623,290</td><td><span class="pos">+2.50%</span></td><td>5.74</td><td class="rate-normal">-5.45</td></tr>
@@ -110,13 +110,13 @@
       <tr><td>2026/03/19</td><td>535,687</td><td class="sell-calm">1,021,970</td><td><span class="pos">+2.07%</span></td><td>3,775,021</td><td class="buy-warn">5,802,582</td><td><span class="pos">+1.45%</span></td><td>5.68</td><td class="rate-normal">-5.97</td></tr>
       <tr><td>2026/03/13</td><td>513,692</td><td class="sell-calm">1,001,233</td><td><span class="pos">+2.23%</span></td><td>3,742,128</td><td class="buy-warn">5,719,487</td><td><span class="pos">+0.02%</span></td><td>5.71</td><td class="rate-normal">-5.69</td></tr>
       <tr><td>2026/03/06</td><td>460,736</td><td class="sell-calm">979,359</td><td><span class="neg">-2.40%</span></td><td>3,686,652</td><td class="buy-warn">5,718,133</td><td><span class="pos">+3.21%</span></td><td>5.84</td><td class="rate-normal">-4.42</td></tr>
-      <tr><td>2026/02/27</td><td>451,722</td><td class="sell-calm">1,003,420</td><td><span class="neg">-5.52%</span></td><td>3,656,625</td><td class="buy-warn">5,540,554</td><td><span class="neg">-0.76%</span></td><td>5.52</td><td class="rate-safe">-0.13</td></tr>
+      <tr><td>2026/02/27</td><td>451,722</td><td class="sell-calm">1,003,420</td><td><span class="neg">-5.52%</span></td><td>3,656,625</td><td class="buy-warn">5,540,554</td><td><span class="neg">-0.76%</span></td><td>5.52</td><td class="rate-top">-0.13</td></tr>
       <tr><td>2026/02/20</td><td>488,724</td><td class="sell-calm">1,062,099</td><td><span class="pos">+3.84%</span></td><td>3,734,229</td><td class="buy-warn">5,583,035</td><td><span class="pos">+5.63%</span></td><td>5.26</td><td class="rate-normal">-2.15</td></tr>
       <tr><td>2026/02/13</td><td>463,580</td><td class="sell-calm">1,022,829</td><td><span class="pos">+9.99%</span></td><td>3,635,713</td><td class="buy-warn">5,285,335</td><td><span class="neg">-1.31%</span></td><td>5.17</td><td class="rate-normal">-2.02</td></tr>
       <tr><td>2026/02/06</td><td>433,520</td><td class="sell-calm">929,926</td><td><span class="pos">+5.48%</span></td><td>3,678,330</td><td class="buy-warn">5,355,280</td><td><span class="neg">-0.58%</span></td><td>5.76</td><td class="rate-normal">-3.06</td></tr>
       <tr><td>2026/01/30</td><td>408,998</td><td class="sell-calm">881,619</td><td><span class="neg">-3.35%</span></td><td>3,729,861</td><td class="buy-warn">5,386,720</td><td><span class="pos">+5.29%</span></td><td>6.11</td><td class="rate-normal">-3.52</td></tr>
-      <tr><td>2026/01/23</td><td>417,898</td><td class="sell-calm">912,210</td><td><span class="neg">-1.69%</span></td><td>3,639,379</td><td class="buy-warn">5,116,197</td><td><span class="pos">+5.40%</span></td><td>5.61</td><td class="rate-safe">-1.64</td></tr>
-      <tr><td>2026/01/16</td><td>413,516</td><td class="sell-calm">927,850</td><td><span class="pos">+7.58%</span></td><td>3,524,271</td><td>4,854,198</td><td><span class="pos">+1.04%</span></td><td>5.23</td><td class="rate-safe">-1.21</td></tr>
+      <tr><td>2026/01/23</td><td>417,898</td><td class="sell-calm">912,210</td><td><span class="neg">-1.69%</span></td><td>3,639,379</td><td class="buy-warn">5,116,197</td><td><span class="pos">+5.40%</span></td><td>5.61</td><td class="rate-top">-1.64</td></tr>
+      <tr><td>2026/01/16</td><td>413,516</td><td class="sell-calm">927,850</td><td><span class="pos">+7.58%</span></td><td>3,524,271</td><td>4,854,198</td><td><span class="pos">+1.04%</span></td><td>5.23</td><td class="rate-top">-1.21</td></tr>
       <tr><td>2026/01/09</td><td>391,657</td><td class="sell-calm">862,486</td><td><span class="neg">-24.63%</span></td><td>3,481,052</td><td>4,804,466</td><td><span class="pos">+0.14%</span></td><td>5.57</td><td class="rate-normal">-3.04</td></tr>
       <tr><td>2025/12/26</td><td>501,672</td><td class="sell-calm">1,144,402</td><td><span class="pos">+24.90%</span></td><td>3,455,558</td><td>4,797,627</td><td><span class="neg">-2.11%</span></td><td>4.19</td><td class="rate-normal">-5.85</td></tr>
       <tr><td>2025/12/19</td><td>425,121</td><td class="sell-calm">916,258</td><td><span class="pos">+0.17%</span></td><td>3,543,686</td><td>4,901,194</td><td><span class="pos">+2.91%</span></td><td>5.35</td><td class="rate-normal">-8.10</td></tr>
@@ -758,25 +758,25 @@
       <tr><td>2013/06/07</td><td>633,912</td><td>442,730</td><td><span class="neg">-14.91%</span></td><td>4,812,361</td><td>2,932,132</td><td><span class="neg">-7.56%</span></td><td>6.62</td><td class="rate-danger">-15.65</td></tr>
       <tr><td>2013/05/31</td><td>725,816</td><td>520,286</td><td><span class="neg">-0.96%</span></td><td>5,151,063</td><td>3,171,905</td><td><span class="pos">+2.28%</span></td><td>6.1</td><td class="rate-normal">-7.44</td></tr>
       <tr><td>2013/05/24</td><td>728,779</td><td>525,343</td><td><span class="neg">-13.75%</span></td><td>4,975,453</td><td>3,101,061</td><td><span class="pos">+8.12%</span></td><td>5.9</td><td class="rate-normal">-5.19</td></tr>
-      <tr><td>2013/05/17</td><td>854,176</td><td>609,088</td><td><span class="neg">-4.61%</span></td><td>4,786,063</td><td>2,868,117</td><td><span class="pos">+3.41%</span></td><td>4.71</td><td class="rate-safe">+2.09</td></tr>
-      <tr><td>2013/05/10</td><td>899,604</td><td>638,528</td><td><span class="pos">+12.69%</span></td><td>4,869,446</td><td>2,773,592</td><td><span class="pos">+2.23%</span></td><td>4.34</td><td class="rate-safe">+4.06</td></tr>
-      <tr><td>2013/05/02</td><td>882,246</td><td>566,637</td><td><span class="neg">-2.24%</span></td><td>4,914,783</td><td>2,713,045</td><td><span class="pos">+3.01%</span></td><td>4.79</td><td class="rate-safe">+2.27</td></tr>
-      <tr><td>2013/04/26</td><td>904,698</td><td>579,646</td><td><span class="pos">+4.99%</span></td><td>4,876,250</td><td>2,633,833</td><td><span class="pos">+0.85%</span></td><td>4.54</td><td class="rate-safe">+2.40</td></tr>
-      <tr><td>2013/04/19</td><td>908,643</td><td>552,111</td><td><span class="neg">-8.56%</span></td><td>4,977,909</td><td>2,611,532</td><td><span class="pos">+12.99%</span></td><td>4.73</td><td class="rate-safe">+0.61</td></tr>
-      <tr><td>2013/04/12</td><td>964,071</td><td>603,767</td><td><span class="pos">+9.26%</span></td><td>4,664,964</td><td>2,311,356</td><td><span class="pos">+1.99%</span></td><td>3.83</td><td class="rate-safe">+0.98</td></tr>
+      <tr><td>2013/05/17</td><td>854,176</td><td>609,088</td><td><span class="neg">-4.61%</span></td><td>4,786,063</td><td>2,868,117</td><td><span class="pos">+3.41%</span></td><td>4.71</td><td class="rate-top">+2.09</td></tr>
+      <tr><td>2013/05/10</td><td>899,604</td><td>638,528</td><td><span class="pos">+12.69%</span></td><td>4,869,446</td><td>2,773,592</td><td><span class="pos">+2.23%</span></td><td>4.34</td><td class="rate-top">+4.06</td></tr>
+      <tr><td>2013/05/02</td><td>882,246</td><td>566,637</td><td><span class="neg">-2.24%</span></td><td>4,914,783</td><td>2,713,045</td><td><span class="pos">+3.01%</span></td><td>4.79</td><td class="rate-top">+2.27</td></tr>
+      <tr><td>2013/04/26</td><td>904,698</td><td>579,646</td><td><span class="pos">+4.99%</span></td><td>4,876,250</td><td>2,633,833</td><td><span class="pos">+0.85%</span></td><td>4.54</td><td class="rate-top">+2.40</td></tr>
+      <tr><td>2013/04/19</td><td>908,643</td><td>552,111</td><td><span class="neg">-8.56%</span></td><td>4,977,909</td><td>2,611,532</td><td><span class="pos">+12.99%</span></td><td>4.73</td><td class="rate-top">+0.61</td></tr>
+      <tr><td>2013/04/12</td><td>964,071</td><td>603,767</td><td><span class="pos">+9.26%</span></td><td>4,664,964</td><td>2,311,356</td><td><span class="pos">+1.99%</span></td><td>3.83</td><td class="rate-top">+0.98</td></tr>
       <tr><td>2013/04/05</td><td>915,548</td><td>552,600</td><td><span class="pos">+2.43%</span></td><td>4,819,025</td><td>2,266,355</td><td><span class="neg">-6.27%</span></td><td>4.1</td><td class="rate-normal">-2.62</td></tr>
       <tr><td>2013/03/29</td><td>931,675</td><td>539,493</td><td><span class="neg">-4.95%</span></td><td>5,164,414</td><td>2,417,926</td><td><span class="pos">+0.95%</span></td><td>4.48</td><td class="rate-normal">-2.40</td></tr>
-      <tr><td>2013/03/22</td><td>960,904</td><td>567,590</td><td><span class="neg">-7.69%</span></td><td>5,072,146</td><td>2,395,203</td><td><span class="pos">+7.93%</span></td><td>4.22</td><td class="rate-safe">-1.30</td></tr>
-      <tr><td>2013/03/15</td><td>1,016,643</td><td>614,882</td><td><span class="neg">-3.19%</span></td><td>4,890,708</td><td>2,219,184</td><td><span class="pos">+6.84%</span></td><td>3.61</td><td class="rate-safe">-0.86</td></tr>
-      <tr><td>2013/03/08</td><td>1,044,014</td><td>635,171</td><td><span class="pos">+4.26%</span></td><td>4,713,183</td><td>2,077,030</td><td><span class="pos">+2.95%</span></td><td>3.28</td><td class="rate-safe">-1.92</td></tr>
+      <tr><td>2013/03/22</td><td>960,904</td><td>567,590</td><td><span class="neg">-7.69%</span></td><td>5,072,146</td><td>2,395,203</td><td><span class="pos">+7.93%</span></td><td>4.22</td><td class="rate-top">-1.30</td></tr>
+      <tr><td>2013/03/15</td><td>1,016,643</td><td>614,882</td><td><span class="neg">-3.19%</span></td><td>4,890,708</td><td>2,219,184</td><td><span class="pos">+6.84%</span></td><td>3.61</td><td class="rate-top">-0.86</td></tr>
+      <tr><td>2013/03/08</td><td>1,044,014</td><td>635,171</td><td><span class="pos">+4.26%</span></td><td>4,713,183</td><td>2,077,030</td><td><span class="pos">+2.95%</span></td><td>3.28</td><td class="rate-top">-1.92</td></tr>
       <tr><td>2013/03/01</td><td>1,064,998</td><td>609,218</td><td><span class="pos">+0.99%</span></td><td>4,667,579</td><td>2,017,455</td><td><span class="pos">+1.85%</span></td><td>3.31</td><td class="rate-normal">-2.44</td></tr>
       <tr><td>2013/02/22</td><td>1,058,868</td><td>603,230</td><td><span class="pos">+5.68%</span></td><td>4,601,787</td><td>1,980,852</td><td><span class="pos">+2.63%</span></td><td>3.28</td><td class="rate-normal">-4.52</td></tr>
       <tr><td>2013/02/15</td><td>1,025,350</td><td>570,831</td><td><span class="neg">-4.25%</span></td><td>4,500,414</td><td>1,930,011</td><td><span class="pos">+1.36%</span></td><td>3.38</td><td class="rate-normal">-6.55</td></tr>
       <tr><td>2013/02/08</td><td>1,074,260</td><td>596,139</td><td><span class="neg">-2.30%</span></td><td>4,485,210</td><td>1,904,117</td><td><span class="pos">+10.47%</span></td><td>3.19</td><td class="rate-normal">-2.51</td></tr>
-      <tr><td>2013/02/01</td><td>1,128,065</td><td>610,167</td><td><span class="pos">+0.18%</span></td><td>4,125,210</td><td>1,723,707</td><td><span class="pos">+4.90%</span></td><td>2.83</td><td class="rate-safe">-1.09</td></tr>
-      <tr><td>2013/01/25</td><td>1,153,546</td><td>609,097</td><td><span class="neg">-0.76%</span></td><td>4,003,883</td><td>1,643,238</td><td><span class="pos">+4.58%</span></td><td>2.74</td><td class="rate-safe">+5.23</td></tr>
-      <tr><td>2013/01/18</td><td>1,175,284</td><td>613,784</td><td><span class="pos">+2.96%</span></td><td>3,858,199</td><td>1,571,340</td><td><span class="pos">+4.43%</span></td><td>2.56</td><td class="rate-safe">-1.81</td></tr>
-      <tr><td>2013/01/11</td><td>1,126,668</td><td>596,118</td><td><span class="pos">+5.80%</span></td><td>3,729,512</td><td>1,504,636</td><td><span class="pos">+13.05%</span></td><td>2.52</td><td class="rate-safe">-1.45</td></tr>
+      <tr><td>2013/02/01</td><td>1,128,065</td><td>610,167</td><td><span class="pos">+0.18%</span></td><td>4,125,210</td><td>1,723,707</td><td><span class="pos">+4.90%</span></td><td>2.83</td><td class="rate-top">-1.09</td></tr>
+      <tr><td>2013/01/25</td><td>1,153,546</td><td>609,097</td><td><span class="neg">-0.76%</span></td><td>4,003,883</td><td>1,643,238</td><td><span class="pos">+4.58%</span></td><td>2.74</td><td class="rate-top">+5.23</td></tr>
+      <tr><td>2013/01/18</td><td>1,175,284</td><td>613,784</td><td><span class="pos">+2.96%</span></td><td>3,858,199</td><td>1,571,340</td><td><span class="pos">+4.43%</span></td><td>2.56</td><td class="rate-top">-1.81</td></tr>
+      <tr><td>2013/01/11</td><td>1,126,668</td><td>596,118</td><td><span class="pos">+5.80%</span></td><td>3,729,512</td><td>1,504,636</td><td><span class="pos">+13.05%</span></td><td>2.52</td><td class="rate-top">-1.45</td></tr>
       <tr><td>2012/12/28</td><td>1,069,515</td><td>563,420</td><td><span class="neg">-7.10%</span></td><td>3,357,395</td><td>1,330,891</td><td><span class="pos">+5.40%</span></td><td>2.36</td><td class="rate-normal">-3.12</td></tr>
       <tr><td>2012/12/21</td><td>1,152,823</td><td>606,456</td><td><span class="pos">+0.93%</span></td><td>3,198,666</td><td>1,262,702</td><td><span class="pos">+2.60%</span></td><td>2.08</td><td class="rate-normal">-6.10</td></tr>
       <tr><td>2012/12/14</td><td>1,154,899</td><td>600,886</td><td><span class="pos">+0.98%</span></td><td>3,152,494</td><td>1,230,737</td><td><span class="neg">-0.32%</span></td><td>2.05</td><td class="rate-normal">-6.87</td></tr>
@@ -964,9 +964,10 @@
   </table>
   </div>
   <p class="note">
-    ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。-3%超で天井圏、-15%割れで底値圏とされる。<br>
+    ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。含み損が小さい（-2超）＝天井圏で調整警戒、-15%割れで底値圏とされる。<br>
+    ・売り残が多い（80万超）＝将来の買い戻し（買い圧力）が積み上がっている状態。<br>
     ・<a href="https://nikkei225jp.com/data/sinyou.php" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a>
   </p>
-  <p class="updated">最終更新: 2026-07-18 12:41</p>
+  <p class="updated">最終更新: 2026-07-18 12:54</p>
 </body>
 </html>
