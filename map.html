@@ -55,7 +55,7 @@
   <p class="subtitle">イベント → マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄選び。ボックスをクリックで各ページへ。</p>
 
   <div class="diagram-wrap">
-  <svg width="1080" height="1420" viewBox="0 0 1080 1420" xmlns="http://www.w3.org/2000/svg">
+  <svg width="1080" height="1430" viewBox="0 0 1080 1430" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
@@ -80,18 +80,18 @@
     <text x="20" y="1078" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
     <text x="20" y="1264" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄選び</text>
 
-    <!-- ① マクロ 1段目: 政策織り込み → 金利と為替 -->
-    <a href="totan.html">
-      <rect x="40" y="138" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
-      <text x="190" y="164" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日銀利上げ確率</text>
-      <text x="190" y="184" text-anchor="middle" fill="#94a3b8" font-size="11">会合ごとの利上げ織り込み（OIS）</text>
-      <text x="190" y="202" text-anchor="middle" fill="#94a3b8" font-size="11">JP金利の先行き</text>
-    </a>
+    <!-- ① マクロ 1段目: 米国→日本の順（米国があっての日本株） -->
     <a href="fedwatch.html">
+      <rect x="40" y="138" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="190" y="164" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">FRB利上げ確率</text>
+      <text x="190" y="184" text-anchor="middle" fill="#94a3b8" font-size="11">FF先物から自前計算（CME方式）</text>
+      <text x="190" y="202" text-anchor="middle" fill="#94a3b8" font-size="11">US金利の先行き（世界の起点）</text>
+    </a>
+    <a href="totan.html">
       <rect x="390" y="138" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
-      <text x="540" y="164" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">FRB利上げ確率</text>
-      <text x="540" y="184" text-anchor="middle" fill="#94a3b8" font-size="11">FF先物から自前計算（CME方式）</text>
-      <text x="540" y="202" text-anchor="middle" fill="#94a3b8" font-size="11">US金利の先行き</text>
+      <text x="540" y="164" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日銀利上げ確率</text>
+      <text x="540" y="184" text-anchor="middle" fill="#94a3b8" font-size="11">会合ごとの利上げ織り込み（OIS）</text>
+      <text x="540" y="202" text-anchor="middle" fill="#94a3b8" font-size="11">JP金利の先行き</text>
     </a>
     <a href="kinri.html">
       <rect x="740" y="138" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
@@ -99,29 +99,29 @@
       <text x="890" y="184" text-anchor="middle" fill="#94a3b8" font-size="11">日米金利・カーブ・ドル円をbpsで並べ</text>
       <text x="890" y="202" text-anchor="middle" fill="#94a3b8" font-size="11">理論通り=青 / 逆行=赤（アラート）</text>
     </a>
-    <line x1="340" y1="180" x2="388" y2="180" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
-    <text x="364" y="170" text-anchor="middle" fill="#94a3b8" font-size="10">織り込み差</text>
+    <line x1="340" y1="180" x2="388" y2="180" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
+    <text x="364" y="170" text-anchor="middle" fill="#93c5fd" font-size="10">米国→日本</text>
     <line x1="690" y1="180" x2="738" y2="180" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
     <text x="714" y="170" text-anchor="middle" fill="#93c5fd" font-size="10">金利差→円安/高</text>
 
-    <!-- ① マクロ 2段目: 理論株価 -->
-    <a href="riron.html">
-      <rect x="215" y="256" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
-      <text x="365" y="282" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日経理論株価</text>
-      <text x="365" y="302" text-anchor="middle" fill="#94a3b8" font-size="11">PER/PBR 4段階色分け・暗黙ROE</text>
-      <text x="365" y="320" text-anchor="middle" fill="#94a3b8" font-size="11">仮説①② = 買い場サインの実験場</text>
-    </a>
+    <!-- ① マクロ 2段目: 理論株価（米国→日本の順） -->
     <a href="spriron.html">
+      <rect x="215" y="256" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
+      <text x="365" y="282" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">S&amp;P500理論株価</text>
+      <text x="365" y="302" text-anchor="middle" fill="#94a3b8" font-size="11">予想PER×予想EPS（週次更新）</text>
+      <text x="365" y="320" text-anchor="middle" fill="#94a3b8" font-size="11">コロナ底14.62 〜 過去最高26の物差し</text>
+    </a>
+    <a href="riron.html">
       <rect x="565" y="256" width="300" height="84" rx="10" fill="#1e293b" stroke="#7c3aed" stroke-width="1.5"/>
-      <text x="715" y="282" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">S&amp;P500理論株価</text>
-      <text x="715" y="302" text-anchor="middle" fill="#94a3b8" font-size="11">予想PER×予想EPS（週次更新）</text>
-      <text x="715" y="320" text-anchor="middle" fill="#94a3b8" font-size="11">コロナ底14.62 〜 過去最高26の物差し</text>
+      <text x="715" y="282" text-anchor="middle" fill="#ddd6fe" font-size="15" font-weight="bold">日経理論株価</text>
+      <text x="715" y="302" text-anchor="middle" fill="#94a3b8" font-size="11">PER/PBR 4段階色分け・暗黙ROE</text>
+      <text x="715" y="320" text-anchor="middle" fill="#94a3b8" font-size="11">仮説①② = 買い場サインの実験場</text>
     </a>
     <line x1="190" y1="222" x2="330" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <line x1="540" y1="222" x2="700" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="540" y="244" text-anchor="middle" fill="#94a3b8" font-size="10">金利↑ = PER↓（バリュエーションの重力）</text>
-    <line x1="515" y1="298" x2="563" y2="298" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
-    <text x="539" y="288" text-anchor="middle" fill="#94a3b8" font-size="10">日米比較</text>
+    <line x1="515" y1="298" x2="563" y2="298" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arb)"/>
+    <text x="539" y="288" text-anchor="middle" fill="#93c5fd" font-size="10">米国→日本</text>
 
     <line x1="540" y1="340" x2="540" y2="446" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="552" y="398" fill="#94a3b8" font-size="11">物差しの位置を踏まえ、実際のお金の流れを見る</text>
@@ -223,24 +223,26 @@
 
     <line x1="540" y1="1182" x2="540" y2="1240" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
 
-    <!-- ⑤ 銘柄選び -->
-    <a href="jpminervini.html">
+    <!-- ⑤ 銘柄選び（米国→日本の順） -->
+    <a href="minervini_report_v2.html">
       <rect x="40" y="1280" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="190" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
-      <text x="190" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">トレンドテンプレート + RS + VCP</text>
-      <text x="190" y="1346" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
+      <text x="190" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">米国株 (Minervini)</text>
+      <text x="190" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">S&amp;P500 + NASDAQ100 / 押し目分析</text>
     </a>
-    <a href="haitou.html">
+    <a href="jpminervini.html">
       <rect x="390" y="1280" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="540" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (配当)</text>
-      <text x="540" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">高配当 × 低PBR × 時価総額500億+</text>
+      <text x="540" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
+      <text x="540" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">トレンドテンプレート + RS + VCP</text>
       <text x="540" y="1346" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
     </a>
-    <a href="minervini_report_v2.html">
+    <a href="haitou.html">
       <rect x="740" y="1280" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="890" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">米国株 (Minervini)</text>
-      <text x="890" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">S&amp;P500 + NASDAQ100 / 押し目分析</text>
+      <text x="890" y="1308" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (配当)</text>
+      <text x="890" y="1328" text-anchor="middle" fill="#94a3b8" font-size="11">高配当 × 低PBR × 時価総額500億+</text>
+      <text x="890" y="1346" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
     </a>
+    <line x1="540" y1="1364" x2="540" y2="1388" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="540" y="1410" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="bold">個別銘柄のテクニカル分析はTrading Viewで</text>
   </svg>
   </div>
 
