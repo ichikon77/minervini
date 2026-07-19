@@ -281,6 +281,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="saitei.html">裁定取引</a>
     <a href="totan.html">日銀利上げ確率</a>
     <a href="fedwatch.html">FRB利上げ確率</a>
+    <a href="kinri.html">金利と為替</a>
     <a href="daikin.html">売買代金</a>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
