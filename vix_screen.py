@@ -102,10 +102,12 @@ def cftc_at(rows, date, window=156):
 # MACDクロスと答え合わせ
 # -----------------------------------------
 def macd_cross(vix):
+    """MACD 12-26-9。シグナル線はSMA（ユーザーのTradingViewインジ
+    CM_Ult_MacD_MTF と同方式。標準のEMAシグナルではない点に注意）"""
     ema12 = vix.ewm(span=12, adjust=False).mean()
     ema26 = vix.ewm(span=26, adjust=False).mean()
     macd = ema12 - ema26
-    signal = macd.ewm(span=9, adjust=False).mean()
+    signal = macd.rolling(9).mean()
     diff = (macd - signal).dropna()
     crosses = []
     for i in range(1, len(diff)):
@@ -286,6 +288,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <p class="note">
     ・<b>基本説</b>: VIXのMACDがデッドクロス(DC)=恐怖の勢いが弱まる→株高になりやすい。ゴールデンクロス(GC)=恐怖の勢いが強まる→株安になりやすい。<br>
+    ・MACDは12-26-9、<b>シグナル線はSMA</b>（TradingViewのCM_Ult_MacD_MTFと同方式）。標準のEMAシグナルとはクロス日が1日前後ズレることがある。<br>
     ・<b>だまし</b>: GC後でもCFTC E-mini S&amp;P500の投機筋ショートが極端（過去3年の下位{short_pct}%以下）だと、踏み上げで株が上がりやすい。イベント表の黄色がそれ。<br>
     ・CFTC建玉は毎週金曜公表（火曜時点）のため数日のラグがある。<a href="https://publicreporting.cftc.gov/" style="color:#60a5fa">CFTC Public Reporting</a> / <a href="https://jp.investing.com/economic-calendar/cftc-s-p-500-speculative-positions-1619" style="color:#60a5fa">investing.com 表示版</a><br>
     ・勝率は生クロス（フィルタなし）ベース。1〜数日で反転する「ヒゲ」も含むため体感より低めに出る。強気相場ではGCの的中率が構造的に低い点にも注意。
@@ -315,11 +318,13 @@ def make_cards(px, macd, signal, diff, crosses, cftc_rows):
         f'    <div class="card"><div class="label">現在の状態</div>'
         f'<div class="value">{state_html}</div>'
         f'<div class="sub">{last_d.date()} から {days}日経過<br>{state_sub}</div></div>')
+    recent = " → ".join(f"{float(v):+.2f}" for v in diff.iloc[-4:])
+    near = "（クロス際どい）" if abs(float(diff.iloc[-1])) < 0.05 else ""
     cards.append(
         f'    <div class="card"><div class="label">VIX</div>'
         f'<div class="value">{vix_now:.2f}</div>'
         f'<div class="sub">MACD {float(macd.iloc[-1]):+.2f} / シグナル {float(signal.iloc[-1]):+.2f}<br>'
-        f'乖離 {float(diff.iloc[-1]):+.3f}</div></div>')
+        f'乖離の推移 {recent}{near}</div></div>')
     pct_txt = f"{pct:.0f}%" if pct is not None else "-"
     cards.append(
         f'    <div class="card"><div class="label">CFTC投機筋ネット（{rd}時点）</div>'
@@ -358,7 +363,7 @@ def make_stats(events):
 def make_event_rows(events):
     cutoff = pd.Timestamp(datetime.date.today() - datetime.timedelta(days=365 * EVENT_SHOW_YEARS))
     rows = []
-    for e in reversed(events):  # 新しい順
+    for e in events:  # 新しい順（最新のクロスが最上段）
         if e["date"] < cutoff:
             continue
         kind_cls = "kind-dc" if e["kind"] == "DC" else "kind-gc"
