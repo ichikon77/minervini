@@ -193,6 +193,7 @@ def build_events(px, cftc_rows, crosses, srsi_gc):
         rec["spx"] = r_spx
         rec["n225"] = period_return(px["N225"], d, end)
         rec["days"] = (end - d).days
+        rec["end_date"] = end
         events.append(rec)
     events.reverse()
     return events
@@ -320,7 +321,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>クロス日</th><th>種類</th><th>継続</th><th>終了理由</th><th>S&amp;P500</th><th>判定</th><th>日経平均</th><th>判定</th><th>CFTC投機筋ネット</th></tr></thead>
+    <thead><tr><th>クロス日</th><th>種類</th><th>継続</th><th>終了日</th><th>終了理由</th><th>S&amp;P500</th><th>判定</th><th>日経平均</th><th>判定</th><th>CFTC投機筋ネット</th></tr></thead>
     <tbody>
 {event_rows}
     </tbody>
@@ -446,9 +447,11 @@ def make_event_rows(events):
             reason = e["end_reason"]
         else:
             reason = "次のクロス" if not e["ongoing"] else "進行中"
+        end_txt = "-" if e["ongoing"] else str(e["end_date"].date())
         cells = [f'<td>{e["date"].date()}</td>',
                  f'<td class="{kind_cls}">{kind_txt}</td>',
                  f'<td>{days_txt}</td>',
+                 f'<td>{end_txt}</td>',
                  f'<td style="text-align:left; color:#94a3b8; font-size:0.8rem">{reason}</td>']
         for idx in ["spx", "n225"]:
             r = e[idx]
