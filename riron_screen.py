@@ -231,6 +231,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="jpminervini.html">日本株 (Minervini)</a>
     <a href="saitei.html">裁定取引</a>
     <a href="totan.html">日銀利上げ確率</a>
+    <a href="fedwatch.html">FRB利上げ確率</a>
     <a href="daikin.html">売買代金</a>
     <a href="shinyou.html">信用評価率</a>
     <a href="shutai.html">投資主体別</a>
@@ -432,4 +433,34 @@ def main():
         log(f"エラー: データの取得に失敗しました: {e}")
         sys.exit(1)
 
-    log(f"サイト
+    log(f"サイト上のデータ: {len(daily)}日分 ({min(daily)} ～ {max(daily)})")
+
+    added = 0
+    for d, rec in daily.items():
+        if d in hist:
+            continue
+        hist[d] = rec
+        added += 1
+
+    if added:
+        enrich(hist)
+        save_history(hist)
+        log(f"追記: {added}日分（計 {len(hist)}日）")
+    else:
+        log("新しいデータはありませんでした")
+
+    if not hist:
+        return
+
+    generate_html(hist)
+
+    if "--nopush" in sys.argv:
+        log("--nopush 指定のため git push はスキップ")
+    else:
+        push_to_github()
+
+    log("完了")
+
+
+if __name__ == "__main__":
+    main()
