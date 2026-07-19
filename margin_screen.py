@@ -65,31 +65,48 @@ def parse_pdf(url):
     with open(tmp, "wb") as f:
         f.write(r.content)
 
+    def parse_line(line):
+        """(code, name, toks) を返す。通常行はISIN基準、ETF交錯行はフォールバック"""
+        nospace = line.replace(" ", "")
+        m = re.search(r"JP[A-Z0-9]{10}", nospace)
+        if m:
+            pre = nospace[:nospace.find(m.group(0))]
+            mc = re.search(r"(\d{4})0$", pre)
+            if mc:
+                code = mc.group(1)
+                name = re.sub(r"^[AB]?", "", pre[:mc.start()])
+                name = re.sub(r"(普通株式|受益証券|優先株式|外国株).*$", "", name)
+                seg = line[line.find("JP"):].replace("▲ ", "-").replace("▲", "-")
+                return code, name, re.findall(r"-?[\d,]+", seg[12:])
+        # ETF行は「受益証券」「新証券コード」の文字が銘柄名と交錯してISINが壊れることがある
+        if re.search(r"受.{0,8}益|投.{0,8}信", line) and "券" in line:
+            anchor = line.rfind("券")
+            head = nospace[:nospace.rfind("券") + 1]
+            digits = "".join(re.findall(r"\d", head))
+            if len(digits) >= 5 and digits[4] == "0":
+                code = digits[:4]
+                nm = re.sub(r"[A-Za-z0-9]", "", head)
+                nm = re.sub(r"^[AB]?", "", nm)
+                nm = re.sub(r"(受益証券|連動型|上場投信|受益|証券|投信).*$", "", nm)
+                nm = re.sub(r"[・、]$", "", nm)
+                seg = line[anchor + 1:].replace("▲ ", "-").replace("▲", "-")
+                return code, nm, re.findall(r"-?[\d,]+", seg)
+        return None, None, None
+
     out = {}
     with pdfplumber.open(tmp) as pdf:
         for page in pdf.pages:
             txt = page.extract_text() or ""
             for line in txt.splitlines():
-                nospace = line.replace(" ", "")
-                m = re.search(r"JP[A-Z0-9]{10}", nospace)
-                if not m:
+                code, name, toks = parse_line(line)
+                if not code or not toks or len(toks) < 12:
                     continue
-                pre = nospace[:nospace.find(m.group(0))]
-                mc = re.search(r"(\d{4})0$", pre)
-                if not mc:
+                try:
+                    sell = int(toks[6].replace(",", ""))
+                    buy = int(toks[10].replace(",", ""))
+                except ValueError:
                     continue
-                code = mc.group(1)
-                name = re.sub(r"^[AB]?", "", pre[:mc.start()])
-                name = re.sub(r"(普通株式|受益証券|優先株式|外国株).*$", "", name)
-                post = line[line.find("JP"):].replace("▲ ", "-").replace("▲", "-")
-                toks = re.findall(r"-?[\d,]+", post[12:])
-                if len(toks) >= 12:
-                    try:
-                        sell = int(toks[6].replace(",", ""))
-                        buy = int(toks[10].replace(",", ""))
-                    except ValueError:
-                        continue
-                    out[code] = [name, sell, buy]
+                out[code] = [name, sell, buy]
     try:
         os.remove(tmp)
     except OSError:
