@@ -37,6 +37,12 @@ REPORT_HTML = "shinyou.html"
 SELL_ALERT = 800_000      # 売り残金額（百万円）: 超えたら安心系
 BUY_ALERT = 5_000_000     # 買い残金額（百万円）: 超えたら警戒系
 
+# 1570(日経レバ) 制度信用倍率 = 制度信用買残 / 制度信用売残（JPX週次PDF）
+JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
+JPX_BASE = "https://www.jpx.co.jp"
+LEV_LOW = 1.0    # これ未満 = 売り方過多 → 踏み上げが起こりやすい（青）
+LEV_HIGH = 5.0   # これ以上 = 信用買い過熱 → 急落時に追証連鎖の警戒（赤）
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -160,6 +166,65 @@ def fetch_weekly_data():
     return out
 
 
+def fetch_lev_ratios(hist):
+    """JPX「銘柄別信用取引週末残高」PDFから1570の制度信用倍率を取得して履歴に追記。
+
+    毎週第3営業日頃に前週金曜分が公表される。ページには直近5週分のPDFリンクが
+    あるので、履歴に「レバ倍率」が無い週だけダウンロードしてパースする。
+    行の形式(p48付近): ＮＥＸＴ ＦＵＮＤＳ 日経平均レバレッジ・… 数値12個
+    （売残計,前週比,買残計,前週比,一般売,前週比,制度売,前週比,一般買,前週比,制度買,前週比）
+    """
+    import pdfplumber
+
+    added = 0
+    try:
+        html = fetch_with_retry(JPX_MARGIN_PAGE, tries=2, wait=10)
+    except Exception as e:
+        log(f"  JPX残高ページの取得に失敗（レバ倍率はスキップ）: {e}")
+        return 0
+    links = re.findall(r'href="([^"]*syumatsu(\d{8})\d{2}\.pdf)"', html)
+    for path, ymd in links:
+        d = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:8]}"
+        if d in hist and "レバ倍率" in hist[d]:
+            continue
+        if d not in hist:
+            continue  # 信用評価率のデータがまだ無い週は次回に回す
+        url = JPX_BASE + path
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=60)
+            r.raise_for_status()
+            tmp = os.path.join(SCRIPT_DIR, "_jpx_margin_tmp.pdf")
+            with open(tmp, "wb") as f:
+                f.write(r.content)
+            sell = buy = None
+            with pdfplumber.open(tmp) as pdf:
+                for pno in range(30, len(pdf.pages)):
+                    txt = pdf.pages[pno].extract_text() or ""
+                    for line in txt.splitlines():
+                        if "ＮＥＸＴ" in line and "日経平均レバレッジ" in line:
+                            seg = line[line.rfind("券") + 1:]
+                            seg = seg.replace("▲ ", "-").replace("▲", "-")
+                            toks = re.findall(r"-?[\d,]+", seg)
+                            if len(toks) >= 12:
+                                sell = int(toks[6].replace(",", ""))
+                                buy = int(toks[10].replace(",", ""))
+                            break
+                    if sell is not None:
+                        break
+            os.remove(tmp)
+            if sell and buy is not None:
+                hist[d]["レバ倍率"] = round(buy / sell, 2)
+                hist[d]["レバ制度売残"] = sell
+                hist[d]["レバ制度買残"] = buy
+                added += 1
+                log(f"  レバ倍率 {d}: 制度買 {buy:,} / 制度売 {sell:,} = {buy/sell:.2f}")
+            else:
+                log(f"  レバ倍率 {d}: 1570の行が見つかりませんでした")
+        except Exception as e:
+            log(f"  レバ倍率 {d}: 取得失敗 {e}")
+    return added
+
+
 # -----------------------------------------
 # 履歴（JSON）
 # -----------------------------------------
@@ -231,6 +296,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .rate-normal {{ color: #e2e8f0; }}
   .rate-caution {{ color: #fbbf24; font-weight: bold; }}       /* -9 〜 -10 要警戒 */
   .rate-danger {{ background: rgba(220,38,38,0.3); color: #f87171; font-weight: bold; }} /* < -10 超警戒 */
+  /* 1570制度信用倍率: <1 踏み上げ期待（青） / >=5 追証連鎖警戒（赤） */
+  td.lev-low {{ background: rgba(59,130,246,0.28); color: #93c5fd; font-weight: bold; }}
+  td.lev-high {{ background: rgba(220,38,38,0.25); color: #fca5a5; font-weight: bold; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
 </style>
@@ -266,6 +334,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <span class="rate-top" style="padding:1px 8px">評価率 &gt;-2 天井圏:調整警戒</span>
     <span class="rate-caution">-9〜-10 要警戒</span>
     <span class="rate-danger" style="padding:1px 8px">&lt;-10 超警戒</span>
+    <span>|</span>
+    <span class="chip" style="background:rgba(59,130,246,0.28); color:#93c5fd">レバ倍率 &lt;1 踏み上げ期待</span>
+    <span class="chip" style="background:rgba(220,38,38,0.25); color:#fca5a5">&ge;5 追証連鎖警戒</span>
   </div>
   <div class="table-wrap">
   <table>
@@ -280,6 +351,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <th>買い残変化</th>
         <th>信用倍率</th>
         <th>信用評価率</th>
+        <th>1570制度信用倍率</th>
       </tr>
     </thead>
     <tbody>
@@ -290,7 +362,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。含み損が小さい（-2超）＝天井圏で調整警戒、-15%割れで底値圏とされる。<br>
     ・売り残が多い（80万超）＝将来の買い戻し（買い圧力）が積み上がっている状態。<br>
-    ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a>
+    ・1570制度信用倍率 = 日経レバETFの制度信用買残÷売残（JPX銘柄別信用取引週末残高、毎週第3営業日頃公表）。
+    <span style="color:#93c5fd">1未満=売り方過多で踏み上げが起こりやすい</span>、
+    <span style="color:#fca5a5">数値が大きく膨らむと急落時に追証連鎖のきっかけになりやすい</span>。セルにカーソルで残高内訳。<br>
+    ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a> /
+    <a href="https://www.jpx.co.jp/markets/statistics-equities/margin/05.html" style="color:#60a5fa">JPX 銘柄別信用取引週末残高</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
@@ -321,6 +397,22 @@ def rate_class(v):
     return "rate-normal"
 
 
+def lev_cell(r):
+    """1570制度信用倍率のセル（<1 青=踏み上げ期待 / >=5 赤=追証連鎖警戒）"""
+    v = r.get("レバ倍率")
+    if v is None:
+        return "<td>-</td>"
+    cls = ""
+    if v < LEV_LOW:
+        cls = ' class="lev-low"'
+    elif v >= LEV_HIGH:
+        cls = ' class="lev-high"'
+    tip = ""
+    if r.get("レバ制度売残"):
+        tip = f' title="制度買残 {r["レバ制度買残"]:,} / 制度売残 {r["レバ制度売残"]:,}（口）"'
+    return f"<td{cls}{tip}>{v:.2f}</td>"
+
+
 def generate_html(hist):
     dates = sorted(hist.keys(), reverse=True)  # 最新が上
     rows = []
@@ -342,7 +434,8 @@ def generate_html(hist):
             f'<td{buy_cls}>{fmt_int(r.get("買い残金額"))}</td>'
             f'<td>{fmt_pct(r.get("買い残変化"))}</td>'
             f'<td>{bairitsu if bairitsu is not None else "-"}</td>'
-            f'<td class="{rc}">{rate_s}</td></tr>'
+            f'<td class="{rc}">{rate_s}</td>'
+            f'{lev_cell(r)}</tr>'
         )
 
     html = HTML_TEMPLATE.format(
@@ -416,9 +509,11 @@ def main():
         added += 1
         log(f"追記: {d}  評価率={rec['信用評価率']:+.2f}% 売り残={rec['売り残金額']:,.0f} 買い残={rec['買い残金額']:,.0f}")
 
-    if added:
+    lev_added = fetch_lev_ratios(hist)
+
+    if added or lev_added:
         save_history(hist)
-        log(f"履歴保存: {len(hist)}週分")
+        log(f"履歴保存: {len(hist)}週分（レバ倍率 +{lev_added}週）")
     else:
         log("新しいデータはありませんでした")
 
