@@ -415,12 +415,12 @@ def generate_html(df):
     plain_row("US02Y", "米2年金利", us02, "rate", f'{us02["今日"]:.3f}%')
     plain_row("JP10Y", "日10年金利", jp10, "rate", f'{jp10["今日"]:.3f}%')
     plain_row("JP02Y", "日2年金利", jp02, "rate", f'{jp02["今日"]:.3f}%')
+    plain_row("日米10Y差", "US10Y − JP10Y", usjp, "rate", f'{usjp["今日"] * 100:+.1f}bps',
+              legs_ch=(us10, jp10, "US10Y", "JP10Y"))
     plain_row("US10Y-US02Y", "米イールドカーブ", usc, "rate", f'{usc["今日"] * 100:+.1f}bps',
               legs_ch=(us10, us02, "10Y", "2Y"))
     plain_row("JP10Y-JP02Y", "日イールドカーブ", jpc, "rate", f'{jpc["今日"] * 100:+.1f}bps',
               legs_ch=(jp10, jp02, "10Y", "2Y"))
-    plain_row("日米10Y差", "US10Y − JP10Y", usjp, "rate", f'{usjp["今日"] * 100:+.1f}bps',
-              legs_ch=(us10, jp10, "US10Y", "JP10Y"))
     group_row("【答え合わせ】")
     answer_row("ドル円", "理論1: 日米10Y差と同方向なら青", fx, f'{fx["今日"]:.2f}円',
                usjp, "日米10Y差")
