@@ -191,9 +191,10 @@ def fetch_lev_ratios(hist):
             continue  # 信用評価率のデータがまだ無い週は次回に回す
         url = JPX_BASE + path
         try:
+            import tempfile
             r = requests.get(url, headers=HEADERS, timeout=60)
             r.raise_for_status()
-            tmp = os.path.join(SCRIPT_DIR, "_jpx_margin_tmp.pdf")
+            tmp = os.path.join(tempfile.gettempdir(), "_jpx_margin_tmp.pdf")
             with open(tmp, "wb") as f:
                 f.write(r.content)
             sell = buy = None
@@ -211,7 +212,10 @@ def fetch_lev_ratios(hist):
                             break
                     if sell is not None:
                         break
-            os.remove(tmp)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
             if sell and buy is not None:
                 hist[d]["レバ倍率"] = round(buy / sell, 2)
                 hist[d]["レバ制度売残"] = sell

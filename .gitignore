@@ -31,3 +31,4 @@ __pycache__/
 
 # 一時ファイル（OCR作業用画像）
 _totan_*.png
+jpx_margin_cache.json

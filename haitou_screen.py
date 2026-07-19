@@ -332,9 +332,108 @@ def get_company_name(ticker):
         return ticker
 
 # ─────────────────────────────────────────
+# JPX 銘柄別信用取引週末残高（制度信用倍率）
+# ─────────────────────────────────────────
+JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
+JPX_BASE = "https://www.jpx.co.jp"
+MARGIN_CACHE = os.path.join(SCRIPT_DIR, "jpx_margin_cache.json")
+
+
+def fetch_margin_ratios():
+    """JPX週次PDFから全銘柄の制度信用倍率 {code: (倍率, 売残, 買残, 基準日)} を返す。
+
+    PDFは週1更新なので、基準日ごとにJSONへキャッシュして再パースを避ける。
+    行形式: ... 新証券コード5桁 ISIN(JP+10桁) 数値12個
+    （売残計,前週比,買残計,前週比,一般売,前週比,制度売,前週比,一般買,前週比,制度買,前週比）
+    """
+    import re as _re
+    try:
+        html = requests.get(JPX_MARGIN_PAGE, headers=HEADERS, timeout=30).text
+        links = _re.findall(r'href="([^"]*syumatsu(\d{8})\d{2}\.pdf)"', html)
+        if not links:
+            raise RuntimeError("PDFリンクが見つかりません")
+        path, ymd = max(links, key=lambda x: x[1])  # 最新週
+        date_str = ymd[:4] + "-" + ymd[4:6] + "-" + ymd[6:8]
+    except Exception as e:
+        print("  JPX残高ページ取得失敗（信用倍率カラムは-表示）: " + str(e))
+        return {}, None
+
+    # キャッシュ確認
+    if os.path.exists(MARGIN_CACHE):
+        try:
+            with open(MARGIN_CACHE, encoding="utf-8") as f:
+                cache = json.load(f)
+            if cache.get("date") == date_str:
+                print("  制度信用倍率: キャッシュ利用 (" + date_str + ", " + str(len(cache["data"])) + "銘柄)")
+                return {k: tuple(v) for k, v in cache["data"].items()}, date_str
+        except Exception:
+            pass
+
+    try:
+        import io as _io
+        import tempfile
+        import pdfplumber
+        r = requests.get(JPX_BASE + path, headers=HEADERS, timeout=90)
+        r.raise_for_status()
+        tmp = os.path.join(tempfile.gettempdir(), "_jpx_margin_tmp.pdf")
+        with open(tmp, "wb") as f:
+            f.write(r.content)
+        out = {}
+        with pdfplumber.open(tmp) as pdf:
+            for page in pdf.pages:
+                txt = page.extract_text() or ""
+                for line in txt.splitlines():
+                    nospace = line.replace(" ", "")
+                    m = _re.search(r"JP[A-Z0-9]{10}", nospace)
+                    if not m:
+                        continue
+                    mc = _re.search(r"(\d{4})0$", nospace[:nospace.find(m.group(0))])
+                    if not mc:
+                        continue
+                    code = mc.group(1)
+                    post = line[line.find("JP"):].replace("▲ ", "-").replace("▲", "-")
+                    toks = _re.findall(r"-?[\d,]+", post[12:])
+                    if len(toks) >= 12:
+                        try:
+                            sell = int(toks[6].replace(",", ""))
+                            buy = int(toks[10].replace(",", ""))
+                        except ValueError:
+                            continue
+                        ratio = round(buy / sell, 2) if sell > 0 else None
+                        out[code] = (ratio, sell, buy, date_str)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        print("  制度信用倍率: " + date_str + "分 " + str(len(out)) + "銘柄をパース")
+        with open(MARGIN_CACHE, "w", encoding="utf-8") as f:
+            json.dump({"date": date_str, "data": out}, f, ensure_ascii=False)
+        return out, date_str
+    except Exception as e:
+        print("  JPX残高PDFのパース失敗（信用倍率カラムは-表示）: " + str(e))
+        return {}, None
+
+
+def margin_cell(code, margin):
+    """制度信用倍率のセル。<1=水色（踏み上げ期待）/ >=20=赤（買い過熱）"""
+    info = margin.get(code)
+    if not info or info[0] is None:
+        return "<td>-</td>"
+    ratio, sell, buy, d = info
+    style = ""
+    if ratio < 1.0:
+        style = ' style="background:rgba(56,189,248,0.28); color:#7dd3fc; font-weight:bold;"'
+    elif ratio >= 20.0:
+        style = ' style="background:rgba(220,38,38,0.28); color:#fca5a5; font-weight:bold;"'
+    tip = ' title="制度買残 ' + "{:,}".format(buy) + ' / 制度売残 ' + "{:,}".format(sell) + ' (' + d + '申込時点)"'
+    return "<td" + style + tip + ">" + "{:.2f}".format(ratio) + "x</td>"
+
+
+# ─────────────────────────────────────────
 # HTMLレポート生成
 # ─────────────────────────────────────────
-def generate_html(results, output_path, removed_tickers=None):
+def generate_html(results, output_path, removed_tickers=None, margin=None):
+    margin = margin or {}
     date_str = "最終更新: " + datetime.today().strftime("%Y-%m-%d %H:%M")
     count = len(results)
 
@@ -368,6 +467,7 @@ def generate_html(results, output_path, removed_tickers=None):
           <td style="color:#94a3b8; text-align:right;">""" + market_cap_str + """</td>
           <td style="color:""" + div_color + """; font-weight:bold;">""" + str(div) + """%</td>
           <td>""" + "{:,.0f}".format(r["price"]) + """円</td>
+          """ + margin_cell(code, margin) + """
           <td>""" + str(r["pbr"]) + """x</td>
           <td>""" + str(r["pbr_1y_min"]) + """x</td>
           <td>""" + str(r["pbr_1y_max"]) + """x</td>
@@ -496,6 +596,9 @@ def generate_html(results, output_path, removed_tickers=None):
     <span><span class="dot" style="background:#22c55e"></span>配当5%+</span>
     <span><span class="dot" style="background:#84cc16"></span>配当4-5%</span>
     <span><span class="dot" style="background:#f59e0b"></span>配当3-4%</span>
+    <span style="margin-left:12px">|</span>
+    <span><span class="dot" style="background:#38bdf8"></span>制度信用倍率&lt;1 踏み上げ期待</span>
+    <span><span class="dot" style="background:#dc2626"></span>&ge;20 信用買い過熱</span>
   </div>
   <table>
     <thead>
@@ -505,6 +608,7 @@ def generate_html(results, output_path, removed_tickers=None):
         <th>時価総額</th>
         <th>配当利回り</th>
         <th>株価</th>
+        <th>制度信用倍率</th>
         <th>現在PBR</th>
         <th>2年最低PBR</th>
         <th>2年最高PBR</th>
@@ -517,7 +621,8 @@ def generate_html(results, output_path, removed_tickers=None):
     <tbody>""" + rows + """</tbody>
   </table>
   <div class="cond-legend">
-    条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; (2年最高PBR－2年最低PBR)×0.3＋2年最低PBR ／ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上
+    条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; (2年最高PBR－2年最低PBR)×0.3＋2年最低PBR ／ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上<br>
+    制度信用倍率 = 制度信用買残÷売残（JPX銘柄別信用取引週末残高、週次）。1未満=売り方過多で踏み上げが起こりやすい／大きく膨らむと急落時に追証連鎖の警戒。セルにカーソルで残高内訳。
   </div>
   <p class="updated">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M") + """</p>
 """ + ("""
@@ -604,8 +709,10 @@ def main():
         print("  REMOVED: " + str(len(removed_tickers)) + "銘柄が除外 (" + ", ".join(sorted(removed_tickers)) + ")")
     save_prev_tickers(current_tickers)
 
+    margin, margin_date = fetch_margin_ratios()
+
     output_path = os.path.join(SCRIPT_DIR, "haitou.html")
-    generate_html(results, output_path, removed_tickers=removed_tickers)
+    generate_html(results, output_path, removed_tickers=removed_tickers, margin=margin)
 
     tv_path = os.path.join(SCRIPT_DIR, "txt", "Japan High Divident.txt")
     generate_tradingview_list(results, tv_path)
