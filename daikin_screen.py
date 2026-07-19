@@ -267,6 +267,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="vix.html">VIX温度計</a>
     <a href="daikin.html" class="active">売買代金</a>
     <a href="shinyou.html">信用評価率</a>
+    <a href="margin.html">銘柄別信用倍率</a>
     <a href="shutai.html">投資主体別</a>
     <a href="gaikoku.html">海外投資家</a>
     <a href="touraku.html">騰落レシオ</a>
