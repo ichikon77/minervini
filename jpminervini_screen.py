@@ -926,6 +926,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     <a href="riron.html">日経理論株価</a>
     <a href="spriron.html">SP500理論株価</a>
     <a href="flow.html">資金フロー</a>
+    <a href="calendar.html">イベント予定</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>Japan Minervini Screening <span class="badge">{count} passed</span></h1>

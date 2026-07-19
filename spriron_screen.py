@@ -293,6 +293,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="riron.html">日経理論株価</a>
     <a href="spriron.html" class="active">SP500理論株価</a>
     <a href="flow.html">資金フロー</a>
+    <a href="calendar.html">イベント予定</a>
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>S&P500 理論株価（予想PER・予想EPS）</h1>
