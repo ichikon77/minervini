@@ -38,7 +38,12 @@
   td.desc { color: #64748b; font-size: 0.76rem; text-align: left; }
   td.now { font-weight: 700; color: #f8fafc; }
   tr:hover td { filter: brightness(1.2); }
-  tr.sep td { border-top: 2px solid #334155; }
+  tr.ghead td {
+    background: #1e293b; color: #fbbf24; font-weight: 700;
+    font-size: 0.82rem; padding: 7px 13px; text-align: left;
+    border-top: 2px solid #334155;
+  }
+  tr.ghead:hover td { filter: none; }
   td.j-ok { background: rgba(59,130,246,0.28); }
   td.j-ng { background: rgba(239,68,68,0.34); font-weight: 700; }
   td.j-none { color: #64748b; }
@@ -75,7 +80,7 @@
     <a href="map.html">デッキの見方</a>
   </nav>
   <h1>金利と為替（答え合わせダッシュボード）</h1>
-  <p class="subtitle">最終更新: 2026-07-19 12:09 | 出所: 財務省・Yahoo Finance | 金利=bps変化（1bp=0.01%）、ドル円=%変化</p>
+  <p class="subtitle">最終更新: 2026-07-19 12:21 | 出所: 財務省・Yahoo Finance | 金利=bps変化（1bp=0.01%）、ドル円=%変化</p>
   <div class="legend">
     <span><span class="sw" style="background:rgba(59,130,246,0.6)"></span>理論通り（同方向）</span>
     <span><span class="sw" style="background:rgba(239,68,68,0.7)"></span>逆行（何かが起きているアラート）</span>
@@ -86,13 +91,18 @@
   <table>
     <thead><tr><th>系列</th><th>説明</th><th>今日</th><th>3営業日</th><th>5営業日</th><th>15営業日</th><th>1ヶ月</th><th>3ヶ月</th><th>年初来</th></tr></thead>
     <tbody>
+      <tr class="ghead"><td colspan="9">【金利】</td></tr>
       <tr><td>US10Y</td><td class="desc">米10年金利</td><td class="now">4.541%</td><td style="background:rgba(239,68,68,0.10)">-4.4bps</td><td style="background:rgba(239,68,68,0.10)">-2.8bps</td><td style="background:rgba(34,197,94,0.10)">+16.9bps</td><td style="background:rgba(34,197,94,0.10)">+9.0bps</td><td style="background:rgba(34,197,94,0.10)">+24.9bps</td><td style="background:rgba(34,197,94,0.10)">+37.8bps</td></tr>
       <tr><td>US02Y</td><td class="desc">米2年金利</td><td class="now">3.997%</td><td style="background:rgba(34,197,94,0.10)">+3.1bps</td><td style="background:rgba(34,197,94,0.10)">+3.9bps</td><td style="background:rgba(34,197,94,0.10)">+14.1bps</td><td style="background:rgba(34,197,94,0.10)">+14.1bps</td><td style="background:rgba(34,197,94,0.10)">+19.1bps</td><td style="background:rgba(34,197,94,0.10)">+53.9bps</td></tr>
       <tr><td>JP10Y</td><td class="desc">日10年金利</td><td class="now">2.719%</td><td>+0.6bps</td><td style="background:rgba(239,68,68,0.10)">-4.2bps</td><td style="background:rgba(34,197,94,0.10)">+10.8bps</td><td style="background:rgba(34,197,94,0.10)">+9.1bps</td><td style="background:rgba(34,197,94,0.10)">+32.7bps</td><td style="background:rgba(34,197,94,0.10)">+65.3bps</td></tr>
       <tr><td>JP02Y</td><td class="desc">日2年金利</td><td class="now">1.440%</td><td>+0.5bps</td><td>+0.6bps</td><td style="background:rgba(34,197,94,0.10)">+3.1bps</td><td style="background:rgba(34,197,94,0.10)">+4.0bps</td><td style="background:rgba(34,197,94,0.10)">+8.1bps</td><td style="background:rgba(34,197,94,0.10)">+27.3bps</td></tr>
-      <tr><td>ドル円</td><td class="desc">vs 日米10Y差(理論1)</td><td class="now">162.35円</td><td class="j-none" title="日米10Y差 -5.0bps / ドル円 -0.05% → 微動のため判定なし">-0.05%</td><td class="j-none" title="日米10Y差 +1.4bps / ドル円 -0.01% → 微動のため判定なし">-0.01%</td><td class="j-ok" title="日米10Y差 +6.1bps / ドル円 +0.34% → 同方向（理論通り）">+0.34%</td><td class="j-none" title="日米10Y差 -0.1bps / ドル円 +1.09% → 微動のため判定なし">+1.09%</td><td class="j-ng" title="日米10Y差 -7.8bps / ドル円 +2.21% → 逆行（要注意）">+2.21%</td><td class="j-ng" title="日米10Y差 -27.5bps / ドル円 +3.80% → 逆行（要注意）">+3.80%</td></tr>
-      <tr class="sep"><td>US10Y-US02Y</td><td class="desc">米カーブ vs 米銀行株(理論2)</td><td class="now">+54.4bps</td><td class="j-ng" title="米カーブ -7.5bps / 米銀行株KBE +2.12% → 逆行（要注意）">-7.5bps</td><td class="j-ng" title="米カーブ -6.7bps / 米銀行株KBE +2.17% → 逆行（要注意）">-6.7bps</td><td class="j-ok" title="米カーブ +2.8bps / 米銀行株KBE +2.66% → 同方向（理論通り）">+2.8bps</td><td class="j-ng" title="米カーブ -5.1bps / 米銀行株KBE +7.47% → 逆行（要注意）">-5.1bps</td><td class="j-ok" title="米カーブ +5.8bps / 米銀行株KBE +10.08% → 同方向（理論通り）">+5.8bps</td><td class="j-ng" title="米カーブ -16.1bps / 米銀行株KBE +17.04% → 逆行（要注意）">-16.1bps</td></tr>
-      <tr><td>JP10Y-JP02Y</td><td class="desc">日カーブ vs 日銀行株(理論3)</td><td class="now">+127.9bps</td><td class="j-none" title="日カーブ +0.1bps / 東証銀行1615 -1.41% → 微動のため判定なし">+0.1bps</td><td class="j-ok" title="日カーブ -4.8bps / 東証銀行1615 -1.91% → 同方向（理論通り）">-4.8bps</td><td class="j-ok" title="日カーブ +7.7bps / 東証銀行1615 +5.34% → 同方向（理論通り）">+7.7bps</td><td class="j-ok" title="日カーブ +5.1bps / 東証銀行1615 +0.67% → 同方向（理論通り）">+5.1bps</td><td class="j-ok" title="日カーブ +24.6bps / 東証銀行1615 +19.91% → 同方向（理論通り）">+24.6bps</td><td class="j-ok" title="日カーブ +38.0bps / 東証銀行1615 +40.02% → 同方向（理論通り）">+38.0bps</td></tr>
+      <tr><td>US10Y-US02Y</td><td class="desc">米イールドカーブ</td><td class="now">+54.4bps</td><td style="background:rgba(239,68,68,0.10)">-7.5bps</td><td style="background:rgba(239,68,68,0.10)">-6.7bps</td><td style="background:rgba(34,197,94,0.10)">+2.8bps</td><td style="background:rgba(239,68,68,0.10)">-5.1bps</td><td style="background:rgba(34,197,94,0.10)">+5.8bps</td><td style="background:rgba(239,68,68,0.10)">-16.1bps</td></tr>
+      <tr><td>JP10Y-JP02Y</td><td class="desc">日イールドカーブ</td><td class="now">+127.9bps</td><td>+0.1bps</td><td style="background:rgba(239,68,68,0.10)">-4.8bps</td><td style="background:rgba(34,197,94,0.10)">+7.7bps</td><td style="background:rgba(34,197,94,0.10)">+5.1bps</td><td style="background:rgba(34,197,94,0.10)">+24.6bps</td><td style="background:rgba(34,197,94,0.10)">+38.0bps</td></tr>
+      <tr><td>日米10Y差</td><td class="desc">US10Y − JP10Y</td><td class="now">+182.2bps</td><td style="background:rgba(239,68,68,0.10)">-5.0bps</td><td>+1.4bps</td><td style="background:rgba(34,197,94,0.10)">+6.1bps</td><td>-0.1bps</td><td style="background:rgba(239,68,68,0.10)">-7.8bps</td><td style="background:rgba(239,68,68,0.10)">-27.5bps</td></tr>
+      <tr class="ghead"><td colspan="9">【答え合わせ】</td></tr>
+      <tr><td>ドル円</td><td class="desc">理論1: 日米10Y差と同方向なら青</td><td class="now">162.35円</td><td class="j-none" title="日米10Y差 -5.0bps / ドル円 -0.05% → 微動のため判定なし">-0.05%</td><td class="j-none" title="日米10Y差 +1.4bps / ドル円 -0.01% → 微動のため判定なし">-0.01%</td><td class="j-ok" title="日米10Y差 +6.1bps / ドル円 +0.34% → 同方向（理論通り）">+0.34%</td><td class="j-none" title="日米10Y差 -0.1bps / ドル円 +1.09% → 微動のため判定なし">+1.09%</td><td class="j-ng" title="日米10Y差 -7.8bps / ドル円 +2.21% → 逆行（要注意）">+2.21%</td><td class="j-ng" title="日米10Y差 -27.5bps / ドル円 +3.80% → 逆行（要注意）">+3.80%</td></tr>
+      <tr><td>米銀行株(KBE)</td><td class="desc">理論2: US10Y-US02Yと同方向なら青</td><td class="now">70.24$</td><td class="j-ng" title="米カーブ -7.5bps / 米銀行株(KBE) +2.12% → 逆行（要注意）">+2.12%</td><td class="j-ng" title="米カーブ -6.7bps / 米銀行株(KBE) +2.17% → 逆行（要注意）">+2.17%</td><td class="j-ok" title="米カーブ +2.8bps / 米銀行株(KBE) +2.66% → 同方向（理論通り）">+2.66%</td><td class="j-ng" title="米カーブ -5.1bps / 米銀行株(KBE) +7.47% → 逆行（要注意）">+7.47%</td><td class="j-ok" title="米カーブ +5.8bps / 米銀行株(KBE) +10.08% → 同方向（理論通り）">+10.08%</td><td class="j-ng" title="米カーブ -16.1bps / 米銀行株(KBE) +17.04% → 逆行（要注意）">+17.04%</td></tr>
+      <tr><td>日本銀行株(1615)</td><td class="desc">理論3: JP10Y-JP02Yと同方向なら青</td><td class="now">719円</td><td class="j-none" title="日カーブ +0.1bps / 日本銀行株(1615) -1.41% → 微動のため判定なし">-1.41%</td><td class="j-ok" title="日カーブ -4.8bps / 日本銀行株(1615) -1.91% → 同方向（理論通り）">-1.91%</td><td class="j-ok" title="日カーブ +7.7bps / 日本銀行株(1615) +5.34% → 同方向（理論通り）">+5.34%</td><td class="j-ok" title="日カーブ +5.1bps / 日本銀行株(1615) +0.67% → 同方向（理論通り）">+0.67%</td><td class="j-ok" title="日カーブ +24.6bps / 日本銀行株(1615) +19.91% → 同方向（理論通り）">+19.91%</td><td class="j-ok" title="日カーブ +38.0bps / 日本銀行株(1615) +40.02% → 同方向（理論通り）">+40.02%</td></tr>
     </tbody>
   </table>
   </div>
@@ -104,6 +114,6 @@
     ・<span style="color:#f87171">赤（逆行）が続く場合</span>は、金利以外の要因（介入観測・リスクオフ・信用不安など）が支配しているサイン。<br>
     ・US02YはCBOT 2年利回り先物(2YY=F)の値。日本国債金利は財務省公表値（前営業日分）。閾値: 金利±2bps未満・価格±0.3%未満は判定なし。
   </p>
-  <p class="updated">最終更新: 2026-07-19 12:09</p>
+  <p class="updated">最終更新: 2026-07-19 12:21</p>
 </body>
 </html>

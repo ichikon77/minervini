@@ -260,7 +260,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   td.desc {{ color: #64748b; font-size: 0.76rem; text-align: left; }}
   td.now {{ font-weight: 700; color: #f8fafc; }}
   tr:hover td {{ filter: brightness(1.2); }}
-  tr.sep td {{ border-top: 2px solid #334155; }}
+  tr.ghead td {{
+    background: #1e293b; color: #fbbf24; font-weight: 700;
+    font-size: 0.82rem; padding: 7px 13px; text-align: left;
+    border-top: 2px solid #334155;
+  }}
+  tr.ghead:hover td {{ filter: none; }}
   td.j-ok {{ background: rgba(59,130,246,0.28); }}
   td.j-ng {{ background: rgba(239,68,68,0.34); font-weight: 700; }}
   td.j-none {{ color: #64748b; }}
@@ -356,44 +361,44 @@ def generate_html(df):
     jpb = changes(df, "JPBANK", "px")
 
     rows_html = []
+    ncols = len(COLS) + 3  # 系列 + 説明 + 今日
 
-    def plain_row(name, desc, ch, kind, fmt_now, sep=False):
+    def group_row(title):
+        rows_html.append(f'      <tr class="ghead"><td colspan="{ncols}">{title}</td></tr>')
+
+    def plain_row(name, desc, ch, kind, fmt_now):
         tds = [f'<td>{name}</td><td class="desc">{desc}</td><td class="now">{fmt_now}</td>']
         for c in COLS:
             v = ch.get(c)
             tds.append(f"<td{dir_style(v, kind)}>{fmt_chg(v, kind)}</td>")
-        cls = ' class="sep"' if sep else ""
-        rows_html.append(f"      <tr{cls}>" + "".join(tds) + "</tr>")
+        rows_html.append("      <tr>" + "".join(tds) + "</tr>")
 
-    def judged_row(name, desc, ch, kind, fmt_now, drv_ch, drv_name, ans_ch, ans_name,
-                   drv_is_self, sep=False):
-        """drv_is_self=True: この行自身が理論の起点（カーブ行）で答えは価格側。
-           False: この行が答え側（ドル円行）で起点は金利差。"""
+    def answer_row(name, desc, ch, fmt_now, drv_ch, drv_name):
+        """答え合わせ行: 自身(価格%)を理論の起点(金利差bps)と突き合わせて青赤判定"""
         tds = [f'<td>{name}</td><td class="desc">{desc}</td><td class="now">{fmt_now}</td>']
         for c in COLS:
             v = ch.get(c)
-            if drv_is_self:
-                cls, tip = judge(v, ans_ch.get(c), drv_name, ans_name)
-            else:
-                cls, tip = judge(drv_ch.get(c), v, drv_name, ans_name)
+            cls, tip = judge(drv_ch.get(c), v, drv_name, name)
             attr = f' class="{cls}"' if cls else ""
             attr += f' title="{tip}"' if tip else ""
-            tds.append(f"<td{attr}>{fmt_chg(v, kind)}</td>")
-        cls_tr = ' class="sep"' if sep else ""
-        rows_html.append(f"      <tr{cls_tr}>" + "".join(tds) + "</tr>")
+            tds.append(f"<td{attr}>{fmt_chg(v, 'px')}</td>")
+        rows_html.append("      <tr>" + "".join(tds) + "</tr>")
 
+    group_row("【金利】")
     plain_row("US10Y", "米10年金利", us10, "rate", f'{us10["今日"]:.3f}%')
     plain_row("US02Y", "米2年金利", us02, "rate", f'{us02["今日"]:.3f}%')
     plain_row("JP10Y", "日10年金利", jp10, "rate", f'{jp10["今日"]:.3f}%')
     plain_row("JP02Y", "日2年金利", jp02, "rate", f'{jp02["今日"]:.3f}%')
-    judged_row("ドル円", "vs 日米10Y差(理論1)", fx, "px", f'{fx["今日"]:.2f}円',
-               usjp, "日米10Y差", None, "ドル円", drv_is_self=False)
-    judged_row("US10Y-US02Y", "米カーブ vs 米銀行株(理論2)", usc, "rate",
-               f'{usc["今日"] * 100:+.1f}bps', None, "米カーブ", kbe, "米銀行株KBE",
-               drv_is_self=True, sep=True)
-    judged_row("JP10Y-JP02Y", "日カーブ vs 日銀行株(理論3)", jpc, "rate",
-               f'{jpc["今日"] * 100:+.1f}bps', None, "日カーブ", jpb, "東証銀行1615",
-               drv_is_self=True)
+    plain_row("US10Y-US02Y", "米イールドカーブ", usc, "rate", f'{usc["今日"] * 100:+.1f}bps')
+    plain_row("JP10Y-JP02Y", "日イールドカーブ", jpc, "rate", f'{jpc["今日"] * 100:+.1f}bps')
+    plain_row("日米10Y差", "US10Y − JP10Y", usjp, "rate", f'{usjp["今日"] * 100:+.1f}bps')
+    group_row("【答え合わせ】")
+    answer_row("ドル円", "理論1: 日米10Y差と同方向なら青", fx, f'{fx["今日"]:.2f}円',
+               usjp, "日米10Y差")
+    answer_row("米銀行株(KBE)", "理論2: US10Y-US02Yと同方向なら青", kbe, f'{kbe["今日"]:.2f}$',
+               usc, "米カーブ")
+    answer_row("日本銀行株(1615)", "理論3: JP10Y-JP02Yと同方向なら青", jpb, f'{jpb["今日"]:.0f}円',
+               jpc, "日カーブ")
 
     period_headers = "".join(f"<th>{c}</th>" for c in COLS)
     ori = orikomi_comment()
