@@ -45,6 +45,7 @@ CFTC_URL = ("https://publicreporting.cftc.gov/resource/6dca-aqww.json"
 
 SHORT_EXTREME_PCT = 20    # パーセンタイルがこれ以下なら「ショート極端」
 STOCHRSI_K_MAX = 30       # Stoch RSIのGCを「押し目完成」と数えるKの上限（売られすぎ圏）
+STOCHRSI_K_MIN = 80       # Stoch RSIのDCを「天井完成」と数えるKの下限（買われすぎ圏）
 EVENT_SHOW_YEARS = 2      # イベント表に表示する期間
 DAILY_ROWS = 20           # 日次ミニ表の行数
 
@@ -152,12 +153,23 @@ def stochrsi_gc_dates(K, D, k_max):
     return out
 
 
-def build_events(px, cftc_rows, crosses, srsi_gc):
+def stochrsi_dc_dates(K, D, k_min):
+    """KがDを下抜けした日のうち、K>=k_min（買われすぎ圏）のもの"""
+    kd = (K - D).dropna()
+    out = []
+    for i in range(1, len(kd)):
+        if kd.iloc[i-1] >= 0 > kd.iloc[i] and float(K.loc[kd.index[i]]) >= k_min:
+            out.append(kd.index[i])
+    return out
+
+
+def build_events(px, cftc_rows, crosses, srsi_gc, srsi_dc):
     """クロスイベントごとの答え合わせレコード（新しい順）
 
-    DC: 従来通り「次のVIXクロスまで」の騰落。
     GC: 「SPXのStoch RSIが売られすぎ圏(K<=30)でGCするまで」の騰落（押し目完成ルール）。
-        ただし先にVIXがDCすればそこで打ち切り（前提消滅）。日経も同じ区間で計測。
+        先にVIXがDCすればそこで打ち切り（前提消滅）。
+    DC: 「SPXのStoch RSIが買われすぎ圏(K>=80)でDCするまで」の騰落（天井完成ルール）。
+        先にVIXがGCすればそこで打ち切り。日経も同じ区間で計測。
     """
     events = []
     last_px_date = px["SPX"].index[-1]
@@ -170,23 +182,25 @@ def build_events(px, cftc_rows, crosses, srsi_gc):
             "short_extreme": (pct is not None and pct <= SHORT_EXTREME_PCT),
             "end_reason": "",
         }
-        if kind == "DC":
-            end = d_next if d_next is not None else last_px_date
-            rec["ongoing"] = d_next is None
+        if kind == "GC":
+            exits = srsi_gc
+            done_word, cut_word, wait_word = "押し目完成", "VIX DCで打切", "押し目待ち"
         else:
-            dip = next((x for x in srsi_gc if x > d), None)
-            if dip is not None and (d_next is None or dip <= d_next):
-                end = dip
-                rec["ongoing"] = False
-                rec["end_reason"] = "押し目完成"
-            elif d_next is not None:
-                end = d_next
-                rec["ongoing"] = False
-                rec["end_reason"] = "VIX DCで打切"
-            else:
-                end = last_px_date
-                rec["ongoing"] = True
-                rec["end_reason"] = "押し目待ち"
+            exits = srsi_dc
+            done_word, cut_word, wait_word = "天井完成", "VIX GCで打切", "天井待ち"
+        hit = next((x for x in exits if x > d), None)
+        if hit is not None and (d_next is None or hit <= d_next):
+            end = hit
+            rec["ongoing"] = False
+            rec["end_reason"] = done_word
+        elif d_next is not None:
+            end = d_next
+            rec["ongoing"] = False
+            rec["end_reason"] = cut_word
+        else:
+            end = last_px_date
+            rec["ongoing"] = True
+            rec["end_reason"] = wait_word
         r_spx = period_return(px["SPX"], d, end)
         if r_spx is None:
             continue
@@ -312,7 +326,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {cards}
   </div>
 {stats}
-  <h2>クロスイベントの答え合わせ（DC=次のクロスまで / GC=押し目完成まで / 直近{show_years}年）</h2>
+  <h2>クロスイベントの答え合わせ（DC=天井完成まで / GC=押し目完成まで / 直近{show_years}年）</h2>
   <div class="legend">
     <span><span class="sw" style="background:rgba(59,130,246,0.6)"></span>説通り</span>
     <span><span class="sw" style="background:rgba(251,191,36,0.55)"></span>だまし（GC後の上昇だがショート極端=踏み上げで説明可能）</span>
@@ -339,7 +353,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・<b>基本説</b>: VIXのMACDがデッドクロス(DC)=恐怖の勢いが弱まる→株高になりやすい。ゴールデンクロス(GC)=恐怖の勢いが強まる→株安になりやすい。<br>
     ・<b>GCの判定期間（押し目完成ルール）</b>: GC後の下落は「S&amp;P500のStoch RSI(3,3,14,14)が売られすぎ圏(K&le;{k_max})でK&gt;Dにゴールデンクロスするまで」続くとみなす。
-    それが押し目完成=下落期間の終了。ただし先にVIXのMACDがDCに戻ったら前提消滅として打ち切り。DCの判定期間は従来通り次のクロスまで。<br>
+    それが押し目完成=下落期間の終了。ただし先にVIXのMACDがDCに戻ったら前提消滅として打ち切り。<br>
+    ・<b>DCの判定期間（天井完成ルール）</b>: DC後の上昇は「S&amp;P500のStoch RSIが買われすぎ圏(K&ge;{k_min})でK&lt;Dにデッドクロスするまで」続くとみなす。
+    それが天井完成=上昇期間の終了。先にVIXのMACDがGCしたら打ち切り。<br>
     ・MACDは12-26-9、<b>シグナル線はSMA</b>（TradingViewのCM_Ult_MacD_MTFと同方式）。標準のEMAシグナルとはクロス日が1日前後ズレることがある。<br>
     ・<b>だまし</b>: GC後でもCFTC E-mini S&amp;P500の投機筋ショートが極端（過去3年の下位{short_pct}%以下）だと、踏み上げで株が上がりやすい。イベント表の黄色がそれ。<br>
     ・CFTC建玉は毎週金曜公表（火曜時点）のため数日のラグがある。<a href="https://publicreporting.cftc.gov/" style="color:#60a5fa">CFTC Public Reporting</a> / <a href="https://jp.investing.com/economic-calendar/cftc-s-p-500-speculative-positions-1619" style="color:#60a5fa">investing.com 表示版</a><br>
@@ -370,19 +386,28 @@ def make_cards(px, macd, signal, diff, crosses, cftc_rows, K, D):
         f'    <div class="card"><div class="label">現在の状態</div>'
         f'<div class="value">{state_html}</div>'
         f'<div class="sub">{last_d.date()} から {days}日経過<br>{state_sub}</div></div>')
-    # GC中は押し目完成（SPX Stoch RSIのGC）待ちの状態を表示
+    # GC中は押し目完成、DC中は天井完成（SPX Stoch RSIのクロス）待ちの状態を表示
+    k_now, d_now = float(K.iloc[-1]), float(D.iloc[-1])
     if last_kind == "GC":
-        k_now, d_now = float(K.iloc[-1]), float(D.iloc[-1])
         if k_now <= STOCHRSI_K_MAX and k_now > d_now:
             dip_txt, dip_sub = "押し目完成", "売られすぎ圏でK>Dにクロス済み<br>下落期間は終了とみなす"
         elif k_now <= STOCHRSI_K_MAX:
             dip_txt, dip_sub = "売られすぎ圏", f"K<={STOCHRSI_K_MAX}に到達。K>Dのクロス待ち"
         else:
             dip_txt, dip_sub = "押し目待ち", f"K<={STOCHRSI_K_MAX}への低下 → K>Dクロスを待つ"
-        cards.append(
-            f'    <div class="card"><div class="label">SPX Stoch RSI（押し目判定）</div>'
-            f'<div class="value">{dip_txt}</div>'
-            f'<div class="sub">K {k_now:.1f} / D {d_now:.1f}<br>{dip_sub}</div></div>')
+        label = "SPX Stoch RSI（押し目判定）"
+    else:
+        if k_now >= STOCHRSI_K_MIN and k_now < d_now:
+            dip_txt, dip_sub = "天井完成", "買われすぎ圏でK<Dにクロス済み<br>上昇期間は終了とみなす"
+        elif k_now >= STOCHRSI_K_MIN:
+            dip_txt, dip_sub = "買われすぎ圏", f"K>={STOCHRSI_K_MIN}に到達。K<Dのクロス待ち"
+        else:
+            dip_txt, dip_sub = "天井待ち", f"K>={STOCHRSI_K_MIN}への上昇 → K<Dクロスを待つ"
+        label = "SPX Stoch RSI（天井判定）"
+    cards.append(
+        f'    <div class="card"><div class="label">{label}</div>'
+        f'<div class="value">{dip_txt}</div>'
+        f'<div class="sub">K {k_now:.1f} / D {d_now:.1f}<br>{dip_sub}</div></div>')
     recent = " → ".join(f"{float(v):+.2f}" for v in diff.iloc[-4:])
     near = "（クロス際どい）" if abs(float(diff.iloc[-1])) < 0.05 else ""
     cards.append(
@@ -404,13 +429,11 @@ def make_cards(px, macd, signal, diff, crosses, cftc_rows, K, D):
 
 
 def make_stats(events):
-    """5年分イベントの勝率集計。GCは「押し目完成」で成立した回のみを本則として集計"""
+    """5年分イベントの勝率集計。DC=天井完成、GC=押し目完成に至った回のみを本則として集計"""
     parts = []
-    for kind, jp in [("DC", "デッドクロス後（上がれば説通り）"), ("GC", "ゴールデンクロス後（下がれば説通り）")]:
-        if kind == "DC":
-            evs = [e for e in events if e["kind"] == kind and not e["ongoing"]]
-        else:
-            evs = [e for e in events if e["kind"] == kind and e["end_reason"] == "押し目完成"]
+    for kind, jp, done in [("DC", "デッドクロス後（上がれば説通り・天井完成まで）", "天井完成"),
+                           ("GC", "ゴールデンクロス後（下がれば説通り・押し目完成まで）", "押し目完成")]:
+        evs = [e for e in events if e["kind"] == kind and e["end_reason"] == done]
         if not evs:
             continue
         for idx, label in [("spx", "S&P500"), ("n225", "日経平均")]:
@@ -422,14 +445,14 @@ def make_stats(events):
                 dama = sum(1 for e in evs if kind == "GC" and e["spx"] is not None
                            and e["spx"] > 0 and e["short_extreme"])
                 dama_txt = f"（うち だまし {dama}回）" if kind == "GC" else ""
-                suffix = "（押し目完成に至った回のみ）" if kind == "GC" else ""
-                parts.append(f"<b>{jp}</b>{suffix} {label}: {win}/{len(rs)}回 説通り "
+                parts.append(f"<b>{jp}</b> {label}: {win}/{len(rs)}回 説通り "
                              f"({win/len(rs)*100:.0f}%){dama_txt} 平均{mean(rs):+.2f}%")
             else:
                 parts.append(f"{label}: {win}/{len(rs)}回 ({win/len(rs)*100:.0f}%) 平均{mean(rs):+.2f}%")
-    cut = sum(1 for e in events if e["kind"] == "GC" and e["end_reason"] == "VIX DCで打切")
+    cut_gc = sum(1 for e in events if e["kind"] == "GC" and e["end_reason"] == "VIX DCで打切")
+    cut_dc = sum(1 for e in events if e["kind"] == "DC" and e["end_reason"] == "VIX GCで打切")
     return ('  <div class="stats">過去5年の成績: ' + " ／ ".join(parts) +
-            f"<br>※GCのうち{cut}回は押し目完成前にVIXがDCに戻り打ち切り（統計から除外）</div>")
+            f"<br>※完成前にVIXが反対クロスして打ち切り（統計から除外）: DC側{cut_dc}回 / GC側{cut_gc}回</div>")
 
 
 def make_event_rows(events):
@@ -443,10 +466,7 @@ def make_event_rows(events):
         tr_cls = ' class="ongoing"' if e["ongoing"] else ""
         days_txt = f'{e["days"]}日' + ("(進行中)" if e["ongoing"] else "")
 
-        if e["kind"] == "GC":
-            reason = e["end_reason"]
-        else:
-            reason = "次のクロス" if not e["ongoing"] else "進行中"
+        reason = e["end_reason"]
         end_txt = "-" if e["ongoing"] else str(e["end_date"].date())
         cells = [f'<td>{e["date"].date()}</td>',
                  f'<td class="{kind_cls}">{kind_txt}</td>',
@@ -500,7 +520,8 @@ def generate_html(px, cftc_rows):
     macd, signal, diff, crosses = macd_cross(px["VIX"])
     K, D = stoch_rsi(px["SPX"])
     srsi_gc = stochrsi_gc_dates(K, D, STOCHRSI_K_MAX)
-    events = build_events(px, cftc_rows, crosses, srsi_gc)
+    srsi_dc = stochrsi_dc_dates(K, D, STOCHRSI_K_MIN)
+    events = build_events(px, cftc_rows, crosses, srsi_gc, srsi_dc)
     cards, state = make_cards(px, macd, signal, diff, crosses, cftc_rows, K, D)
 
     html = HTML_TEMPLATE.format(
@@ -514,6 +535,7 @@ def generate_html(px, cftc_rows):
         daily_rows=DAILY_ROWS,
         short_pct=SHORT_EXTREME_PCT,
         k_max=STOCHRSI_K_MAX,
+        k_min=STOCHRSI_K_MIN,
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
