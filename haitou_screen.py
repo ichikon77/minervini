@@ -506,8 +506,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     display: flex;
     gap: 12px;
     margin-bottom: 20px;
-    font-size: 0.85rem;
-  }
+    font-size: 0.85rem; flex-wrap: wrap; }
   .nav a {
     color: #60a5fa;
     text-decoration: none;
