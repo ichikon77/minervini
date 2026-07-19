@@ -255,26 +255,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
   <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
   <nav class="nav">
-    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
-    <a href="haitou.html">日本株 (配当)</a>
-    <a href="jpminervini.html">日本株 (Minervini)</a>
-    <a href="saitei.html">裁定取引</a>
-    <a href="totan.html">日銀利上げ確率</a>
-    <a href="fedwatch.html">FRB利上げ確率</a>
-    <a href="kinri.html">金利と為替</a>
-    <a href="vix.html">VIX温度計</a>
-    <a href="daikin.html">売買代金</a>
-    <a href="shinyou.html">信用評価率</a>
-    <a href="margin.html">銘柄別信用倍率</a>
-    <a href="shutai.html">投資主体別</a>
-    <a href="gaikoku.html" class="active">海外投資家</a>
-    <a href="touraku.html">騰落レシオ</a>
-    <a href="karauri.html">空売り比率</a>
-    <a href="riron.html">日経理論株価</a>
-    <a href="spriron.html">SP500理論株価</a>
-    <a href="flow.html">資金フロー</a>
-    <a href="calendar.html">イベント予定</a>
-    <a href="map.html">デッキの見方</a>
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" class="active" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
   </nav>
   <h1>海外投資家 現物+先物 売買動向</h1>
   <p class="subtitle">最終更新: {updated} | 出所: JPX投資部門別取引状況・nikkei225jp.com | 週次 | 単位: 百万円（プラス=買い越し）</p>
