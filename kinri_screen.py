@@ -164,19 +164,29 @@ def changes(df, col, kind):
 # -----------------------------------------
 # 判定（答え合わせ）
 # -----------------------------------------
-def judge(drv_bps, ans_pct, drv_name, ans_name):
+def judge(drv_bps, ans_pct, drv_name, ans_name, legs=None, soften=False):
     """
     drv_bps: 理論の起点（金利差の変化 bps）、ans_pct: 答え側（価格の変化 %）
+    legs: (a_bps, b_bps, a_name, b_name) スプレッドの内訳（例: 10Yの変化, 2Yの変化）
+    soften=True: 逆行でも短い側(b)主導＝政策金利の織り込み型なら黄色(j-mid)に緩和
     戻り値: (css_class, tooltip)
     """
     if drv_bps is None or ans_pct is None:
         return "", ""
     tip = f"{drv_name} {drv_bps:+.1f}bps / {ans_name} {ans_pct:+.2f}%"
+    detail, short_led = "", False
+    if legs and legs[0] is not None and legs[1] is not None:
+        a, b, an, bn = legs
+        short_led = abs(b) > abs(a)
+        lead = f"{bn}主導" if short_led else f"{an}主導"
+        detail = f"（内訳 {an}{a:+.1f} / {bn}{b:+.1f}bps → {lead}）"
     if abs(drv_bps) < RATE_TH_BPS or abs(ans_pct) < PX_TH_PCT:
-        return "j-none", tip + " → 微動のため判定なし"
+        return "j-none", tip + detail + " → 微動のため判定なし"
     if (drv_bps > 0) == (ans_pct > 0):
-        return "j-ok", tip + " → 同方向（理論通り）"
-    return "j-ng", tip + " → 逆行（要注意）"
+        return "j-ok", tip + detail + " → 同方向（理論通り）"
+    if soften and short_led:
+        return "j-mid", tip + detail + " → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能"
+    return "j-ng", tip + detail + " → 逆行（要注意）"
 
 
 # -----------------------------------------
@@ -267,6 +277,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   tr.ghead:hover td {{ filter: none; }}
   td.j-ok {{ background: rgba(59,130,246,0.28); }}
+  td.j-mid {{ background: rgba(251,191,36,0.22); }}
   td.j-ng {{ background: rgba(239,68,68,0.34); font-weight: 700; }}
   td.j-none {{ color: #64748b; }}
   td[title] {{ cursor: help; }}
@@ -305,7 +316,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="subtitle">最終更新: {updated} | 出所: 財務省・Yahoo Finance | 金利=bps変化（1bp=0.01%）、ドル円=%変化</p>
   <div class="legend">
     <span><span class="sw" style="background:rgba(59,130,246,0.6)"></span>理論通り（同方向）</span>
-    <span><span class="sw" style="background:rgba(239,68,68,0.7)"></span>逆行（何かが起きているアラート）</span>
+    <span><span class="sw" style="background:rgba(251,191,36,0.55)"></span>逆行だが2Y主導（利上げ/利下げ織り込み型で説明可能）</span>
+    <span><span class="sw" style="background:rgba(239,68,68,0.7)"></span>逆行かつ10Y主導（真のアラート）</span>
     <span><span class="sw" style="background:#334155"></span>微動のため判定なし</span>
     <span style="color:#64748b">※判定セルにマウスを乗せると根拠の数値を表示</span>
   </div>
@@ -322,7 +334,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>理論1</b>: 日米10年金利差が拡大→円安（ドル円上昇）、縮小→円高。ドル円の行は日米10Y差の変化と突き合わせて判定。<br>
     ・<b>理論2</b>: US10Y−US02Y（米イールドカーブ）拡大→米銀行株(KBE)上昇。米カーブの行はKBEと突き合わせ。<br>
     ・<b>理論3</b>: JP10Y−JP02Y（日カーブ）拡大→日本の銀行株(1615 東証銀行ETF)上昇。日カーブの行は1615.Tと突き合わせ。<br>
-    ・<span style="color:#f87171">赤（逆行）が続く場合</span>は、金利以外の要因（介入観測・リスクオフ・信用不安など）が支配しているサイン。<br>
+    ・銀行株の逆行は<b>カーブの潰れ方</b>で質が分かれる: <span style="color:#fbbf24">2Y主導（ベアフラット）</span>=利上げ織り込みで潰れただけ（銀行に悪くない）→黄。<span style="color:#f87171">10Y主導（ブルフラット）</span>=景気不安で潰れているのに銀行株上昇→真の逆行アラート（赤）。<br>
+    ・<span style="color:#f87171">赤（逆行）が続く場合</span>は、金利以外の要因（介入観測・リスクオフ・信用不安・決算など）が支配しているサイン。<br>
     ・US02YはCBOT 2年利回り先物(2YY=F)の値。日本国債金利は財務省公表値（前営業日分）。閾値: 金利±{rate_th}bps未満・価格±{px_th}%未満は判定なし。
   </p>
   <p class="updated">最終更新: {updated}</p>
@@ -366,19 +379,29 @@ def generate_html(df):
     def group_row(title):
         rows_html.append(f'      <tr class="ghead"><td colspan="{ncols}">{title}</td></tr>')
 
-    def plain_row(name, desc, ch, kind, fmt_now):
+    def plain_row(name, desc, ch, kind, fmt_now, legs_ch=None):
+        """legs_ch: (長い側ch, 短い側ch, 長い側名, 短い側名) スプレッド行の内訳ツールチップ用"""
         tds = [f'<td>{name}</td><td class="desc">{desc}</td><td class="now">{fmt_now}</td>']
         for c in COLS:
             v = ch.get(c)
-            tds.append(f"<td{dir_style(v, kind)}>{fmt_chg(v, kind)}</td>")
+            attr = dir_style(v, kind)
+            if legs_ch and v is not None:
+                a, b = legs_ch[0].get(c), legs_ch[1].get(c)
+                if a is not None and b is not None:
+                    lead = f"{legs_ch[3]}主導" if abs(b) > abs(a) else f"{legs_ch[2]}主導"
+                    attr += f' title="内訳 {legs_ch[2]}{a:+.1f} / {legs_ch[3]}{b:+.1f}bps → {lead}"'
+            tds.append(f"<td{attr}>{fmt_chg(v, kind)}</td>")
         rows_html.append("      <tr>" + "".join(tds) + "</tr>")
 
-    def answer_row(name, desc, ch, fmt_now, drv_ch, drv_name):
+    def answer_row(name, desc, ch, fmt_now, drv_ch, drv_name, legs_ch=None, soften=False):
         """答え合わせ行: 自身(価格%)を理論の起点(金利差bps)と突き合わせて青赤判定"""
         tds = [f'<td>{name}</td><td class="desc">{desc}</td><td class="now">{fmt_now}</td>']
         for c in COLS:
             v = ch.get(c)
-            cls, tip = judge(drv_ch.get(c), v, drv_name, name)
+            legs = None
+            if legs_ch:
+                legs = (legs_ch[0].get(c), legs_ch[1].get(c), legs_ch[2], legs_ch[3])
+            cls, tip = judge(drv_ch.get(c), v, drv_name, name, legs=legs, soften=soften)
             attr = f' class="{cls}"' if cls else ""
             attr += f' title="{tip}"' if tip else ""
             tds.append(f"<td{attr}>{fmt_chg(v, 'px')}</td>")
@@ -389,16 +412,19 @@ def generate_html(df):
     plain_row("US02Y", "米2年金利", us02, "rate", f'{us02["今日"]:.3f}%')
     plain_row("JP10Y", "日10年金利", jp10, "rate", f'{jp10["今日"]:.3f}%')
     plain_row("JP02Y", "日2年金利", jp02, "rate", f'{jp02["今日"]:.3f}%')
-    plain_row("US10Y-US02Y", "米イールドカーブ", usc, "rate", f'{usc["今日"] * 100:+.1f}bps')
-    plain_row("JP10Y-JP02Y", "日イールドカーブ", jpc, "rate", f'{jpc["今日"] * 100:+.1f}bps')
-    plain_row("日米10Y差", "US10Y − JP10Y", usjp, "rate", f'{usjp["今日"] * 100:+.1f}bps')
+    plain_row("US10Y-US02Y", "米イールドカーブ", usc, "rate", f'{usc["今日"] * 100:+.1f}bps',
+              legs_ch=(us10, us02, "10Y", "2Y"))
+    plain_row("JP10Y-JP02Y", "日イールドカーブ", jpc, "rate", f'{jpc["今日"] * 100:+.1f}bps',
+              legs_ch=(jp10, jp02, "10Y", "2Y"))
+    plain_row("日米10Y差", "US10Y − JP10Y", usjp, "rate", f'{usjp["今日"] * 100:+.1f}bps',
+              legs_ch=(us10, jp10, "US10Y", "JP10Y"))
     group_row("【答え合わせ】")
     answer_row("ドル円", "理論1: 日米10Y差と同方向なら青", fx, f'{fx["今日"]:.2f}円',
                usjp, "日米10Y差")
     answer_row("米銀行株(KBE)", "理論2: US10Y-US02Yと同方向なら青", kbe, f'{kbe["今日"]:.2f}$',
-               usc, "米カーブ")
+               usc, "米カーブ", legs_ch=(us10, us02, "10Y", "2Y"), soften=True)
     answer_row("日本銀行株(1615)", "理論3: JP10Y-JP02Yと同方向なら青", jpb, f'{jpb["今日"]:.0f}円',
-               jpc, "日カーブ")
+               jpc, "日カーブ", legs_ch=(jp10, jp02, "10Y", "2Y"), soften=True)
 
     period_headers = "".join(f"<th>{c}</th>" for c in COLS)
     ori = orikomi_comment()
