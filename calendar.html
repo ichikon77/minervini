@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>イベント予定 - 2026-07-19</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  table { border-collapse: collapse; font-size: 0.9rem; max-width: 900px; width: 100%; }
+  thead th {
+    background: #1e293b; color: #94a3b8; padding: 9px 14px;
+    text-align: left; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  td {
+    padding: 9px 14px; border-bottom: 1px solid #1e293b;
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  tr:hover td { background: #16213a; }
+  tr.ghead td {
+    background: #1e293b; color: #fbbf24; font-weight: 700;
+    font-size: 0.82rem; padding: 7px 14px; border-top: 2px solid #334155;
+  }
+  tr.ghead:hover td { background: #1e293b; }
+  tr.soon td { background: rgba(30,64,175,0.18); }
+  tr.today td { background: rgba(251,191,36,0.18); font-weight: 700; }
+  td.days { color: #94a3b8; text-align: right; }
+  td.days.near { color: #fbbf24; font-weight: 700; }
+  td.event { font-weight: 600; }
+  td.event.big { color: #f8fafc; }
+  td.detail { color: #64748b; font-size: 0.8rem; white-space: normal; }
+  td.deck a { color: #60a5fa; text-decoration: none; font-size: 0.8rem; }
+  td.deck a:hover { text-decoration: underline; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; max-width: 900px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="minervini_report_v2.html">米国株 (Minervini)</a>
+    <a href="haitou.html">日本株 (配当)</a>
+    <a href="jpminervini.html">日本株 (Minervini)</a>
+    <a href="saitei.html">裁定取引</a>
+    <a href="totan.html">日銀利上げ確率</a>
+    <a href="fedwatch.html">FRB利上げ確率</a>
+    <a href="kinri.html">金利と為替</a>
+    <a href="vix.html">VIX温度計</a>
+    <a href="daikin.html">売買代金</a>
+    <a href="shinyou.html">信用評価率</a>
+    <a href="margin.html">銘柄別信用倍率</a>
+    <a href="shutai.html">投資主体別</a>
+    <a href="gaikoku.html">海外投資家</a>
+    <a href="touraku.html">騰落レシオ</a>
+    <a href="karauri.html">空売り比率</a>
+    <a href="riron.html">日経理論株価</a>
+    <a href="spriron.html">SP500理論株価</a>
+    <a href="flow.html">資金フロー</a>
+    <a href="calendar.html" class="active">イベント予定</a>
+    <a href="map.html">デッキの見方</a>
+  </nav>
+  <h1>イベント予定</h1>
+  <p class="subtitle">最終更新: 2026-07-19 18:38 | FOMC・日銀会合・SQ・ビッグテック決算・米指標 | 近い順</p>
+  <table>
+    <thead><tr><th>日付</th><th style="text-align:right">あと</th><th>イベント</th><th>補足</th><th>関連デッキ</th></tr></thead>
+    <tbody>
+      <tr class="ghead"><td colspan="5">【来週】</td></tr>
+      <tr><td>7/23(木)</td><td class="days">4日</td><td class="event">🇺🇸 Alphabet 決算</td><td class="detail">GOOGL・引け後発表（日本時間 翌朝）</td><td class="deck"><a href="flow.html">資金フロー</a></td></tr>
+      <tr><td>7/23(木)</td><td class="days">4日</td><td class="event">☿ 水星逆行 終了</td><td class="detail">進行中→順行に戻る</td><td class="deck"></td></tr>
+      <tr class="ghead"><td colspan="5">【今月】</td></tr>
+      <tr><td>7/29(水)</td><td class="days">10日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>7/30(木)</td><td class="days">11日</td><td class="event">🇺🇸 Microsoft 決算</td><td class="detail">MSFT・引け後発表（日本時間 翌朝）</td><td class="deck"><a href="flow.html">資金フロー</a></td></tr>
+      <tr><td>7/31(金)</td><td class="days">12日</td><td class="event big">🇯🇵 日銀金融政策決定会合（結果発表）</td><td class="detail">昼頃発表・総裁会見15:30</td><td class="deck"><a href="totan.html">日銀利上げ確率</a></td></tr>
+      <tr><td>7/31(金)</td><td class="days">12日</td><td class="event">🇺🇸 Amazon 決算</td><td class="detail">AMZN・引け後発表（日本時間 翌朝）</td><td class="deck"><a href="flow.html">資金フロー</a></td></tr>
+      <tr class="ghead"><td colspan="5">【2026年8月】</td></tr>
+      <tr><td>8/7(金)</td><td class="days">19日</td><td class="event">🇺🇸 米雇用統計</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>8/12(水)</td><td class="days">24日</td><td class="event">🇺🇸 米CPI</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>8/14(金)</td><td class="days">26日</td><td class="event">🇯🇵 SQ</td><td class="detail">オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>8/27(木)</td><td class="days">39日</td><td class="event">🇺🇸 NVIDIA 決算</td><td class="detail">NVDA・引け後発表（日本時間 翌朝）</td><td class="deck"><a href="flow.html">資金フロー</a></td></tr>
+      <tr class="ghead"><td colspan="5">【2026年9月】</td></tr>
+      <tr><td>9/4(金)</td><td class="days">47日</td><td class="event">🇺🇸 米雇用統計</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>9/11(金)</td><td class="days">54日</td><td class="event big">🇯🇵 ⚡ メジャーSQ</td><td class="detail">先物・オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>9/11(金)</td><td class="days">54日</td><td class="event">🇺🇸 米CPI</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>9/16(水)</td><td class="days">59日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>9/18(金)</td><td class="days">61日</td><td class="event big">🇯🇵 日銀金融政策決定会合（結果発表）</td><td class="detail">昼頃発表・総裁会見15:30</td><td class="deck"><a href="totan.html">日銀利上げ確率</a></td></tr>
+      <tr><td>9/18(金)</td><td class="days">61日</td><td class="event big">🇺🇸 ⚡ トリプルウィッチング</td><td class="detail">指数先物・指数OP・個別OP同時満期</td><td class="deck"></td></tr>
+      <tr class="ghead"><td colspan="5">【2026年10月】</td></tr>
+      <tr><td>10/2(金)</td><td class="days">75日</td><td class="event">🇺🇸 米雇用統計</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>10/9(金)</td><td class="days">82日</td><td class="event">🇯🇵 SQ</td><td class="detail">オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>10/14(水)</td><td class="days">87日</td><td class="event">🇺🇸 米CPI</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>10/24(土)</td><td class="days">97日</td><td class="event">☿ 水星逆行 開始</td><td class="detail">11/13まで</td><td class="deck"></td></tr>
+      <tr><td>10/28(水)</td><td class="days">101日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>10/30(金)</td><td class="days">103日</td><td class="event big">🇯🇵 日銀金融政策決定会合（結果発表）</td><td class="detail">昼頃発表・総裁会見15:30</td><td class="deck"><a href="totan.html">日銀利上げ確率</a></td></tr>
+      <tr class="ghead"><td colspan="5">【2026年11月】</td></tr>
+      <tr><td>11/6(金)</td><td class="days">110日</td><td class="event">🇺🇸 米雇用統計</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>11/10(火)</td><td class="days">114日</td><td class="event">🇺🇸 米CPI</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>11/13(金)</td><td class="days">117日</td><td class="event">🇯🇵 SQ</td><td class="detail">オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>11/13(金)</td><td class="days">117日</td><td class="event">☿ 水星逆行 終了</td><td class="detail">順行に戻る</td><td class="deck"></td></tr>
+      <tr class="ghead"><td colspan="5">【2026年12月】</td></tr>
+      <tr><td>12/4(金)</td><td class="days">138日</td><td class="event">🇺🇸 米雇用統計</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>12/9(水)</td><td class="days">143日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>12/10(木)</td><td class="days">144日</td><td class="event">🇺🇸 米CPI</td><td class="detail">日本時間 21:30/22:30</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>12/11(金)</td><td class="days">145日</td><td class="event big">🇯🇵 ⚡ メジャーSQ</td><td class="detail">先物・オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>12/18(金)</td><td class="days">152日</td><td class="event big">🇯🇵 日銀金融政策決定会合（結果発表）</td><td class="detail">昼頃発表・総裁会見15:30</td><td class="deck"><a href="totan.html">日銀利上げ確率</a></td></tr>
+      <tr><td>12/18(金)</td><td class="days">152日</td><td class="event big">🇺🇸 ⚡ トリプルウィッチング</td><td class="detail">指数先物・指数OP・個別OP同時満期</td><td class="deck"></td></tr>
+      <tr class="ghead"><td colspan="5">【2027年1月】</td></tr>
+      <tr><td>1/8(金)</td><td class="days">173日</td><td class="event">🇯🇵 SQ</td><td class="detail">オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>1/27(水)</td><td class="days">192日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr class="ghead"><td colspan="5">【2027年2月】</td></tr>
+      <tr><td>2/9(火)</td><td class="days">205日</td><td class="event">☿ 水星逆行 開始</td><td class="detail">3/3まで</td><td class="deck"></td></tr>
+      <tr><td>2/12(金)</td><td class="days">208日</td><td class="event">🇯🇵 SQ</td><td class="detail">オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr class="ghead"><td colspan="5">【2027年3月】</td></tr>
+      <tr><td>3/3(水)</td><td class="days">227日</td><td class="event">☿ 水星逆行 終了</td><td class="detail">順行に戻る</td><td class="deck"></td></tr>
+      <tr><td>3/12(金)</td><td class="days">236日</td><td class="event big">🇯🇵 ⚡ メジャーSQ</td><td class="detail">先物・オプション清算</td><td class="deck"><a href="saitei.html">裁定取引</a></td></tr>
+      <tr><td>3/17(水)</td><td class="days">241日</td><td class="event big">🇺🇸 FOMC（結果発表）</td><td class="detail">日本時間 翌日早朝</td><td class="deck"><a href="fedwatch.html">FRB利上げ確率</a></td></tr>
+      <tr><td>3/19(金)</td><td class="days">243日</td><td class="event big">🇺🇸 ⚡ トリプルウィッチング</td><td class="detail">指数先物・指数OP・個別OP同時満期</td><td class="deck"></td></tr>
+    </tbody>
+  </table>
+  <p class="note">
+    ・SQ=毎月第2金曜（3/6/9/12月は⚡メジャーSQ=先物+オプション同時清算）。米⚡トリプルウィッチング=3/6/9/12月の第3金曜。いずれもルールから自動計算。<br>
+    ・☿水星逆行はアノマリー参考（相場の乱れ・急変が多いとされる期間）。出所: Old Farmer's Almanac。<br>
+    ・FOMC/日銀会合/決算/米指標の日程は公表分を手動管理（新日程の公表時に追記。残り45日を切るとログに警告）。<br>
+    ・米指標の発表は現地8:30（日本時間: 夏21:30/冬22:30）。FOMC結果は日本時間翌日早朝（夏3:00/冬4:00）。米決算は引け後（日本時間翌朝5〜7時頃）。
+  </p>
+  <p class="updated">最終更新: 2026-07-19 18:38</p>
+</body>
+</html>
