@@ -43,7 +43,8 @@ CFTC_URL = ("https://publicreporting.cftc.gov/resource/6dca-aqww.json"
             "&$select=report_date_as_yyyy_mm_dd,noncomm_positions_long_all,noncomm_positions_short_all"
             "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=170")
 
-SHORT_EXTREME_PCT = 20    # パーセンタイルがこれ以下なら「ショート極端」
+SHORT_WARN_NET = -150000  # ネット枚数がこれ以下なら「だまし：踏み上げ警戒」（濃黄）
+SHORT_CAUTION_NET = -90000  # ネット枚数がこれ以下なら「だまし：踏み上げ要注意」（薄黄）
 STOCHRSI_K_MAX = 30       # Stoch RSIのGCを「押し目完成」と数えるKの上限（売られすぎ圏）
 STOCHRSI_K_MIN = 80       # Stoch RSIのDCを「天井完成」と数えるKの下限（買われすぎ圏）
 EVENT_SHOW_YEARS = 2      # イベント表に表示する期間
@@ -179,7 +180,7 @@ def build_events(px, cftc_rows, crosses, srsi_gc, srsi_dc):
         rec = {
             "date": d, "kind": kind,
             "cftc_date": rd, "net": net, "pct": pct,
-            "short_extreme": (pct is not None and pct <= SHORT_EXTREME_PCT),
+            "short_level": short_level(net),
             "end_reason": "",
         }
         if kind == "GC":
@@ -213,15 +214,28 @@ def build_events(px, cftc_rows, crosses, srsi_gc, srsi_dc):
     return events
 
 
-def judge_cell(kind, r, short_extreme):
+def short_level(net):
+    """CFTCネット枚数からだましレベルを返す: 2=警戒(-15万超), 1=要注意(-9万超), 0=なし"""
+    if net is None:
+        return 0
+    if net <= SHORT_WARN_NET:
+        return 2
+    if net <= SHORT_CAUTION_NET:
+        return 1
+    return 0
+
+
+def judge_cell(kind, r, level):
     """(css_class, 判定語)"""
     if r is None:
         return "", ""
     theory = (r > 0) if kind == "DC" else (r < 0)
     if theory:
         return "j-ok", "説通り"
-    if kind == "GC" and r > 0 and short_extreme:
-        return "j-mid", "だまし"
+    if kind == "GC" and r > 0 and level == 2:
+        return "j-mid", "だまし：踏み上げ警戒"
+    if kind == "GC" and r > 0 and level == 1:
+        return "j-mid2", "だまし：踏み上げ要注意"
     return "j-ng", "逆行"
 
 
@@ -284,7 +298,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   td.kind-dc {{ color: #4ade80; }}
   td.kind-gc {{ color: #f87171; }}
   td.j-ok {{ background: rgba(59,130,246,0.28); }}
-  td.j-mid {{ background: rgba(251,191,36,0.22); }}
+  td.j-mid {{ background: rgba(251,191,36,0.32); }}
+  td.j-mid2 {{ background: rgba(251,191,36,0.14); }}
   td.j-ng {{ background: rgba(239,68,68,0.34); }}
   td.pos {{ color: #4ade80; }}
   td.neg {{ color: #f87171; }}
@@ -329,7 +344,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h2>クロスイベントの答え合わせ（DC=天井完成まで / GC=押し目完成まで / 直近{show_years}年）</h2>
   <div class="legend">
     <span><span class="sw" style="background:rgba(59,130,246,0.6)"></span>説通り</span>
-    <span><span class="sw" style="background:rgba(251,191,36,0.55)"></span>だまし（GC後の上昇だがショート極端=踏み上げで説明可能）</span>
+    <span><span class="sw" style="background:rgba(251,191,36,0.6)"></span>だまし：踏み上げ警戒（ショート-15万枚超）</span>
+    <span><span class="sw" style="background:rgba(251,191,36,0.25)"></span>だまし：踏み上げ要注意（ショート-9万枚超）</span>
     <span><span class="sw" style="background:rgba(239,68,68,0.7)"></span>逆行</span>
     <span style="color:#64748b">※CFTC列は「クロス時点の直近公表値」。( )内は過去3年パーセンタイル（0%=最ショート）</span>
   </div>
@@ -357,7 +373,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>DCの判定期間（天井完成ルール）</b>: DC後の上昇は「S&amp;P500のStoch RSIが買われすぎ圏(K&ge;{k_min})でK&lt;Dにデッドクロスするまで」続くとみなす。
     それが天井完成=上昇期間の終了。先にVIXのMACDがGCしたら打ち切り。<br>
     ・MACDは12-26-9、<b>シグナル線はSMA</b>（TradingViewのCM_Ult_MacD_MTFと同方式）。標準のEMAシグナルとはクロス日が1日前後ズレることがある。<br>
-    ・<b>だまし</b>: GC後でもCFTC E-mini S&amp;P500の投機筋ショートが極端（過去3年の下位{short_pct}%以下）だと、踏み上げで株が上がりやすい。イベント表の黄色がそれ。<br>
+    ・<b>だまし（2段階）</b>: GC後でもCFTC E-mini S&amp;P500の投機筋ショートが溜まっていると踏み上げで株が上がりやすい。
+    ネット<b>-15万枚超=踏み上げ警戒</b>（過去5年、GC後の逆行の主戦場）、<b>-9万〜-15万枚=踏み上げ要注意</b>（燃料あり）。
+    -9万枚未満でのだましは5年で1回のみ（素直にGC通り読んでよい圏）。ただし-15万枚超でも説通り下げた例は複数あり、だまし確定ではなく「燃料がある」の意。<br>
     ・CFTC建玉は毎週金曜公表（火曜時点）のため数日のラグがある。<a href="https://publicreporting.cftc.gov/" style="color:#60a5fa">CFTC Public Reporting</a> / <a href="https://jp.investing.com/economic-calendar/cftc-s-p-500-speculative-positions-1619" style="color:#60a5fa">investing.com 表示版</a><br>
     ・DC側の勝率は生クロス（フィルタなし）ベースで、1〜数日で反転する「ヒゲ」も含むため体感より低めに出る。GC側は押し目完成ルール適用後の成績（「VIX DCで打切」の行は前提消滅のため参考値）。
   </p>
@@ -372,7 +390,7 @@ def make_cards(px, macd, signal, diff, crosses, cftc_rows, K, D):
     last_d, last_kind = crosses[-1]
     days = (diff.index[-1] - last_d).days
     rd, net, pct = cftc_at(cftc_rows, diff.index[-1])
-    short_extreme = pct is not None and pct <= SHORT_EXTREME_PCT
+    level = short_level(net)
 
     if last_kind == "DC":
         state_html = '<span class="state-dc">デッドクロス後</span>'
@@ -416,15 +434,24 @@ def make_cards(px, macd, signal, diff, crosses, cftc_rows, K, D):
         f'<div class="sub">MACD {float(macd.iloc[-1]):+.2f} / シグナル {float(signal.iloc[-1]):+.2f}<br>'
         f'乖離の推移 {recent}{near}</div></div>')
     pct_txt = f"{pct:.0f}%" if pct is not None else "-"
+    zone = ("だまし圏: 踏み上げ警戒 (-15万枚超)" if level == 2 else
+            "だまし圏: 踏み上げ要注意 (-9万枚超)" if level == 1 else
+            "だまし圏(-9万枚)まで余裕あり")
     cards.append(
         f'    <div class="card"><div class="label">CFTC投機筋ネット（{rd}時点）</div>'
         f'<div class="value">{net:+,}枚</div>'
-        f'<div class="sub">過去3年パーセンタイル {pct_txt}（0%=最ショート）</div></div>')
-    if last_kind == "GC" and short_extreme:
+        f'<div class="sub">{zone}<br>'
+        f'<span title="その時点から遡る3年基準。0%=最ショート">参考: 過去3年パーセンタイル {pct_txt}</span></div></div>')
+    if last_kind == "GC" and level == 2:
         cards.append(
             '    <div class="card warn"><div class="label">シグナル注意報</div>'
-            '<div class="value">だまし警戒中</div>'
-            '<div class="sub">GC後だがショートが極端に多い<br>踏み上げによる上昇に注意</div></div>')
+            '<div class="value">だまし：踏み上げ警戒</div>'
+            '<div class="sub">GC後だがショートが-15万枚超<br>踏み上げによる上昇に注意</div></div>')
+    elif last_kind == "GC" and level == 1:
+        cards.append(
+            '    <div class="card warn"><div class="label">シグナル注意報</div>'
+            '<div class="value">だまし：踏み上げ要注意</div>'
+            '<div class="sub">GC後でショートが-9万枚超<br>踏み上げの燃料はある水準</div></div>')
     return "\n".join(cards), (last_kind, days, net, pct)
 
 
@@ -443,7 +470,7 @@ def make_stats(events):
             win = sum(1 for r in rs if (r > 0 if kind == "DC" else r < 0))
             if idx == "spx":
                 dama = sum(1 for e in evs if kind == "GC" and e["spx"] is not None
-                           and e["spx"] > 0 and e["short_extreme"])
+                           and e["spx"] > 0 and e["short_level"] >= 1)
                 dama_txt = f"（うち だまし {dama}回）" if kind == "GC" else ""
                 parts.append(f"<b>{jp}</b> {label}: {win}/{len(rs)}回 説通り "
                              f"({win/len(rs)*100:.0f}%){dama_txt} 平均{mean(rs):+.2f}%")
@@ -475,18 +502,21 @@ def make_event_rows(events):
                  f'<td style="text-align:left; color:#94a3b8; font-size:0.8rem">{reason}</td>']
         for idx in ["spx", "n225"]:
             r = e[idx]
-            cls, word = judge_cell(e["kind"], r, e["short_extreme"])
+            cls, word = judge_cell(e["kind"], r, e["short_level"])
             if r is None:
                 cells.append("<td>-</td><td>-</td>")
                 continue
             pn = "pos" if r > 0 else "neg"
             tip = ""
             if cls == "j-mid":
-                tip = f' title="GC後の上昇だがショート極端（ネット{e["net"]:+,}枚 下位{e["pct"]:.0f}%）→ 踏み上げの可能性"'
+                tip = f' title="GC後の上昇だがショート-15万枚超（ネット{e["net"]:+,}枚）→ 踏み上げの可能性大"'
+            elif cls == "j-mid2":
+                tip = f' title="GC後の上昇でショート-9万枚超（ネット{e["net"]:+,}枚）→ 踏み上げの燃料あり"'
             cells.append(f'<td class="{pn}">{r:+.2f}%</td><td class="{cls}"{tip}>{word}</td>')
         if e["net"] is not None:
-            mark = " ⚠" if e["short_extreme"] else ""
-            cells.append(f'<td>{e["net"]:+,}枚 ({e["pct"]:.0f}%){mark}</td>')
+            mark = " ⚠⚠" if e["short_level"] == 2 else (" ⚠" if e["short_level"] == 1 else "")
+            pct_tip = f' title="参考: 過去3年パーセンタイル {e["pct"]:.0f}%（0%=最ショート）"' if e["pct"] is not None else ""
+            cells.append(f'<td{pct_tip}>{e["net"]:+,}枚{mark}</td>')
         else:
             cells.append("<td>-</td>")
         rows.append(f"      <tr{tr_cls}>" + "".join(cells) + "</tr>")
@@ -533,7 +563,6 @@ def generate_html(px, cftc_rows):
         daily_rows_html=make_daily_rows(px, macd, signal, diff, crosses),
         show_years=EVENT_SHOW_YEARS,
         daily_rows=DAILY_ROWS,
-        short_pct=SHORT_EXTREME_PCT,
         k_max=STOCHRSI_K_MAX,
         k_min=STOCHRSI_K_MIN,
     )
