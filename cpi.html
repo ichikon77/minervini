@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>米インフレと雇用 - 2026-07-20</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.05rem; color: #cbd5e1; margin: 22px 0 10px; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 14px 18px; min-width: 300px;
+  }
+  .card .label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; font-weight: 700; }
+  .card table { border-collapse: collapse; font-size: 0.85rem; width: 100%; }
+  .card td { padding: 3px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .card td:first-child { color: #94a3b8; }
+  .card .verdict { font-size: 0.8rem; margin-top: 8px; color: #fbbf24; font-weight: 700; }
+  .card .big { font-size: 1.3rem; font-weight: 700; color: #f8fafc; }
+  .arrow { align-self: center; color: #64748b; font-size: 1.6rem; font-weight: 700; }
+  .hypo {
+    max-width: 1010px; margin: 14px 0; background: rgba(236,72,153,0.08);
+    border: 1px solid #db2777; border-radius: 10px; padding: 13px 18px;
+    font-size: 0.85rem; line-height: 1.8; color: #e2e8f0;
+  }
+  .hypo b { color: #f9a8d4; }
+  .table-wrap { overflow: auto; max-height: 70vh; max-width: 780px; }
+  table.main { border-collapse: collapse; font-size: 0.87rem; }
+  table.main thead th {
+    background: #1e293b; color: #94a3b8; padding: 9px 14px;
+    text-align: right; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  table.main thead th:first-child { text-align: left; }
+  table.main td {
+    padding: 7px 14px; border-bottom: 1px solid #1e293b;
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  table.main td:first-child { text-align: left; color: #94a3b8; }
+  table.main tr:hover td { background: #16213a; }
+  td.cpi-danger { background: rgba(220,38,38,0.35); color: #fca5a5; font-weight: 700; }
+  td.cpi-warn { background: rgba(251,191,36,0.22); color: #fde68a; }
+  td.cpi-ok { background: rgba(59,130,246,0.2); color: #93c5fd; }
+  td.cpi-low { color: #94a3b8; }
+  .pos { color: #4ade80; }
+  .neg { color: #f87171; }
+  .rate-up { color: #f87171; font-weight: 700; }
+  .rate-down { color: #4ade80; font-weight: 700; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; max-width: 1010px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="cpi.html" class="active" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+  </nav>
+  <h1>米インフレと雇用（FRBの入力と出力）</h1>
+  <p class="subtitle">最終更新: 2026-07-20 09:58 | 出所: BLS・NY連銀・Yahoo Finance | 入力（CPI・雇用）→ 出力（政策金利）→ 結果（S&amp;P500）</p>
+  <div class="cards">
+    <div class="card"><div class="label">入力1: CPI 前年比（物価の使命）</div><table><tr><td>2026/06分</td><td><b>3.5%</b> <span class="pos">↓</span></td></tr><tr><td>2026/05分</td><td><b>4.2%</b> <span class="neg">↑</span></td></tr><tr><td>2026/04分</td><td><b>3.8%</b> <span class="neg">↑</span></td></tr></table><div class="verdict">→ 直近は鈍化に転換（5%の利下げ不能ラインまで +1.5%）</div></div>
+    <div class="arrow">→</div>
+    <div class="card"><div class="label">入力2: 非農業部門雇用者数（雇用の使命）</div><table><tr><td>2026/06分</td><td><b class="">+57K</b></td></tr><tr><td>2026/05分</td><td><b class="pos">+129K</b></td></tr><tr><td>2026/04分</td><td><b class="pos">+148K</b></td></tr></table><div class="verdict">→ 3ヶ月平均 +111K = 堅調（利下げ圧力なし）</div></div>
+    <div class="arrow">→</div>
+    <div class="card"><div class="label">出力: FRB政策金利（実効FF金利）</div><div class="big">3.63%</div><table><tr><td>次回FOMC</td><td><b>2026-07-29</b></td></tr></table><div class="verdict">→ 次回会合の織り込み: <b>利上げ 15%</b>（fedwatchより）</div></div>
+  </div>
+  <div class="hypo"><b>仮説（2022年の教訓）:</b> CPIが5%を超えてくると金利を下げられなくなり（むしろ上げるしかなくなり）、株価はピークをとるのではないか？<br>実例: 2021年6月にCPI 5%超え → 2022年1月3日にS&amp;P500ピーク → 2022年3月から利上げ開始 → 6月までに-24%。CPIが赤帯に入ったら「金利の下支えが消える」サイン。<br>📍 現在 3.5%。ラインまであと1.5%の余裕</div>
+  <h2>月次の長期推移（2020年〜 / 最新上）</h2>
+  <div class="table-wrap">
+  <table class="main">
+    <thead><tr><th>月</th><th>CPI前年比</th><th>雇用者数増減</th><th>政策金利(EFFR)</th><th>S&amp;P500月間</th></tr></thead>
+    <tbody>
+      <tr><td>2026/06</td><td class="cpi-warn">3.5%</td><td>+57K</td><td>3.63%</td><td><span class="neg">-1.06%</span></td></tr>
+      <tr><td>2026/05</td><td class="cpi-warn">4.2%</td><td>+129K</td><td>3.62%</td><td><span class="pos">+5.15%</span></td></tr>
+      <tr><td>2026/04</td><td class="cpi-warn">3.8%</td><td>+148K</td><td>3.64%</td><td><span class="pos">+10.42%</span></td></tr>
+      <tr><td>2026/03</td><td class="cpi-warn">3.3%</td><td>+214K</td><td>3.64%</td><td><span class="neg">-5.09%</span></td></tr>
+      <tr><td>2026/02</td><td class="cpi-ok">2.4%</td><td class="neg">-156K</td><td>3.64%</td><td><span class="neg">-0.87%</span></td></tr>
+      <tr><td>2026/01</td><td class="cpi-ok">2.4%</td><td>+160K</td><td>3.64%</td><td><span class="pos">+1.37%</span></td></tr>
+      <tr><td>2025/12</td><td class="cpi-ok">2.7%</td><td class="neg">-17K</td><td>3.64% <span class="rate-down">↓</span></td><td><span class="neg">-0.05%</span></td></tr>
+      <tr><td>2025/11</td><td class="cpi-ok">2.7%</td><td>+41K</td><td>3.89%</td><td><span class="pos">+0.13%</span></td></tr>
+      <tr><td>2025/09</td><td class="cpi-warn">3.0%</td><td>+76K</td><td>4.09% <span class="rate-down">↓</span></td><td><span class="pos">+3.53%</span></td></tr>
+      <tr><td>2025/08</td><td class="cpi-ok">2.9%</td><td class="neg">-70K</td><td>4.33%</td><td><span class="pos">+1.91%</span></td></tr>
+      <tr><td>2025/07</td><td class="cpi-ok">2.7%</td><td>+64K</td><td>4.33%</td><td><span class="pos">+2.17%</span></td></tr>
+      <tr><td>2025/06</td><td class="cpi-ok">2.7%</td><td class="neg">-20K</td><td>4.33%</td><td><span class="pos">+4.96%</span></td></tr>
+      <tr><td>2025/05</td><td class="cpi-ok">2.4%</td><td>+13K</td><td>4.33%</td><td><span class="pos">+6.15%</span></td></tr>
+      <tr><td>2025/04</td><td class="cpi-ok">2.3%</td><td>+108K</td><td>4.33%</td><td><span class="neg">-0.76%</span></td></tr>
+      <tr><td>2025/03</td><td class="cpi-ok">2.4%</td><td>+67K</td><td>4.33%</td><td><span class="neg">-5.75%</span></td></tr>
+      <tr><td>2025/02</td><td class="cpi-ok">2.8%</td><td>+42K</td><td>4.33%</td><td><span class="neg">-1.42%</span></td></tr>
+      <tr><td>2025/01</td><td class="cpi-warn">3.0%</td><td class="neg">-48K</td><td>4.33%</td><td><span class="pos">+2.70%</span></td></tr>
+      <tr><td>2024/12</td><td class="cpi-ok">2.9%</td><td>+237K</td><td>4.33% <span class="rate-down">↓</span></td><td><span class="neg">-2.50%</span></td></tr>
+      <tr><td>2024/11</td><td class="cpi-ok">2.7%</td><td>+134K</td><td>4.58% <span class="rate-down">↓</span></td><td><span class="pos">+5.73%</span></td></tr>
+      <tr><td>2024/10</td><td class="cpi-ok">2.6%</td><td>+33K</td><td>4.83%</td><td><span class="neg">-0.99%</span></td></tr>
+      <tr><td>2024/09</td><td class="cpi-ok">2.4%</td><td>+155K</td><td>4.83% <span class="rate-down">↓</span></td><td><span class="pos">+2.02%</span></td></tr>
+      <tr><td>2024/08</td><td class="cpi-ok">2.6%</td><td>+9K</td><td>5.33%</td><td><span class="pos">+2.28%</span></td></tr>
+      <tr><td>2024/07</td><td class="cpi-ok">2.9%</td><td>+53K</td><td>5.33%</td><td><span class="pos">+1.13%</span></td></tr>
+      <tr><td>2024/06</td><td class="cpi-warn">3.0%</td><td>+87K</td><td>5.33%</td><td><span class="pos">+3.47%</span></td></tr>
+      <tr><td>2024/05</td><td class="cpi-warn">3.2%</td><td>+78K</td><td>5.33%</td><td><span class="pos">+4.80%</span></td></tr>
+      <tr><td>2024/04</td><td class="cpi-warn">3.4%</td><td>+64K</td><td>5.33%</td><td><span class="neg">-4.16%</span></td></tr>
+      <tr><td>2024/03</td><td class="cpi-warn">3.5%</td><td>+228K</td><td>5.33%</td><td><span class="pos">+3.10%</span></td></tr>
+      <tr><td>2024/02</td><td class="cpi-warn">3.2%</td><td>+206K</td><td>5.33%</td><td><span class="pos">+5.17%</span></td></tr>
+      <tr><td>2024/01</td><td class="cpi-warn">3.1%</td><td>+175K</td><td>5.33%</td><td><span class="pos">+1.59%</span></td></tr>
+      <tr><td>2023/12</td><td class="cpi-warn">3.3%</td><td>+154K</td><td>5.33%</td><td><span class="pos">+4.42%</span></td></tr>
+      <tr><td>2023/11</td><td class="cpi-warn">3.1%</td><td>+127K</td><td>5.33%</td><td><span class="pos">+8.92%</span></td></tr>
+      <tr><td>2023/10</td><td class="cpi-warn">3.3%</td><td>+159K</td><td>5.33%</td><td><span class="neg">-2.20%</span></td></tr>
+      <tr><td>2023/09</td><td class="cpi-warn">3.7%</td><td>+156K</td><td>5.33%</td><td><span class="neg">-4.87%</span></td></tr>
+      <tr><td>2023/08</td><td class="cpi-warn">3.7%</td><td>+218K</td><td>5.33%</td><td><span class="neg">-1.77%</span></td></tr>
+      <tr><td>2023/07</td><td class="cpi-warn">3.3%</td><td>+163K</td><td>5.33% <span class="rate-up">↑</span></td><td><span class="pos">+3.11%</span></td></tr>
+      <tr><td>2023/06</td><td class="cpi-warn">3.1%</td><td>+225K</td><td>5.08%</td><td><span class="pos">+6.47%</span></td></tr>
+      <tr><td>2023/05</td><td class="cpi-warn">4.1%</td><td>+280K</td><td>5.08% <span class="rate-up">↑</span></td><td><span class="pos">+0.25%</span></td></tr>
+      <tr><td>2023/04</td><td class="cpi-danger">5.0%</td><td>+241K</td><td>4.83%</td><td><span class="pos">+1.46%</span></td></tr>
+      <tr><td>2023/03</td><td class="cpi-warn">4.9%</td><td>+68K</td><td>4.83% <span class="rate-up">↑</span></td><td><span class="pos">+3.51%</span></td></tr>
+      <tr><td>2023/02</td><td class="cpi-danger">6.0%</td><td>+290K</td><td>4.57% <span class="rate-up">↑</span></td><td><span class="neg">-2.61%</span></td></tr>
+      <tr><td>2023/01</td><td class="cpi-danger">6.3%</td><td>+434K</td><td>4.33%</td><td><span class="pos">+6.18%</span></td></tr>
+      <tr><td>2022/12</td><td class="cpi-danger">6.4%</td><td>+100K</td><td>4.33% <span class="rate-up">↑</span></td><td><span class="neg">-5.90%</span></td></tr>
+      <tr><td>2022/11</td><td class="cpi-danger">7.1%</td><td>+303K</td><td>3.83% <span class="rate-up">↑</span></td><td><span class="pos">+5.38%</span></td></tr>
+      <tr><td>2022/10</td><td class="cpi-danger">7.8%</td><td>+357K</td><td>3.08%</td><td><span class="pos">+7.99%</span></td></tr>
+      <tr><td>2022/09</td><td class="cpi-danger">8.2%</td><td>+220K</td><td>3.08% <span class="rate-up">↑</span></td><td><span class="neg">-9.34%</span></td></tr>
+      <tr><td>2022/08</td><td class="cpi-danger">8.2%</td><td>+290K</td><td>2.33%</td><td><span class="neg">-4.24%</span></td></tr>
+      <tr><td>2022/07</td><td class="cpi-danger">8.5%</td><td>+714K</td><td>2.32% <span class="rate-up">↑</span></td><td><span class="pos">+9.11%</span></td></tr>
+      <tr><td>2022/06</td><td class="cpi-danger">9.0%</td><td>+434K</td><td>1.58% <span class="rate-up">↑</span></td><td><span class="neg">-8.39%</span></td></tr>
+      <tr><td>2022/05</td><td class="cpi-danger">8.5%</td><td>+301K</td><td>0.83% <span class="rate-up">↑</span></td><td><span class="pos">+0.01%</span></td></tr>
+      <tr><td>2022/04</td><td class="cpi-danger">8.2%</td><td>+308K</td><td>0.33%</td><td><span class="neg">-8.80%</span></td></tr>
+      <tr><td>2022/03</td><td class="cpi-danger">8.6%</td><td>+490K</td><td>0.33% <span class="rate-up">↑</span></td><td><span class="pos">+3.58%</span></td></tr>
+      <tr><td>2022/02</td><td class="cpi-danger">7.9%</td><td>+819K</td><td>0.08%</td><td><span class="neg">-3.14%</span></td></tr>
+      <tr><td>2022/01</td><td class="cpi-danger">7.6%</td><td>+190K</td><td>0.08%</td><td><span class="neg">-5.26%</span></td></tr>
+      <tr><td>2021/12</td><td class="cpi-danger">7.2%</td><td>+586K</td><td>0.07%</td><td><span class="pos">+4.36%</span></td></tr>
+      <tr><td>2021/11</td><td class="cpi-danger">6.9%</td><td>+658K</td><td>0.07%</td><td><span class="neg">-0.83%</span></td></tr>
+      <tr><td>2021/10</td><td class="cpi-danger">6.2%</td><td>+801K</td><td>0.07%</td><td><span class="pos">+6.91%</span></td></tr>
+      <tr><td>2021/09</td><td class="cpi-danger">5.4%</td><td>+457K</td><td>0.06%</td><td><span class="neg">-4.76%</span></td></tr>
+      <tr><td>2021/08</td><td class="cpi-danger">5.2%</td><td>+552K</td><td>0.06%</td><td><span class="pos">+2.90%</span></td></tr>
+      <tr><td>2021/07</td><td class="cpi-danger">5.2%</td><td>+942K</td><td>0.07%</td><td><span class="pos">+2.27%</span></td></tr>
+      <tr><td>2021/06</td><td class="cpi-danger">5.3%</td><td>+755K</td><td>0.08%</td><td><span class="pos">+2.22%</span></td></tr>
+      <tr><td>2021/05</td><td class="cpi-warn">4.9%</td><td>+478K</td><td>0.05%</td><td><span class="pos">+0.55%</span></td></tr>
+      <tr><td>2021/04</td><td class="cpi-warn">4.1%</td><td>+355K</td><td>0.05%</td><td><span class="pos">+5.24%</span></td></tr>
+      <tr><td>2021/03</td><td class="cpi-ok">2.7%</td><td>+852K</td><td>0.06%</td><td><span class="pos">+4.24%</span></td></tr>
+      <tr><td>2021/02</td><td class="cpi-low">1.7%</td><td>+517K</td><td>0.07%</td><td><span class="pos">+2.61%</span></td></tr>
+      <tr><td>2021/01</td><td class="cpi-low">1.4%</td><td>+315K</td><td>0.07%</td><td><span class="neg">-1.11%</span></td></tr>
+      <tr><td>2020/12</td><td class="cpi-low">1.3%</td><td class="neg">-185K</td><td>0.09%</td><td><span class="pos">+3.71%</span></td></tr>
+      <tr><td>2020/11</td><td class="cpi-low">1.2%</td><td>+273K</td><td>0.09%</td><td><span class="pos">+10.75%</span></td></tr>
+      <tr><td>2020/10</td><td class="cpi-low">1.2%</td><td>+690K</td><td>0.09%</td><td><span class="neg">-2.77%</span></td></tr>
+      <tr><td>2020/09</td><td class="cpi-low">1.4%</td><td>+949K</td><td>0.09%</td><td><span class="neg">-3.92%</span></td></tr>
+      <tr><td>2020/08</td><td class="cpi-low">1.3%</td><td>+1,566K</td><td>0.09%</td><td><span class="pos">+7.01%</span></td></tr>
+      <tr><td>2020/07</td><td class="cpi-low">1.0%</td><td>+1,584K</td><td>0.10%</td><td><span class="pos">+5.51%</span></td></tr>
+      <tr><td>2020/06</td><td class="cpi-low">0.7%</td><td>+4,631K</td><td>0.08%</td><td><span class="pos">+1.84%</span></td></tr>
+      <tr><td>2020/05</td><td class="cpi-low">0.2%</td><td>+2,614K</td><td>0.05%</td><td><span class="pos">+4.53%</span></td></tr>
+      <tr><td>2020/04</td><td class="cpi-low">0.3%</td><td class="neg">-20,469K</td><td>0.05%</td><td><span class="pos">+12.68%</span></td></tr>
+      <tr><td>2020/03</td><td class="cpi-low">1.5%</td><td class="neg">-1,398K</td><td>0.08% <span class="rate-down">↓</span></td><td><span class="neg">-12.51%</span></td></tr>
+      <tr><td>2020/02</td><td class="cpi-ok">2.3%</td><td>+262K</td><td>1.58%</td><td><span class="neg">-8.41%</span></td></tr>
+      <tr><td>2020/01</td><td class="cpi-ok">2.6%</td><td>+237K</td><td>1.59%</td><td><span class="neg">-0.16%</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">
+    ・<b>FRBのデュアルマンデート</b>: 「物価の安定」(CPI)と「雇用の最大化」(雇用者数)の2つが入力、政策金利が出力。
+    CPIが高い→利上げ圧力、雇用が弱い→利下げ圧力。両者が逆を向くとFRBはジレンマに陥る。<br>
+    ・CPI色帯: <span style="color:#fca5a5">5%以上=利下げ不能ゾーン（赤）</span> /
+    <span style="color:#fde68a">3〜5%=警戒（黄）</span> /
+    <span style="color:#93c5fd">2%台=目標圏（青）</span> / 2%未満=低インフレ（グレー）。<br>
+    ・政策金利は実効FF金利（EFFR）の月末値。矢印は前月からの変化（<span class="rate-up">↑利上げ</span>/<span class="rate-down">↓利下げ</span>）。<br>
+    ・カードの「市場の審判」は発表前後のFRB利上げ確率（自前のfedwatchデッキ）の変化。<br>
+    ・CPI・雇用者数はBLS公式API（季調済）。公表スケジュールは<a href="calendar.html" style="color:#60a5fa">イベント予定</a>参照。
+  </p>
+  <p class="updated">最終更新: 2026-07-20 09:58</p>
+</body>
+</html>
