@@ -42,6 +42,45 @@ FOMC_DATES = [
 
 START_YEAR = 2019   # CPI前年比計算のため表示開始(2020)の1年前から取得
 
+# 発表日（BLS公式スケジュール。対象月 -> 発表日。年1回、BLSサイトから翌年分を追記）
+# https://www.bls.gov/schedule/news_release/cpi.htm
+CPI_RELEASE = {
+    "2025-11": "2025-12-18", "2025-12": "2026-01-13",
+    "2026-01": "2026-02-13", "2026-02": "2026-03-11", "2026-03": "2026-04-10",
+    "2026-04": "2026-05-12", "2026-05": "2026-06-10", "2026-06": "2026-07-14",
+    "2026-07": "2026-08-12", "2026-08": "2026-09-11", "2026-09": "2026-10-14",
+    "2026-10": "2026-11-10", "2026-11": "2026-12-10",
+}
+# https://www.bls.gov/schedule/news_release/empsit.htm
+NFP_RELEASE = {
+    "2025-11": "2025-12-16", "2025-12": "2026-01-09",
+    "2026-01": "2026-02-11", "2026-02": "2026-03-06", "2026-03": "2026-04-03",
+    "2026-04": "2026-05-08", "2026-05": "2026-06-05", "2026-06": "2026-07-02",
+    "2026-07": "2026-08-07", "2026-08": "2026-09-04", "2026-09": "2026-10-02",
+    "2026-10": "2026-11-06", "2026-11": "2026-12-04",
+}
+
+WEEKDAYS_JP = ["月", "火", "水", "木", "金", "土", "日"]
+
+
+def release_label(month_key, table):
+    """'2026-06' -> '7/14(火)発表' （リストにない月は空文字）"""
+    d = table.get(month_key)
+    if not d:
+        return ""
+    dt = datetime.date.fromisoformat(d)
+    return f"{dt.month}/{dt.day}({WEEKDAYS_JP[dt.weekday()]})発表"
+
+
+def next_release(table, today):
+    """今日以降で最初の発表日 -> '8/12(水)' （なければ空文字）"""
+    future = sorted(d for d in table.values()
+                    if datetime.date.fromisoformat(d) >= today)
+    if not future:
+        return ""
+    dt = datetime.date.fromisoformat(future[0])
+    return f"{dt.month}/{dt.day}({WEEKDAYS_JP[dt.weekday()]})"
+
 
 def log(msg):
     print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
@@ -314,19 +353,22 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
     rows = []
     last3 = months[:3]
     for m in last3:
-        prev = yoy.get(sorted(yoy)[sorted(yoy).index(m) - 1]) if m != sorted(yoy)[0] else None
         arrow = ""
         idx = sorted(yoy, reverse=True).index(m)
         if idx + 1 < len(months):
             p = yoy[months[idx + 1]]
             arrow = ' <span class="neg">↑</span>' if yoy[m] > p else (' <span class="pos">↓</span>' if yoy[m] < p else "")
-        rows.append(f"<tr><td>{m.replace('-', '/')}分</td><td><b>{yoy[m]:.1f}%</b>{arrow}</td></tr>")
+        rel = release_label(m, CPI_RELEASE)
+        rel_s = f'<td style="color:#64748b; font-size:0.78rem">{rel}</td>' if rel else "<td></td>"
+        rows.append(f"<tr><td>{m.replace('-', '/')}分</td><td><b>{yoy[m]:.1f}%</b>{arrow}</td>{rel_s}</tr>")
     vals = [yoy[m] for m in last3]
+    nx = next_release(CPI_RELEASE, today)
+    nx_s = f'<br>→ 次回発表: {nx}' if nx else ""
     cpi_card = (
         '    <div class="card"><div class="label">入力1: CPI 前年比（物価の使命）</div>'
         f'<table>{"".join(rows)}</table>'
         f'<div class="verdict">→ {trend_comment(vals, "上振れ", "鈍化")}'
-        f'（5%の利下げ不能ラインまで {5 - vals[0]:+.1f}%）</div></div>')
+        f'（5%の利下げ不能ラインまで {5 - vals[0]:+.1f}%）{nx_s}</div></div>')
 
     # 雇用カード（水準×方向の2軸 + 失業率）
     rows = []
@@ -336,9 +378,11 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
         u = unemp.get(m)
         cls = "pos" if v >= 100 else ("neg" if v < 0 else "")
         u_s = f"{u:.1f}%" if u is not None else "-"
+        rel = release_label(m, NFP_RELEASE)
+        rel_s = f'<td style="color:#64748b; font-size:0.78rem">{rel}</td>' if rel else "<td></td>"
         rows.append(f"<tr><td>{m.replace('-', '/')}分</td>"
                     f"<td><b class=\"{cls}\">{v:+,}K</b></td>"
-                    f'<td style="color:#94a3b8">失業率 {u_s}</td></tr>')
+                    f'<td style="color:#94a3b8">失業率 {u_s}</td>{rel_s}</tr>')
     nvals = [nfp_chg[m] for m in last3n]
     avg3 = sum(nvals) / 3
     # 軸1: 水準（3ヶ月平均、損益分岐点+100K基準）
@@ -372,11 +416,13 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
         pressure = "利下げ圧力が芽生え中"
     else:
         pressure = "利下げ圧力なし"
+    nxn = next_release(NFP_RELEASE, today)
+    nxn_s = f'<br>→ 次回発表: {nxn}' if nxn else ""
     nfp_card = (
         '    <div class="card"><div class="label">入力2: 非農業部門雇用者数（雇用の使命）</div>'
         f'<table>{"".join(rows)}</table>'
         f'<div class="verdict">→ 3ヶ月平均 {avg3:+,.0f}K = {level}だが{direction}{u_alert}<br>'
-        f'→ 総合: {pressure}</div></div>')
+        f'→ 総合: {pressure}{nxn_s}</div></div>')
 
     # 政策金利カード
     cur_rate = rates[0][1]
@@ -389,10 +435,14 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
             p = latest[key]
             fed_txt = (f'次回会合の<b>{"利上げ" if p > 0 else "利下げ"}確率 {abs(p):.0f}%</b>'
                        f'（0.25%幅、fedwatchより）')
+    fomc_s = next_fomc
+    if next_fomc:
+        fd = datetime.date.fromisoformat(next_fomc)
+        fomc_s = f"{fd.month}/{fd.day}({WEEKDAYS_JP[fd.weekday()]})"
     rate_card = (
         '    <div class="card"><div class="label">出力: FRB政策金利（実効FF金利）</div>'
         f'<div class="big">{cur_rate:.2f}%</div>'
-        f'<table><tr><td>次回FOMC</td><td><b>{next_fomc}</b></td></tr></table>'
+        f'<table><tr><td>次回FOMC</td><td><b>{fomc_s}</b></td></tr></table>'
         f'<div class="verdict">→ {fed_txt or "織り込みデータなし"}</div></div>')
 
     return (cpi_card + '\n    <div class="arrow">→</div>\n' + nfp_card +
