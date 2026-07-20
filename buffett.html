@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バフェット新規買いトラッカー - 2026-07-20</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.05rem; color: #cbd5e1; margin: 22px 0 10px; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 14px 18px; min-width: 210px;
+  }
+  .card .label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+  .card .value { font-size: 1.35rem; font-weight: 700; color: #f8fafc; }
+  .card .sub { font-size: 0.78rem; color: #94a3b8; margin-top: 4px; line-height: 1.5; }
+  .table-wrap { overflow-x: auto; max-width: 1150px; }
+  table { border-collapse: collapse; font-size: 0.85rem; }
+  thead th {
+    background: #1e293b; color: #94a3b8; padding: 9px 12px;
+    text-align: right; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  thead th:nth-child(-n+3) { text-align: left; }
+  td {
+    padding: 7px 12px; border-bottom: 1px solid #1e293b;
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  td:nth-child(-n+3) { text-align: left; }
+  tr:hover td { background: #16213a; }
+  .pos { color: #4ade80; font-weight: 700; }
+  .neg { color: #f87171; font-weight: 700; }
+  .hold { color: #93c5fd; font-weight: 700; }
+  .sold { color: #94a3b8; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.8; max-width: 1100px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
+    <a href="insider.html" style="border-color:#2563eb">インサイダー売買</a>
+    <a href="buffett.html" class="active" style="border-color:#2563eb">バフェット</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+  </nav>
+  <h1>バフェット新規買いトラッカー</h1>
+  <p class="subtitle">最終更新: 2026-07-20 12:05 | 出所: SEC 13F-HR（バークシャー・ハサウェイ CIK 1067983） | 2023Q1以降の「保有ゼロ→新規取得」を追跡</p>
+  <div class="cards">
+    <div class="card"><div class="label">売却済みの勝率（推定）</div><div class="value">67%</div><div class="sub">12勝6敗 / 売却済み18銘柄</div></div>
+    <div class="card"><div class="label">平均保有期間（売却済み）</div><div class="value">5.1四半期</div><div class="sub">13Fの解像度=四半期単位</div></div>
+    <div class="card"><div class="label">保有中ポジション</div><div class="value">15銘柄</div><div class="sub">平均含み損益 +25.8%（取得=購入期平均値の推定）</div></div>
+  </div>
+  <h2>新規買いポジションの一覧（新しい順）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>購入期</th><th>銘柄</th><th>ticker</th><th>推定取得単価</th><th>状態</th><th>売却期</th><th>売却/現在単価</th><th>推定損益</th><th>保有期間</th></tr></thead>
+    <tbody>
+      <tr><td>2026Q1</td><td>Alphabet Inc</td><td>GOOGL</td><td>$313.86</td><td><span class="hold">保有中</span></td><td>-</td><td>$346.77</td><td><span class="pos">+10.5%</span></td><td>2四半期〜</td></tr>
+      <tr><td>2026Q1</td><td>Delta Air Lines Inc</td><td>DAL</td><td>$66.88</td><td><span class="hold">保有中</span></td><td>-</td><td>$84.17</td><td><span class="pos">+25.9%</span></td><td>2四半期〜</td></tr>
+      <tr><td>2026Q1</td><td>Macys Inc</td><td>M</td><td>$19.91</td><td><span class="hold">保有中</span></td><td>-</td><td>$23.68</td><td><span class="pos">+18.9%</span></td><td>2四半期〜</td></tr>
+      <tr><td>2025Q4</td><td>Liberty Live Holdings Inc</td><td>LLYVA</td><td>$83.24</td><td><span class="hold">保有中</span></td><td>-</td><td>$98.78</td><td><span class="pos">+18.7%</span></td><td>3四半期〜</td></tr>
+      <tr><td>2025Q4</td><td>Liberty Live Holdings Inc</td><td>LLYVA</td><td>$83.24</td><td><span class="hold">保有中</span></td><td>-</td><td>$98.78</td><td><span class="pos">+18.7%</span></td><td>3四半期〜</td></tr>
+      <tr><td>2025Q4</td><td>Liberty Media Corp Del</td><td>LLYVA</td><td>$83.24</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$87.82</td><td><span class="pos">+5.5%</span></td><td>1四半期</td></tr>
+      <tr><td>2025Q4</td><td>New York Times Co</td><td>NYT</td><td>$61.46</td><td><span class="hold">保有中</span></td><td>-</td><td>$75.93</td><td><span class="pos">+23.5%</span></td><td>3四半期〜</td></tr>
+      <tr><td>2025Q3</td><td>Alphabet Inc</td><td>GOOGL</td><td>$208.93</td><td><span class="hold">保有中</span></td><td>-</td><td>$346.77</td><td><span class="pos">+66.0%</span></td><td>4四半期〜</td></tr>
+      <tr><td>2025Q2</td><td>Lamar Advertising Co New</td><td>LAMR</td><td>$109.25</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$128.42</td><td><span class="pos">+17.5%</span></td><td>3四半期</td></tr>
+      <tr><td>2025Q2</td><td>Unitedhealth Group Inc</td><td>UNH</td><td>$369.94</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$294.42</td><td><span class="neg">-20.4%</span></td><td>3四半期</td></tr>
+      <tr><td>2025Q2</td><td>Allegion Plc</td><td>ALLE</td><td>$135.22</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$158.34</td><td><span class="pos">+17.1%</span></td><td>3四半期</td></tr>
+      <tr><td>2025Q1</td><td>D R Horton Inc</td><td>DHI</td><td>$131.99</td><td><span class="sold">売却済み</span></td><td>2025Q3</td><td>$155.71</td><td><span class="pos">+18.0%</span></td><td>2四半期</td></tr>
+      <tr><td>2025Q1</td><td>Lennar Corp</td><td>LEN</td><td>$121.20</td><td><span class="hold">保有中</span></td><td>-</td><td>$83.89</td><td><span class="neg">-30.8%</span></td><td>6四半期〜</td></tr>
+      <tr><td>2025Q1</td><td>Nucor Corp</td><td>NUE</td><td>$126.04</td><td><span class="hold">保有中</span></td><td>-</td><td>$236.61</td><td><span class="pos">+87.7%</span></td><td>6四半期〜</td></tr>
+      <tr><td>2024Q4</td><td>Constellation Brands Inc</td><td>STZ</td><td>$228.30</td><td><span class="hold">保有中</span></td><td>-</td><td>$132.87</td><td><span class="neg">-41.8%</span></td><td>7四半期〜</td></tr>
+      <tr><td>2024Q3</td><td>Dominos Pizza Inc</td><td>DPZ</td><td>$420.31</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$390.83</td><td><span class="neg">-7.0%</span></td><td>6四半期</td></tr>
+      <tr><td>2024Q3</td><td>Pool Corp</td><td>POOL</td><td>$334.14</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$232.87</td><td><span class="neg">-30.3%</span></td><td>6四半期</td></tr>
+      <tr><td>2024Q3</td><td>Sirius Xm Holdings Inc</td><td>SIRI</td><td>$28.51</td><td><span class="hold">保有中</span></td><td>-</td><td>$30.59</td><td><span class="pos">+7.3%</span></td><td>8四半期〜</td></tr>
+      <tr><td>2024Q2</td><td>Heico Corp New</td><td>HEI.A</td><td>-</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>-</td><td>-</td><td>7四半期</td></tr>
+      <tr><td>2024Q2</td><td>Ulta Beauty Inc</td><td>ULTA</td><td>$406.48</td><td><span class="sold">売却済み</span></td><td>2024Q4</td><td>$387.42</td><td><span class="neg">-4.7%</span></td><td>2四半期</td></tr>
+      <tr><td>2023Q3</td><td>Chubb Limited</td><td>CB</td><td>$195.61</td><td><span class="hold">保有中</span></td><td>-</td><td>$352.16</td><td><span class="pos">+80.0%</span></td><td>12四半期〜</td></tr>
+      <tr><td>2023Q3</td><td>Atlanta Braves Hldgs Inc</td><td>BATRK</td><td>$37.85</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$41.55</td><td><span class="pos">+9.8%</span></td><td>10四半期</td></tr>
+      <tr><td>2023Q3</td><td>Liberty Media Corp Del</td><td>LLYVA</td><td>$32.83</td><td><span class="sold">売却済み</span></td><td>2025Q4</td><td>$83.24</td><td><span class="pos">+153.5%</span></td><td>9四半期</td></tr>
+      <tr><td>2023Q3</td><td>Liberty Media Corp Del</td><td>LLYVA</td><td>$32.83</td><td><span class="sold">売却済み</span></td><td>2025Q4</td><td>$83.24</td><td><span class="pos">+153.5%</span></td><td>9四半期</td></tr>
+      <tr><td>2023Q3</td><td>Liberty Media Corp Del</td><td>LLYVA</td><td>$32.83</td><td><span class="sold">売却済み</span></td><td>2024Q3</td><td>$39.03</td><td><span class="pos">+18.9%</span></td><td>4四半期</td></tr>
+      <tr><td>2023Q3</td><td>Liberty Media Corp Del</td><td>LLYVA</td><td>$32.83</td><td><span class="sold">売却済み</span></td><td>2024Q3</td><td>$39.03</td><td><span class="pos">+18.9%</span></td><td>4四半期</td></tr>
+      <tr><td>2023Q3</td><td>Sirius Xm Holdings Inc</td><td>SIRI</td><td>$41.57</td><td><span class="sold">売却済み</span></td><td>2024Q3</td><td>$28.51</td><td><span class="neg">-31.4%</span></td><td>4四半期</td></tr>
+      <tr><td>2023Q2</td><td>D R Horton Inc</td><td>DHI</td><td>$106.01</td><td><span class="sold">売却済み</span></td><td>2023Q4</td><td>$119.84</td><td><span class="pos">+13.0%</span></td><td>2四半期</td></tr>
+      <tr><td>2023Q2</td><td>Lennar Corp</td><td>LEN</td><td>$103.55</td><td><span class="hold">保有中</span></td><td>-</td><td>$83.89</td><td><span class="neg">-19.0%</span></td><td>13四半期〜</td></tr>
+      <tr><td>2023Q2</td><td>Nvr Inc</td><td>NVR</td><td>$5,820.19</td><td><span class="hold">保有中</span></td><td>-</td><td>$6,490.04</td><td><span class="pos">+11.5%</span></td><td>13四半期〜</td></tr>
+      <tr><td>2023Q1</td><td>Capital One Finl Corp</td><td>COF</td><td>$98.89</td><td><span class="hold">保有中</span></td><td>-</td><td>$208.03</td><td><span class="pos">+110.4%</span></td><td>14四半期〜</td></tr>
+      <tr><td>2023Q1</td><td>Diageo P L C</td><td>DEO</td><td>$159.48</td><td><span class="sold">売却済み</span></td><td>2026Q1</td><td>$86.37</td><td><span class="neg">-45.8%</span></td><td>12四半期</td></tr>
+      <tr><td>2023Q1</td><td>Vitesse Energy Inc</td><td>VTS</td><td>$12.61</td><td><span class="sold">売却済み</span></td><td>2023Q2</td><td>$15.65</td><td><span class="pos">+24.1%</span></td><td>1四半期</td></tr>
+      <tr><td>2022Q4</td><td>Nu Hldgs Ltd</td><td>NU</td><td>$4.35</td><td><span class="sold">売却済み</span></td><td>2025Q1</td><td>$11.82</td><td><span class="pos">+171.7%</span></td><td>9四半期</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">
+    ・13F（四半期末45日後公表）の保有差分から「新規買い」（前期ゼロ→保有）と「完全売却」（保有→ゼロ）を検出。<br>
+    ・<b>取得単価・売却単価は当該四半期の平均終値による推定</b>（13Fに実際の売買価格は載らないため）。
+    保有中の損益は現在値との比較。バークシャーの実際の損益とは誤差がある。<br>
+    ・保有期間は四半期単位（13Fの解像度の限界）。期中に買って期中に売った銘柄（往復）は13Fに現れない。<br>
+    ・<a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001067983&type=13F&dateb=&owner=include&count=40" style="color:#60a5fa">SEC EDGAR: Berkshire 13F一覧</a>
+  </p>
+  <p class="updated">最終更新: 2026-07-20 12:05</p>
+</body>
+</html>

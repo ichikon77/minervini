@@ -11,6 +11,7 @@
 !touraku_history.json
 !riron_history.json
 !fedwatch_history.json
+!buffett_history.json
 !insider_history.json
 !margin_all_history.json
 !spriron_history.json
@@ -36,3 +37,4 @@ _totan_*.png
 jpx_margin_cache.json
 _jpx_margin_tmp.pdf
 _jpx_margin_all_tmp.pdf
+buffett_price_cache.json
