@@ -93,6 +93,69 @@ def parse_person(path):
 
 
 # -----------------------------------------
+# 10b5-1判定（SEC Form 4原本のチェックボックス）
+# -----------------------------------------
+SEC_UA = {"User-Agent": "kabuchiwa research kabuchiwa@example.com"}
+PLAN_CACHE_FILE = os.path.join(SCRIPT_DIR, "insider_plan_cache.json")
+
+
+def fetch_sec(url):
+    req = urllib.request.Request(url, headers=SEC_UA)
+    return urllib.request.urlopen(req, timeout=30).read().decode("utf-8", errors="replace")
+
+
+def build_plan_map(cik, max_filings=20):
+    """人物CIKのForm 4原本を読み、{(取引日, ticker大文字): '10b5-1' or '非プラン'} を返す。
+    aff10b5Oneチェックボックス(2023年〜義務化)がtrue/1なら予約売却。"""
+    out = {}
+    try:
+        data = json.loads(fetch_sec(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json"))
+    except Exception as e:
+        log(f"    submissions取得失敗 CIK{cik}: {e}")
+        return out
+    recent = data.get("filings", {}).get("recent", {})
+    forms = recent.get("form", [])
+    accs = recent.get("accessionNumber", [])
+    n = 0
+    for i in range(len(forms)):
+        if forms[i] != "4" or n >= max_filings:
+            continue
+        accn = accs[i].replace("-", "")
+        try:
+            idx = fetch_sec(f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn}/")
+            raw = [x for x in re.findall(r'href="([^"]+\.xml)"', idx) if "xslF345" not in x]
+            if not raw:
+                continue
+            xml = fetch_sec("https://www.sec.gov" + raw[0])
+        except Exception:
+            continue
+        n += 1
+        flags = set(f.strip().lower() for f in re.findall(r"<aff10b5One>([^<]*)", xml))
+        is_plan = bool(flags & {"1", "true"})
+        ticker = ""
+        mt = re.search(r"<issuerTradingSymbol>([^<]*)", xml)
+        if mt:
+            ticker = mt.group(1).strip().upper()
+        for d in set(re.findall(r"<transactionDate>\s*<value>([^<]*)", xml)):
+            out[f"{d.strip()}|{ticker}"] = "10b5-1" if is_plan else "非プラン"
+        time.sleep(0.2)
+    return out
+
+
+def load_plan_cache():
+    if os.path.exists(PLAN_CACHE_FILE):
+        try:
+            return json.load(open(PLAN_CACHE_FILE, encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def save_plan_cache(cache):
+    json.dump(cache, open(PLAN_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
+
+
+# -----------------------------------------
 # 履歴（JSON蓄積。openinsiderは古い行が流れるため）
 # -----------------------------------------
 def load_history():
@@ -195,8 +258,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {sections}
   <p class="note">
     ・SEC Form 4 = 役員・10%超株主が自社株を売買したとき2営業日以内にSECへ提出が義務付けられる報告。<br>
-    ・S - Sale+OE はオプション行使で得た株の売却。10b5-1（事前予約プラン）による機械的な売却も多く、
-    売り=弱気とは限らない。ただし<b>買い（P - Purchase）は自腹の意思表示なので重要度が高い</b>（マスクの2025/9のTSLA買いなど）。<br>
+    ・<b>プラン列</b>: Form 4原本の10b5-1チェックボックス（2023年〜義務化）を読取。
+    「予約売却」= 事前に決めたスケジュールの機械的な売却（弱気シグナルではない）。
+    <span style="color:#f87171">「非プラン ⚠」= その場の判断による売り</span> — こちらが本当の注目対象。
+    「-」= 原本に記載なし（古い提出・判定対象外の取引種別など）。<br>
+    ・S - Sale+OE はオプション行使で得た株の売却（報酬の現金化でシグナル性は低い）。
+    <b>買い（P - Purchase）は自腹の意思表示なので重要度が高い</b>（マスクの2025/9のTSLA買いなど）。<br>
     ・ゲイツ（MSFT取締役退任済）とジョブズ（故人）はForm 4の提出義務がなくデータが存在しない。
     ペイジ/ブリンは近年ほぼ売買がないため「報告なし」が続く（それ自体が情報）。<br>
     ・履歴は蓄積式。openinsiderから古い行が消えてもこのページには残る。
@@ -213,6 +280,18 @@ def type_class(t):
     if t.startswith("P"):
         return "buy"
     return "other"
+
+
+def plan_cell(r):
+    """10b5-1判定セル: 予約売却=グレー / 非プランの売り=赤太字⚠ / 買いや判定不能=- """
+    p = r.get("plan", "-")
+    if p == "10b5-1":
+        return '<td style="color:#64748b">予約売却</td>'
+    if p == "非プラン":
+        if r["type"].startswith("S"):
+            return '<td style="color:#f87171; font-weight:700">非プラン ⚠</td>'
+        return '<td style="color:#94a3b8">非プラン</td>'
+    return "<td>-</td>"
 
 
 def make_recent_section(hist, today):
@@ -239,12 +318,13 @@ def make_recent_section(hist, today):
             f"<td>{name}</td>"
             f"<td>{r['ticker']}</td>"
             f'<td class="{cls}">{r["type"]}</td>'
+            f"{plan_cell(r)}"
             f"<td>{r['price']}</td>"
             f"<td>{r['qty']}</td>"
             f"<td>{r['value']}</td></tr>")
     return (
         '  <h2>直近動向<span class="role">全員からのピックアップ（提出日が新しい順に5件）</span></h2>\n'
-        '  <table>\n    <thead><tr><th>取引日</th><th>人物</th><th>銘柄</th><th>種別</th>'
+        '  <table>\n    <thead><tr><th>取引日</th><th>人物</th><th>銘柄</th><th>種別</th><th>プラン</th>'
         "<th>単価</th><th>株数</th><th>金額</th></tr></thead>\n"
         "    <tbody>\n" + "\n".join(rows) + "\n    </tbody>\n  </table>")
 
@@ -274,12 +354,13 @@ def generate_html(hist):
                 f"<td>{r['ticker']}</td>"
                 f"<td>{r['title']}</td>"
                 f'<td class="{cls}">{r["type"]}</td>'
+                f"{plan_cell(r)}"
                 f"<td>{r['price']}</td>"
                 f"<td>{r['qty']}</td>"
                 f"<td>{r['owned']}</td>"
                 f"<td>{r['value']}</td></tr>")
         table = (
-            '  <table>\n    <thead><tr><th>取引日</th><th>銘柄</th><th>肩書</th><th>種別</th>'
+            '  <table>\n    <thead><tr><th>取引日</th><th>銘柄</th><th>肩書</th><th>種別</th><th>プラン</th>'
             "<th>単価</th><th>株数</th><th>取引後保有</th><th>金額</th></tr></thead>\n"
             "    <tbody>\n" + "\n".join(rows) + "\n    </tbody>\n  </table>")
         sections.append(head + "\n" + table)
@@ -357,6 +438,25 @@ def main():
         log(f"履歴保存: 新規{added}件")
     else:
         log("新しい報告はありませんでした")
+
+    # 10b5-1判定: 判定未付与の取引がある人物だけSEC原本を読む
+    plan_cache = load_plan_cache()
+    for name, role, path in PEOPLE:
+        bucket = hist.get(path, {})
+        missing = [r for r in bucket.values() if "plan" not in r]
+        if not missing:
+            continue
+        cik = path.rstrip("/").split("/")[-1]
+        log(f"  {name}: 10b5-1判定を{len(missing)}件に付与中...")
+        if cik not in plan_cache:
+            plan_cache[cik] = build_plan_map(cik)
+            save_plan_cache(plan_cache)
+        pm = plan_cache[cik]
+        for r in missing:
+            key = f'{r["trade_date"]}|{r["ticker"]}'
+            r["plan"] = pm.get(key, "-")
+    save_history(hist)
+    save_plan_cache(plan_cache)
 
     generate_html(hist)
 
