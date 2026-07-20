@@ -39,9 +39,13 @@ BOJ_DATES = [
 # ビッグテック決算（現地日付）。yfinance calendar等で判明分を管理
 EARNINGS = [
     ("2026-07-23", "GOOGL", "Alphabet 決算"),
+    ("2026-07-23", "TSLA", "Tesla 決算"),
     ("2026-07-30", "MSFT", "Microsoft 決算"),
+    ("2026-07-30", "META", "Meta 決算"),
     ("2026-07-31", "AMZN", "Amazon 決算"),
+    ("2026-07-31", "AAPL", "Apple 決算"),
     ("2026-08-27", "NVDA", "NVIDIA 決算"),
+    # SPCX(SpaceX)は上場直後で決算日程未公表。判明したら追記
 ]
 
 # 米雇用統計（BLS公表スケジュール、現地8:30 = 日本21:30/22:30）
