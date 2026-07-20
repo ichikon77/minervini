@@ -51,9 +51,9 @@ def log(msg):
 # データ取得
 # -----------------------------------------
 def fetch_bls():
-    """CPI指数とNFP水準の月次 {(\'YYYY-MM\'): value} を2系列返す"""
+    """CPI指数・NFP水準・失業率の月次 {(\'YYYY-MM\'): value} を3系列返す"""
     payload = json.dumps({
-        "seriesid": ["CUSR0000SA0", "CES0000000001"],
+        "seriesid": ["CUSR0000SA0", "CES0000000001", "LNS14000000"],
         "startyear": str(START_YEAR),
         "endyear": str(datetime.date.today().year),
     }).encode()
@@ -74,9 +74,10 @@ def fetch_bls():
             except ValueError:
                 continue  # 未発表月は '-' が入ることがある
         out[s["seriesID"]] = d
-    cpi, nfp = out["CUSR0000SA0"], out["CES0000000001"]
-    log(f"  BLS: CPI {len(cpi)}ヶ月 / 雇用 {len(nfp)}ヶ月（最新 {max(cpi)}）")
-    return cpi, nfp
+    cpi, nfp, unemp = (out["CUSR0000SA0"], out["CES0000000001"],
+                       out["LNS14000000"])
+    log(f"  BLS: CPI {len(cpi)}ヶ月 / 雇用 {len(nfp)}ヶ月 / 失業率 {len(unemp)}ヶ月（最新 {max(cpi)}）")
+    return cpi, nfp, unemp
 
 
 def fetch_effr():
@@ -263,15 +264,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h2>月次の長期推移（2020年〜 / 最新上）</h2>
   <div class="table-wrap">
   <table class="main">
-    <thead><tr><th>月</th><th>CPI前年比</th><th>雇用者数増減</th><th>政策金利(EFFR)</th><th>S&amp;P500月間</th></tr></thead>
+    <thead><tr><th>月</th><th>CPI前年比</th><th>雇用者数増減</th><th>失業率</th><th>政策金利(EFFR)</th><th>S&amp;P500月間</th></tr></thead>
     <tbody>
 {rows}
     </tbody>
   </table>
   </div>
   <p class="note">
-    ・<b>FRBのデュアルマンデート</b>: 「物価の安定」(CPI)と「雇用の最大化」(雇用者数)の2つが入力、政策金利が出力。
+    ・<b>FRBのデュアルマンデート</b>: 「物価の安定」(CPI)と「雇用の最大化」(雇用者数・失業率)の2つが入力、政策金利が出力。
     CPIが高い→利上げ圧力、雇用が弱い→利下げ圧力。両者が逆を向くとFRBはジレンマに陥る。<br>
+    ・<b>雇用の判定は3軸</b>: ①水準=雇用増の3ヶ月平均（+100K=人口増を吸収する損益分岐点）②方向=加速/減速の並び
+    ③失業率=直近12ヶ月最低からの上昇幅（<b>+0.5%以上はサーム・ルール警告圏</b>=過去の景気後退入りシグナル）。<br>
     ・CPI色帯: <span style="color:#fca5a5">5%以上=利下げ不能ゾーン（赤）</span> /
     <span style="color:#fde68a">3〜5%=警戒（黄）</span> /
     <span style="color:#93c5fd">2%台=目標圏（青）</span> / 2%未満=低インフレ（グレー）。<br>
@@ -301,7 +304,7 @@ def trend_comment(vals, higher_word, lower_word):
     return "横ばい"
 
 
-def make_cards(yoy, nfp_chg, rates, fed):
+def make_cards(yoy, nfp_chg, unemp, rates, fed):
     months = sorted(yoy, reverse=True)
     nfp_months = sorted(nfp_chg, reverse=True)
     today = datetime.date.today()
@@ -324,20 +327,55 @@ def make_cards(yoy, nfp_chg, rates, fed):
         f'<div class="verdict">→ {trend_comment(vals, "上振れ", "鈍化")}'
         f'（5%の利下げ不能ラインまで {5 - vals[0]:+.1f}%）</div></div>')
 
-    # 雇用カード
+    # 雇用カード（水準×方向の2軸 + 失業率）
     rows = []
     last3n = nfp_months[:3]
     for m in last3n:
         v = nfp_chg[m]
+        u = unemp.get(m)
         cls = "pos" if v >= 100 else ("neg" if v < 0 else "")
-        rows.append(f"<tr><td>{m.replace('-', '/')}分</td><td><b class=\"{cls}\">{v:+,}K</b></td></tr>")
+        u_s = f"{u:.1f}%" if u is not None else "-"
+        rows.append(f"<tr><td>{m.replace('-', '/')}分</td>"
+                    f"<td><b class=\"{cls}\">{v:+,}K</b></td>"
+                    f'<td style="color:#94a3b8">失業率 {u_s}</td></tr>')
     nvals = [nfp_chg[m] for m in last3n]
     avg3 = sum(nvals) / 3
-    verdict = "堅調（利下げ圧力なし）" if avg3 >= 100 else ("減速気味" if avg3 >= 0 else "悪化（利下げ圧力）")
+    # 軸1: 水準（3ヶ月平均、損益分岐点+100K基準）
+    level = "堅調" if avg3 >= 100 else ("減速気味" if avg3 >= 0 else "悪化")
+    # 軸2: 方向（3ヶ月の並び）
+    if nvals[0] < nvals[1] < nvals[2]:
+        direction = "3ヶ月連続減速中（要監視）"
+    elif nvals[0] > nvals[1] > nvals[2]:
+        direction = "3ヶ月連続加速中"
+    elif nvals[0] < nvals[1]:
+        direction = "直近は減速"
+    elif nvals[0] > nvals[1]:
+        direction = "直近は加速"
+    else:
+        direction = "横ばい"
+    # 軸3: 失業率のトレンド（直近12ヶ月最低からの上昇幅、サーム・ルールの簡易版）
+    u_months = sorted(unemp, reverse=True)[:12]
+    u_now = unemp.get(u_months[0]) if u_months else None
+    u_alert = ""
+    if u_now is not None and len(u_months) >= 6:
+        u_min12 = min(unemp[m] for m in u_months)
+        rise = u_now - u_min12
+        if rise >= 0.5:
+            u_alert = f' / <span style="color:#f87171">失業率が12ヶ月最低から+{rise:.1f}%（サーム・ルール警告圏）</span>'
+        elif rise >= 0.3:
+            u_alert = f" / 失業率が12ヶ月最低から+{rise:.1f}%（上昇の芽）"
+    # 圧力の総合判定
+    if avg3 < 0 or (u_alert and "+0.5" in u_alert) or (u_alert and "警告圏" in u_alert):
+        pressure = "利下げ圧力あり"
+    elif avg3 < 100 or "連続減速" in direction:
+        pressure = "利下げ圧力が芽生え中"
+    else:
+        pressure = "利下げ圧力なし"
     nfp_card = (
         '    <div class="card"><div class="label">入力2: 非農業部門雇用者数（雇用の使命）</div>'
         f'<table>{"".join(rows)}</table>'
-        f'<div class="verdict">→ 3ヶ月平均 {avg3:+,.0f}K = {verdict}</div></div>')
+        f'<div class="verdict">→ 3ヶ月平均 {avg3:+,.0f}K = {level}だが{direction}{u_alert}<br>'
+        f'→ 総合: {pressure}</div></div>')
 
     # 政策金利カード
     cur_rate = rates[0][1]
@@ -348,7 +386,8 @@ def make_cards(yoy, nfp_chg, rates, fed):
         key = next_fomc[:7].replace("-", "/")
         if key in latest:
             p = latest[key]
-            fed_txt = f'次回会合の織り込み: <b>{"利上げ" if p > 0 else "利下げ"} {abs(p):.0f}%</b>（fedwatchより）'
+            fed_txt = (f'次回会合の<b>{"利上げ" if p > 0 else "利下げ"}確率 {abs(p):.0f}%</b>'
+                       f'（0.25%幅、fedwatchより）')
     rate_card = (
         '    <div class="card"><div class="label">出力: FRB政策金利（実効FF金利）</div>'
         f'<div class="big">{cur_rate:.2f}%</div>'
@@ -375,8 +414,8 @@ def make_hypo(cur_yoy):
         f'📍 {status}</div>')
 
 
-def generate_html(yoy, nfp_chg, rates, spx, fed):
-    cards, cur_yoy = make_cards(yoy, nfp_chg, rates, fed)
+def generate_html(yoy, nfp_chg, unemp, rates, spx, fed):
+    cards, cur_yoy = make_cards(yoy, nfp_chg, unemp, rates, fed)
     eff_m = effr_monthly(rates)
 
     months = [m for m in sorted(yoy, reverse=True) if m >= "2020-01"]
@@ -396,16 +435,19 @@ def generate_html(yoy, nfp_chg, rates, spx, fed):
     for m in months:
         cy = yoy.get(m)
         nf = nfp_chg.get(m)
+        un = unemp.get(m)
         er = eff_m.get(m)
         sp = spx.get(m)
         nf_s = f'{nf:+,}K' if nf is not None else "-"
         nf_cls = ' class="neg"' if (nf is not None and nf < 0) else ""
+        un_s = f'{un:.1f}%' if un is not None else "-"
         sp_s = f'<span class="{"pos" if sp > 0 else "neg"}">{sp:+.2f}%</span>' if sp is not None else "-"
         er_s = f'{er:.2f}%{rate_arrow.get(m, "")}' if er is not None else "-"
         rows.append(
             f'      <tr><td>{m.replace("-", "/")}</td>'
             f'<td{cpi_color(cy)}>{cy:.1f}%</td>'
             f'<td{nf_cls}>{nf_s}</td>'
+            f'<td>{un_s}</td>'
             f'<td>{er_s}</td>'
             f'<td>{sp_s}</td></tr>')
 
@@ -461,7 +503,7 @@ def main():
     log("米インフレと雇用 チェック開始")
 
     try:
-        cpi, nfp = fetch_bls()
+        cpi, nfp, unemp = fetch_bls()
         rates = fetch_effr()
         spx = fetch_spx_monthly()
     except Exception as e:
@@ -472,7 +514,7 @@ def main():
     nfp_chg = nfp_change(nfp)
     fed = load_fedwatch()
 
-    generate_html(yoy, nfp_chg, rates, spx, fed)
+    generate_html(yoy, nfp_chg, unemp, rates, spx, fed)
 
     if "--nopush" in sys.argv:
         log("--nopush 指定のため git push はスキップ")
