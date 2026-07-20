@@ -213,9 +213,43 @@ def type_class(t):
     return "other"
 
 
+def make_recent_section(hist, today):
+    """全員の取引をマージして直近5件（提出日順）"""
+    merged = []
+    for name, role, path in PEOPLE:
+        for r in hist.get(path, {}).values():
+            merged.append((name, r))
+    merged.sort(key=lambda x: (x[1]["filing"], x[1]["trade_date"]), reverse=True)
+    if not merged:
+        return ""
+    rows = []
+    for name, r in merged[:5]:
+        try:
+            fd = datetime.date.fromisoformat(r["filing"])
+            is_new = (today - fd).days <= NEW_DAYS
+        except ValueError:
+            is_new = False
+        cls = type_class(r["type"])
+        badge = ' <span class="new-badge">NEW</span>' if is_new else ""
+        tr_cls = ' class="new-row"' if is_new else ""
+        rows.append(
+            f"      <tr{tr_cls}><td>{r['trade_date']}{badge}</td>"
+            f"<td>{name}</td>"
+            f"<td>{r['ticker']}</td>"
+            f'<td class="{cls}">{r["type"]}</td>'
+            f"<td>{r['price']}</td>"
+            f"<td>{r['qty']}</td>"
+            f"<td>{r['value']}</td></tr>")
+    return (
+        '  <h2>直近動向<span class="role">全員からのピックアップ（提出日が新しい順に5件）</span></h2>\n'
+        '  <table>\n    <thead><tr><th>取引日</th><th>人物</th><th>銘柄</th><th>種別</th>'
+        "<th>単価</th><th>株数</th><th>金額</th></tr></thead>\n"
+        "    <tbody>\n" + "\n".join(rows) + "\n    </tbody>\n  </table>")
+
+
 def generate_html(hist):
     today = datetime.date.today()
-    sections = []
+    sections = [make_recent_section(hist, today)]
     for name, role, path in PEOPLE:
         recs = list(hist.get(path, {}).values())
         recs.sort(key=lambda r: (r["filing"], r["trade_date"]), reverse=True)
