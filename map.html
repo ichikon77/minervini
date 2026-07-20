@@ -54,7 +54,7 @@
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
   </nav>
-  <h1>デッキの見方 — 20ページのつながり</h1>
+  <h1>デッキの見方 — 23ページのつながり</h1>
   <p class="subtitle">イベント → マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄選び。ボックスをクリックで各ページへ。</p>
 
   <div class="diagram-wrap">
@@ -78,7 +78,7 @@
 
     <!-- レイヤー見出し -->
     <text x="20" y="122" fill="#a78bfa" font-size="13" font-weight="bold">① マクロ・バリュエーション — 相場の「物差し」と金利の因果</text>
-    <text x="20" y="470" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路と信用の偏り</text>
+    <text x="20" y="470" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路と、個別の需給（日本の信用・米国の大物）</text>
     <text x="20" y="748" fill="#fbbf24" font-size="13" font-weight="bold">③ 市場の温度計 — 過熱と売られすぎ（答え合わせ付き）</text>
     <text x="20" y="1078" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
     <text x="20" y="1264" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄選び</text>
@@ -165,17 +165,29 @@
     <text x="714" y="506" text-anchor="middle" fill="#93c5fd" font-size="10">解消=売り</text>
     <text x="714" y="544" text-anchor="middle" fill="#93c5fd" font-size="10">(証券自己)</text>
 
-    <!-- ② 需給 2段目: 銘柄別信用倍率 -->
+    <!-- ② 需給 2段目: 個別の需給（日本=信用倍率 / 米国=インサイダー・バフェット） -->
     <a href="margin.html">
-      <rect x="390" y="606" width="300" height="76" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
-      <text x="540" y="632" text-anchor="middle" fill="#bfdbfe" font-size="15" font-weight="bold">銘柄別信用倍率（検索）</text>
-      <text x="540" y="652" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用買残÷売残を全3,800銘柄で蓄積</text>
-      <text x="540" y="670" text-anchor="middle" fill="#94a3b8" font-size="11">&lt;1 踏み上げ期待 / 高倍率 = 追証連鎖注意</text>
+      <rect x="40" y="606" width="300" height="80" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="190" y="630" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">銘柄別信用倍率（検索）🇯🇵</text>
+      <text x="190" y="650" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用買残÷売残を全3,800銘柄で蓄積</text>
+      <text x="190" y="668" text-anchor="middle" fill="#94a3b8" font-size="11">&lt;1 踏み上げ期待 / 高倍率 = 追証連鎖注意</text>
+    </a>
+    <a href="insider.html">
+      <rect x="390" y="606" width="300" height="80" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="540" y="630" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">インサイダー売買 🇺🇸</text>
+      <text x="540" y="650" text-anchor="middle" fill="#94a3b8" font-size="11">Mag7+SPCX首脳のSEC Form 4を毎日追跡</text>
+      <text x="540" y="668" text-anchor="middle" fill="#94a3b8" font-size="11">売りは10b5-1が多い / 自腹の買いは重要</text>
+    </a>
+    <a href="buffett.html">
+      <rect x="740" y="606" width="300" height="80" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="890" y="630" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">バフェット新規買い 🇺🇸</text>
+      <text x="890" y="650" text-anchor="middle" fill="#94a3b8" font-size="11">13Fの差分から新規買い/売却を検出</text>
+      <text x="890" y="668" text-anchor="middle" fill="#94a3b8" font-size="11">勝率67%・平均5.1四半期・保有中の含み損益</text>
     </a>
     <line x1="540" y1="582" x2="540" y2="604" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="598" fill="#94a3b8" font-size="10">個別銘柄の需給はここで検索</text>
+    <text x="552" y="598" fill="#94a3b8" font-size="10">市場全体の需給の次は「個別」の需給 — 日本は信用、米国は大物の売買</text>
 
-    <line x1="540" y1="682" x2="540" y2="724" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="540" y1="686" x2="540" y2="724" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="552" y="708" fill="#94a3b8" font-size="11">需給の偏りは「温度」として現れる</text>
 
     <!-- ③ 温度計 1段目 -->
@@ -259,7 +271,7 @@
   <p class="note">
     <b>1日の自動更新スケジュール:</b>
     朝7:55 イベント予定 → 8:05 米国株スクリーナー → 8:15 S&amp;P500理論株価 → 8:20 資金フロー →
-    8:25 FRB利上げ確率 → 8:35 金利と為替 → 8:45 VIX温度計 → 8:55 銘柄別信用倍率 →
+    8:25 FRB利上げ確率 → 8:30 米インフレと雇用 → 8:35 金利と為替 → 8:40 インサイダー売買 → 8:45 VIX温度計 → 8:50 バフェット → 8:55 銘柄別信用倍率 →
     夕方17:30 裁定取引 → 18:10 日銀利上げ確率 → 18:20 売買代金 → 18:30 日本株Minervini →
     18:40 信用評価率 → 18:50 投資主体別 → 19:00 高配当 → 19:10 騰落レシオ → 19:20 空売り比率 → 19:30 日経理論株価 → 20:00 海外投資家 → 23:00 自動バックアップ。
   </p>
