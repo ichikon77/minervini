@@ -583,6 +583,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
     <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
     <a href="insider.html" style="border-color:#2563eb">インサイダー売買</a>
+    <a href="buffett.html" style="border-color:#2563eb">バフェット</a>
     <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
     <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
     <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
