@@ -268,6 +268,7 @@ HTML_HEAD = """<!DOCTYPE html>
   td.weekly {{ color: #fbbf24; font-weight: bold; }}  /* 週次一致日（予想PER=PER計算） */
   td.below {{ background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }}
   td.above {{ background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }}
+  td.month-low {{ background: rgba(56,189,248,0.22); color: #bae6fd; font-weight: bold; cursor: help; }}  /* 月間最安値 */
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
 </style>
@@ -326,6 +327,9 @@ HTML_HEAD = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
+    ・S&amp;P500列の<span style="background:rgba(56,189,248,0.22); padding:1px 6px; color:#bae6fd">薄水色</span> = その月の最安値（前月最安値=攻防の分岐点）。<br>
+    ・<b>2001年7月からの実績（接近149回）</b>: 前月最安値に接近（+1.5%以内）した場合、サポート成功（割れず+2%以上反発）<b>30%</b>、10日以内に割れたのは<b>62%</b>（もみ合い8%）。<br>
+    ・<b>割れた後に「さらに5%以上沈む」確率は通常時の約1.5倍</b>（通常18%→割れ後28%、割れ109回の実績）。参考: 日経平均は約1.4倍（29%→41%）。<br>
     ・理論株価 = 予想EPS × 各PER。現値を挟む2セルに色が付く（水色=すぐ下、薄赤=すぐ上）。<br>
     ・PER基準: 14.62=コロナショック底(2020/3/16)、16.37=ハイテク株底入れ(2022/10/10)、22.82=コロナ直前(2020/3/18)、24=かなり高い、26=過去最高水準。<br>
     ・予想PER(Barron's)と予想EPSは週1回（金曜）更新。平日は直近値を引き継ぐため、「PER:予想EPSから」と「予想PER」が一致するのは週次更新日のみ（黄色表示）。<br>
@@ -339,12 +343,26 @@ HTML_HEAD = """<!DOCTYPE html>
 """
 
 
+SP_LOW_ATTR = ' class="month-low" title="この月の最安値（攻防の分岐点）"'
+
+
 def generate_html(hist):
     dates = sorted(hist.keys(), reverse=True)
 
     theo_headers = "\n".join(
         f'        <th{" class=" + chr(34) + "sep" + chr(34) if i == 0 else ""}>PER{p:g}<span class="small">{note}</span></th>'
         for i, (p, note) in enumerate(zip(THEO_PERS, THEO_NOTES)))
+
+    # 月ごとの最安値の日（前月最安値=攻防ラインの可視化）
+    month_low_date = {}
+    for d in dates:
+        v = hist[d].get("SP500")
+        if v is None:
+            continue
+        ym = d[:7]
+        if ym not in month_low_date or v < hist[month_low_date[ym]]["SP500"]:
+            month_low_date[ym] = d
+    low_dates = set(month_low_date.values())
 
     rows = []
     for d in dates:
@@ -354,6 +372,7 @@ def generate_html(hist):
         if sp is None:
             continue
         diff = r.get("前日差")
+        sp_attr = SP_LOW_ATTR if d in low_dates else ""
         diff_s = "-" if diff is None else f'<span class="{"pos" if diff > 0 else ("neg" if diff < 0 else "")}">{diff:+,.2f}</span>'
 
         theos = [round(eps * p, 2) if eps else None for p in THEO_PERS]
@@ -376,7 +395,7 @@ def generate_html(hist):
         w_attr = ' class="weekly"' if weekly else ''
 
         cells = [f'<td>{d.replace("-", "/")}</td>',
-                 f'<td>{sp:,.2f}</td>',
+                 f'<td{sp_attr}>{sp:,.2f}</td>',
                  f'<td>{diff_s}</td>',
                  f'<td{w_attr}>{per_w:.2f}</td>' if per_w is not None else '<td>-</td>',
                  f'<td{w_attr}>{per_c:.2f}</td>' if per_c is not None else '<td>-</td>',
