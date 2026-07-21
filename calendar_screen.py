@@ -67,6 +67,28 @@ MERCURY_RETRO = [
     ("2027-10-07", "2027-10-28"),
 ]
 
+# 米国市場の休場日（NYSE公式ルールから算出。年1回、翌年分を追記）
+US_HOLIDAYS = [
+    ("2026-09-07", "レイバーデー"),
+    ("2026-11-26", "感謝祭"),
+    ("2026-12-25", "クリスマス"),
+    ("2027-01-01", "元日"),
+    ("2027-01-18", "キング牧師記念日"),
+    ("2027-02-15", "大統領の日"),
+    ("2027-03-26", "聖金曜日"),
+    ("2027-05-31", "戦没将兵記念日"),
+    ("2027-06-18", "ジューンティーンス"),
+    ("2027-07-05", "独立記念日"),
+    ("2027-09-06", "レイバーデー"),
+    ("2027-11-25", "感謝祭"),
+    ("2027-12-24", "クリスマス"),
+]
+
+# 選挙関連（株価に影響の大きいもの。判明分を手動管理）
+ELECTION_DATES = [
+    ("2026-11-03", "🇺🇸 米中間選挙", "上院1/3・下院全議席改選。選挙年秋は荒れやすいアノマリー"),
+]
+
 # リスト残数がこの日数を切ったらログで警告
 WARN_DAYS = 45
 
@@ -179,6 +201,17 @@ def build_events(today):
         if end >= today:
             note = "進行中→" if start < today else ""
             ev.append((end, "☿", "水星逆行 終了", note + "順行に戻る", "", False))
+
+    for ds, name in US_HOLIDAYS:
+        d = datetime.date.fromisoformat(ds)
+        if d >= today:
+            ev.append((d, "🇺🇸", f"米国市場 休場（{name}）",
+                       "NY市場クローズ。日本は通常取引だが薄商い", "", False))
+
+    for ds, name, note in ELECTION_DATES:
+        d = datetime.date.fromisoformat(ds)
+        if d >= today:
+            ev.append((d, "", name, note, "", True))
 
     ev.sort(key=lambda x: x[0])
     return ev
