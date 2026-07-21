@@ -409,15 +409,16 @@ def generate_html(positions):
     n_open = sum(1 for p in positions if not p["exit_q"])
 
     cards = (
-        f'    <div class="card"><div class="label">売却済みの勝率（推定）</div>'
+        f'    <div class="card"><div class="label">新規買いの勝率（売却済み・推定）</div>'
         f'<div class="value">{win_rate}</div>'
-        f'<div class="sub">{wins}勝{losses}敗 / 売却済み{total_closed}銘柄</div></div>\n'
+        f'<div class="sub">{wins}勝{losses}敗 / 売却済み{total_closed}銘柄<br>2023Q1以降の新規買いが対象</div></div>\n'
         f'    <div class="card"><div class="label">平均保有期間（売却済み）</div>'
         f'<div class="value">{avg_hold}</div>'
         f'<div class="sub">13Fの解像度=四半期単位</div></div>\n'
-        f'    <div class="card"><div class="label">保有中ポジション</div>'
+        f'    <div class="card"><div class="label">新規買いのうち保有継続中</div>'
         f'<div class="value">{n_open}銘柄</div>'
-        f'<div class="sub">平均含み損益 {avg_open}（取得=購入期平均値の推定）</div></div>')
+        f'<div class="sub">平均含み損益 {avg_open}（取得=購入期平均値の推定）<br>'
+        f'※AAPL/KO/AXP等の古参保有は対象外（全保有は13F原本参照）</div></div>')
 
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
