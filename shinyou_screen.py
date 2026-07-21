@@ -313,8 +313,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <nav class="nav">
     <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
     <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
-    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
     <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
     <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
     <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
     <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
