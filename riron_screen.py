@@ -218,6 +218,7 @@ HTML_HEAD = """<!DOCTYPE html>
   td.deep-hot {{ background: rgba(220,38,38,0.6); color: #fee2e2; font-weight: bold; }}   /* 歴史的過熱（濃赤） */
   td.below {{ background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }}  /* 現値のすぐ下 = 水色 */
   td.above {{ background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }}    /* 現値のすぐ上 = 薄赤 */
+  td.month-low {{ background: rgba(56,189,248,0.22); color: #bae6fd; font-weight: bold; cursor: help; }}  /* 月間最安値 = 薄水色 */
   td.pbrline {{ color: #7dd3fc; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
@@ -286,6 +287,8 @@ HTML_HEAD = """<!DOCTYPE html>
     <span style="background:rgba(14,116,144,0.3); padding:1px 6px">薄青</span> = 割安（PER&lt;17.5 / PBR&lt;1.3）、
     <span style="background:rgba(190,60,60,0.28); padding:1px 6px">薄赤</span> = 過熱気味（PER&gt;19 / PBR&gt;1.8）、
     <span style="background:rgba(220,38,38,0.6); padding:1px 6px">濃赤</span> = 歴史的過熱（PER&gt;20 / PBR&gt;1.9）。<br>
+    ・日経平均列の<span style="background:rgba(56,189,248,0.22); padding:1px 6px; color:#bae6fd">薄水色</span> = その月の最安値。
+    前月最安値はサポートライン（支持線）になりやすく、割れると調整が深くなりやすい要注意ライン。<br>
     <br>
     <b style="color:#94a3b8">【仮説メモ】</b><br>
     ・<b>仮説① 歴史的買い場</b>: PERとPBRが両方「濃青」＝2つの物差しが揃って割安。過去17年で2012年6月（アベノミクス前夜）と2025年4月（関税ショック底）のみ。数年に一度の大底シグナル。<br>
@@ -338,12 +341,22 @@ def generate_html(hist):
         f'        <th{sep_attr if i == 0 else ""}>PER{p:g}</th>'
         for i, p in enumerate(PER_LEVELS))
 
+    # 月ごとの最安値の日を特定（前月最安値=サポートラインの可視化）
+    month_low_date = {}
+    for d in dates:
+        ym = d[:7]
+        v = hist[d]["日経平均"]
+        if ym not in month_low_date or v < hist[month_low_date[ym]]["日経平均"]:
+            month_low_date[ym] = d
+    low_dates = set(month_low_date.values())
+
     rows = []
     for d in dates:
         r = hist[d]
         nikkei, eps, bps = r["日経平均"], r["EPS"], r["BPS"]
         diff = r.get("前日差")
         diff_s = "-" if diff is None else f'<span class="{"pos" if diff > 0 else ("neg" if diff < 0 else "")}">{diff:+,.2f}</span>'
+        nikkei_attr = ' class="month-low" title="この月の最安値（サポートライン候補）"' if d in low_dates else ''
 
         # 現値を挟む2セルだけハイライト（すぐ下=水色 / すぐ上=薄赤）
         theos = [round(eps * p) for p in PER_LEVELS]
@@ -359,7 +372,7 @@ def generate_html(hist):
                 lower_i = len(theos) - 1
 
         cells = [f'<td>{d.replace("-", "/")}</td>',
-                 f'<td>{nikkei:,.2f}</td>',
+                 f'<td{nikkei_attr}>{nikkei:,.2f}</td>',
                  f'<td>{diff_s}</td>',
                  f'<td{per_class(r["PER"])}>{r["PER"]:.2f}</td>',
                  f'<td{pbr_class(r["PBR"])}>{r["PBR"]:.2f}</td>',
