@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仮説検証ログ - かぶチワワの分析デッキ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.05rem; color: #cbd5e1; margin: 26px 0 12px; border-left: 4px solid #334155; padding-left: 10px; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .cards { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 15px 19px;
+  }
+  .card.adopted { border-left: 4px solid #22c55e; }
+  .card.testing { border-left: 4px solid #fbbf24; }
+  .card.pending { border-left: 4px solid #64748b; }
+  .card.rejected { border-left: 4px solid #ef4444; }
+  .card h3 { font-size: 1rem; color: #f8fafc; margin-bottom: 6px; }
+  .badge {
+    display: inline-block; font-size: 0.72rem; font-weight: 700;
+    padding: 2px 10px; border-radius: 10px; margin-left: 10px; vertical-align: middle;
+  }
+  .badge.adopted { background: rgba(34,197,94,0.2); color: #86efac; }
+  .badge.testing { background: rgba(251,191,36,0.2); color: #fde68a; }
+  .badge.pending { background: rgba(100,116,139,0.3); color: #cbd5e1; }
+  .badge.rejected { background: rgba(239,68,68,0.2); color: #fca5a5; }
+  .card .body { font-size: 0.87rem; line-height: 1.8; color: #cbd5e1; }
+  .card .evidence {
+    margin-top: 8px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 7px; padding: 9px 13px; font-size: 0.84rem; line-height: 1.8;
+  }
+  .card .evidence b { color: #93c5fd; }
+  .card .log { margin-top: 8px; font-size: 0.8rem; color: #94a3b8; line-height: 1.8; }
+  .card .log .d { color: #64748b; }
+  .card .deck { font-size: 0.78rem; margin-top: 6px; }
+  .card .deck a { color: #60a5fa; text-decoration: none; }
+  .legend { display: flex; gap: 14px; margin-bottom: 18px; font-size: 0.8rem; color: #94a3b8; flex-wrap: wrap; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 20px; line-height: 1.8; max-width: 980px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+</style>
+<script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="kasetsu.html" class="active" style="border-color:#94a3b8">仮説検証</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
+    <a href="insider.html" style="border-color:#2563eb">インサイダー売買</a>
+    <a href="buffett.html" style="border-color:#2563eb">バフェット</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+  </nav>
+  <h1>仮説検証ログ</h1>
+  <p class="subtitle">相場の説・アノマリー・自分の仮説を、データで検証して記録する実験ノート。検証済みは「いつからのデータ・実績数・確率」を必ず記載。</p>
+  <div class="legend">
+    <span><span class="badge adopted">✅ 採用</span> データで裏付けあり・実戦で使用中</span>
+    <span><span class="badge testing">🔬 検証中</span> 仮説成立・結果待ち</span>
+    <span><span class="badge pending">📋 未検証</span> 経験則のまま・いつか検証</span>
+    <span><span class="badge rejected">❌ 棄却</span> データで否定された</span>
+  </div>
+
+  <h2>値動きの分岐点</h2>
+  <div class="cards">
+
+    <div class="card adopted">
+      <h3>① 前月最安値は攻防の分岐点<span class="badge adopted">✅ 採用</span></h3>
+      <div class="body">前月の最安値はサポートラインとして意識される。割れると調整が深くなりやすい。</div>
+      <div class="evidence">
+        <b>検証: 2001年7月〜2026年7月（25年）の終値ベース</b><br>
+        ・接近（+1.5%以内）した場合: 日経148回→サポート成功33% / 10日以内に割れ64%。S&amp;P500 149回→成功30% / 割れ62%<br>
+        ・<b>割れた後に「さらに5%以上沈む」確率は通常時の約1.5倍</b>（日経: 29%→41%・割れ113回 / S&amp;P500: 18%→28%・割れ109回）<br>
+        ・割れ後21〜63日の着地は平均プラス → 割れ直後は危険地帯だが、投げが出た後は中期の底になりやすい2段構造
+      </div>
+      <div class="log"><span class="d">2026-07-22</span> 日経が6月安値64,024の117円上（7/17安値64,141）で反発。静かな接近型（仮説②参照）と整合。</div>
+      <div class="deck">→ <a href="riron.html">日経理論株価</a> / <a href="spriron.html">SP500理論株価</a>（月間最安値を薄水色でハイライト）</div>
+    </div>
+
+    <div class="card adopted">
+      <h3>② 「接近の型」で割れ率が変わる（パニック型 vs 静かな型）<span class="badge adopted">✅ 採用</span></h3>
+      <div class="body">前月最安値への接近は、接近の仕方で結果が分かれる。VIX急騰を伴うパニック型はそのまま割れやすく、平穏な接近は五分の攻防。</div>
+      <div class="evidence">
+        <b>検証: 2008年〜2026年7月（18年）・日経の接近106回</b><br>
+        ・<b>VIXが5日で+3pt超急騰しながらの接近: 割れ率75%</b>（それ以外54%）<br>
+        ・<b>複合: 日経が直近5日-2%超の急落 + VIX急騰: 割れ率79%</b>（それ以外55%）<br>
+        ・VIX18未満の平穏な接近: 割れ率52%まで低下 ／ VIX25超: 68%<br>
+        ・信用評価率&lt;-12（総悲観）での接近は割れ率49% → 投げが出尽くしていると守られやすい
+      </div>
+      <div class="log"><span class="d">2026-07-22</span> VIX18台・戻しながらの接近=静かな型 → 反発。仮説と整合する初の実地観測。FOMC・決算ラッシュでVIXが跳ねたら再接近に警戒。</div>
+      <div class="deck">→ <a href="vix.html">VIX温度計</a> + <a href="riron.html">日経理論株価</a>の組み合わせで判定</div>
+    </div>
+
+  </div>
+
+  <h2>VIXと恐怖の答え合わせ</h2>
+  <div class="cards">
+
+    <div class="card adopted">
+      <h3>③ VIX MACDクロス × Stoch RSI完成ルール<span class="badge adopted">✅ 採用</span></h3>
+      <div class="body">VIXのMACD(12-26-9, SMAシグナル)がGC=株の下落期間、DC=上昇期間。期間の終わりはS&amp;P500のStoch RSIの「完成」（押し目=K≦30でGC / 天井=K≧80でDC）で測る。</div>
+      <div class="evidence">
+        <b>検証: 2021年〜2026年7月（5年）の生クロス</b><br>
+        ・GC後の下落（押し目完成まで・成立39回）: <b>S&amp;P500 62% / 日経72%が説通り</b>（日経平均-1.57%/回）<br>
+        ・DC後の上昇（天井完成まで・成立31回）: <b>S&amp;P500 77% / 日経71%が説通り</b>（S&amp;P500平均+1.36%/回）<br>
+        ・従来の「クロス〜次のクロス」ルールでは31〜42%しか当たらない → 完成ルールで精度が約2倍
+      </div>
+      <div class="log"><span class="d">2026-07-16</span> GC発生（CFTC-3.9万枚でだまし圏外）。7/17に日経-4%。押し目完成（SPX K≦30のGC）待ち。</div>
+      <div class="deck">→ <a href="vix.html">VIX温度計</a></div>
+    </div>
+
+    <div class="card adopted">
+      <h3>④ CFTCショート極端はGCの「だまし」を生む<span class="badge adopted">✅ 採用</span></h3>
+      <div class="body">VIX GC（弱気サイン）が出ても、投機筋のショートが極端に溜まっていると踏み上げで株が上がる（だまし）。</div>
+      <div class="evidence">
+        <b>検証: 2021年〜2026年7月（5年）・GC後の逆行12回の分布</b><br>
+        ・説通り下げた22回のCFTCネット中央値: <b>-5.9万枚</b> / 逆行して上げた12回: <b>-19.2万枚</b>（ショートが約3倍深い）<br>
+        ・<b>-15万枚超のショートでのGC: 逆行12回中9回がここ（踏み上げ警戒）</b> / -9万枚まで広げると11/12を捕捉<br>
+        ・-9万枚未満でのだましは5年で1回のみ → ショートが浅ければGCを素直に読んでよい
+      </div>
+      <div class="deck">→ <a href="vix.html">VIX温度計</a>（だまし2段階判定を実装済み）</div>
+    </div>
+
+  </div>
+
+  <h2>バリュエーションと金利</h2>
+  <div class="cards">
+
+    <div class="card testing">
+      <h3>⑤ ねじれ（PER割安×PBR過熱）+ EPS増 = 押し目買い<span class="badge testing">🔬 検証中</span></h3>
+      <div class="body">日経のPERが薄青（割安）でPBRが薄赤（過熱）の「ねじれ」は、利益成長に株価が追いついていない状態。EPSが増加基調なら押し目買いのサイン。ただし空売り・売り残の「踏み上げ燃料」の有無で反発の質が変わる（需給条件）。</div>
+      <div class="evidence">
+        <b>実績: 2026年に7回出現（5/18-20, 6/8, 6/10-11, 7/17）</b><br>
+        ・検証可能な6回は5〜10営業日後に+7%以上で反発（ただしいずれも空売り比率40前後=燃料あり）<br>
+        ・7/17は空売り34.5・売り残79.5万で<b>燃料なしの初ケース</b> → 反発の質を検証中
+      </div>
+      <div class="log">
+        <span class="d">2026-07-17</span> 7回目のねじれ検知。燃料なし → 自律反発を過信しない方針。<br>
+        <span class="d">2026-07-22</span> 前月最安値サポートで反発（+2,000円）。ただし燃料なしのため上値の伸びは未確認。FOMC・決算通過後に判定。
+      </div>
+      <div class="deck">→ <a href="riron.html">日経理論株価</a> + <a href="karauri.html">空売り比率</a> + <a href="shinyou.html">信用評価率</a></div>
+    </div>
+
+    <div class="card adopted">
+      <h3>⑥ PER×PBR両方が歴史的割安 = 数年に一度の大底<span class="badge adopted">✅ 採用</span></h3>
+      <div class="body">日経のPERとPBRが両方「濃青」（PER&lt;13かつPBR&lt;1.2）＝2つの物差しが揃って歴史的割安。</div>
+      <div class="evidence">
+        <b>検証: 2009年〜2026年（17年・4,191営業日）の全数調査</b><br>
+        ・該当したのは<b>2012年6月（アベノミクス前夜）と2025年4月（関税ショック底）の2回のみ</b><br>
+        ・いずれもその後の大相場の起点 → 出現したら全力で注目する数年に一度のシグナル
+      </div>
+      <div class="deck">→ <a href="riron.html">日経理論株価</a></div>
+    </div>
+
+    <div class="card testing">
+      <h3>⑦ CPI 5%超え = 利下げ不能 → 株価はピークをとる<span class="badge testing">🔬 検証中</span></h3>
+      <div class="body">CPIが5%を超えるとFRBは金利を下げられなくなり（むしろ上げるしかなく）、金利の下支えが消えて株価は天井をつけやすい。</div>
+      <div class="evidence">
+        <b>実例: 2021-2022年の1サイクル</b><br>
+        ・2021年6月にCPI 5%超え → 2022年1月3日にS&amp;P500ピーク → 3月から利上げ開始 → 6月までに-24%<br>
+        ・サンプル1回のため「検証中」。次のCPI 5%接近時（現在3.5%、直近ピーク4.2%）が再検証の機会
+      </div>
+      <div class="log"><span class="d">2026-07-14</span> 6月CPI 3.5%に鈍化（5月4.2%）。5%ラインまで+1.5%の距離で警戒圏の外へ。</div>
+      <div class="deck">→ <a href="cpi.html">米インフレと雇用</a>（5%赤帯と現在地を常時表示）</div>
+    </div>
+
+  </div>
+
+  <h2>需給（未検証の経験則）</h2>
+  <div class="cards">
+
+    <div class="card pending">
+      <h3>⑧ 売り残80万超 = 買い戻し期待<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">信用売り残が80万を超えると、将来の買い戻し（踏み上げ燃料）が積み上がっている状態で下値が堅い。shinyouデッキの緑ハイライトの根拠。前月最安値検証では「売り残&lt;80万で割れ率62% vs 52%」と方向は一致するが単独では弱い。</div>
+      <div class="deck">→ <a href="shinyou.html">信用評価率</a></div>
+    </div>
+
+    <div class="card pending">
+      <h3>⑨ 空売り比率44超 = 踏み上げ間近<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">空売り比率が44を超える（濃赤）と売り方が極端に膨らんでおり、踏み上げによる反発が近い。40超（薄赤）で燃料あり。karauriデッキの色分けの根拠。過去のねじれ反発6回はいずれも40前後だった（仮説⑤の需給条件と関連）。</div>
+      <div class="deck">→ <a href="karauri.html">空売り比率</a></div>
+    </div>
+
+    <div class="card pending">
+      <h3>⑩ 騰落レシオ50接近 = 自律反発期待大<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">25日騰落レシオが50に接近するのは歴史的な売られすぎで、自律反発の期待が大きい。70以下で売られすぎ、120以上で過熱。</div>
+      <div class="deck">→ <a href="touraku.html">騰落レシオ</a></div>
+    </div>
+
+    <div class="card pending">
+      <h3>⑪ 1570制度信用倍率: 1未満=踏み上げ / 高倍率=追証連鎖<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">日経レバETFの制度信用倍率が1未満（売り方過多）だと踏み上げが起こりやすく、大きく膨らむと急落時に追証連鎖のきっかけになる。5月末の0.55→7月の2.47のような振れの意味を検証したい。</div>
+      <div class="deck">→ <a href="shinyou.html">信用評価率</a>（1570カラム） / <a href="margin.html">銘柄別信用倍率</a></div>
+    </div>
+
+  </div>
+
+  <h2>アノマリー</h2>
+  <div class="cards">
+
+    <div class="card pending">
+      <h3>⑫ 中間選挙年は秋に底、年末から上昇<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">米中間選挙の年は不透明感から秋に底を打ち、選挙通過後〜翌年前半に強い、という有名なアノマリー。2026年11月3日の中間選挙が検証機会。</div>
+      <div class="deck">→ <a href="calendar.html">イベント予定</a>（11/3登録済み）</div>
+    </div>
+
+    <div class="card pending">
+      <h3>⑬ 水星逆行は相場が荒れる<span class="badge pending">📋 未検証</span></h3>
+      <div class="body">水星逆行の期間（年3〜4回、各3週間）は相場の乱れ・急変が多いとされるアノマリー。直近: 6/29〜7/23（7/17の急落はこの期間内ではあった）。次回10/24〜11/13は中間選挙と重なる。</div>
+      <div class="deck">→ <a href="calendar.html">イベント予定</a>（開始・終了を表示）</div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    ・このページは自動更新なし。検証を行うたびに手動で追記する実験ノート。<br>
+    ・「採用」でも将来のデータで覆る可能性は常にある。検証条件（期間・回数・判定基準）を明記しているのは再現・反証を可能にするため。<br>
+    ・検証はすべて終値ベース・自前計算（yfinance等の公開データ）。
+  </p>
+  <p class="updated">最終更新: 2026-07-22</p>
+</body>
+</html>
