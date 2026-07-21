@@ -287,8 +287,9 @@ HTML_HEAD = """<!DOCTYPE html>
     <span style="background:rgba(14,116,144,0.3); padding:1px 6px">薄青</span> = 割安（PER&lt;17.5 / PBR&lt;1.3）、
     <span style="background:rgba(190,60,60,0.28); padding:1px 6px">薄赤</span> = 過熱気味（PER&gt;19 / PBR&gt;1.8）、
     <span style="background:rgba(220,38,38,0.6); padding:1px 6px">濃赤</span> = 歴史的過熱（PER&gt;20 / PBR&gt;1.9）。<br>
-    ・日経平均列の<span style="background:rgba(56,189,248,0.22); padding:1px 6px; color:#bae6fd">薄水色</span> = その月の最安値。
-    前月最安値はサポートライン（支持線）になりやすく、割れると調整が深くなりやすい要注意ライン。<br>
+    ・日経平均列の<span style="background:rgba(56,189,248,0.22); padding:1px 6px; color:#bae6fd">薄水色</span> = その月の最安値（前月最安値=攻防の分岐点）。<br>
+    ・<b>2001年7月からの実績（接近148回）</b>: 前月最安値に接近（+1.5%以内）した場合、サポート成功（割れず+2%以上反発）<b>33%</b>、10日以内に割れたのは<b>64%</b>（もみ合い3%）。<br>
+    ・<b>割れた後に「さらに5%以上沈む」確率は通常時の約1.4倍</b>（通常29%→割れ後41%、割れ113回の実績）。参考: S&amp;P500は約1.5倍（18%→28%）。<br>
     <br>
     <b style="color:#94a3b8">【仮説メモ】</b><br>
     ・<b>仮説① 歴史的買い場</b>: PERとPBRが両方「濃青」＝2つの物差しが揃って割安。過去17年で2012年6月（アベノミクス前夜）と2025年4月（関税ショック底）のみ。数年に一度の大底シグナル。<br>
