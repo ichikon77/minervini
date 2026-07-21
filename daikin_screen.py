@@ -114,7 +114,8 @@ def fetch_today():
                 "rank": int(item["rank"]),
                 "code": str(item["stockCode"]),
                 "name": str(item["stockName"]),
-                "price": to_int(item.get("savePrice")),
+                # 株価は0.5円刻み等で小数が付くことがある（例: トヨタ 2,944.5）
+                "price": to_float(item.get("savePrice")),
                 "pct": to_float(tv.get("changePriceRate")),
                 "value": to_int(tv.get("tradingValue")),
             })
