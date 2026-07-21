@@ -573,7 +573,6 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
   <nav class="nav">
     <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
     <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
-    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
     <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
     <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
     <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
@@ -595,6 +594,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" class="active" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>
   <p class="subtitle">""" + date_str + """ | 東証プライム(TOPIX) | 配当利回り >= """ + str(DIVIDEND_YIELD_MIN) + """% かつ PBR が閾値以内 かつ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上</p>

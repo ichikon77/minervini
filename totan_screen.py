@@ -306,7 +306,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <nav class="nav">
     <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
     <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
-    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
     <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
     <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
     <a href="totan.html" class="active" style="border-color:#7c3aed">日銀利上げ確率</a>
@@ -328,6 +327,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>日銀会合ごとの利上げ織り込み比率</h1>
   <p class="subtitle">最終更新: {updated} | 出所: 東短リサーチ/東短ICAP（日銀会合OIS気配より） | 単位: %</p>
