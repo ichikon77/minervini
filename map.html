@@ -42,9 +42,6 @@
     <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
     <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
     <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
-    <a href="margin.html" style="border-color:#2563eb">銘柄別信用倍率</a>
-    <a href="insider.html" style="border-color:#2563eb">インサイダー売買</a>
-    <a href="buffett.html" style="border-color:#2563eb">バフェット</a>
     <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
     <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
     <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
@@ -52,15 +49,18 @@
     <a href="flow.html" style="border-color:#059669">資金フロー</a>
     <a href="daikin.html" style="border-color:#059669">売買代金</a>
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="margin.html" style="border-color:#db2777">銘柄別信用倍率</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="buffett.html" style="border-color:#db2777">バフェット</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
-  <h1>デッキの見方 — 23ページのつながり</h1>
-  <p class="subtitle">イベント → マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄選び。ボックスをクリックで各ページへ。</p>
+  <h1>デッキの見方 — 24ページのつながり</h1>
+  <p class="subtitle">イベント → マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄検討。ボックスをクリックで各ページへ。</p>
 
   <div class="diagram-wrap">
-  <svg width="1080" height="1500" viewBox="0 0 1080 1500" xmlns="http://www.w3.org/2000/svg">
+  <svg width="1080" height="1440" viewBox="0 0 1080 1440" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
@@ -80,10 +80,10 @@
 
     <!-- レイヤー見出し -->
     <text x="20" y="122" fill="#a78bfa" font-size="13" font-weight="bold">① マクロ・バリュエーション — 相場の「物差し」と金利の因果</text>
-    <text x="20" y="470" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路と、個別の需給（日本の信用・米国の大物）</text>
-    <text x="20" y="818" fill="#fbbf24" font-size="13" font-weight="bold">③ 市場の温度計 — 過熱と売られすぎ（答え合わせ付き）</text>
-    <text x="20" y="1148" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
-    <text x="20" y="1334" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄選び</text>
+    <text x="20" y="470" fill="#60a5fa" font-size="13" font-weight="bold">② 需給 — 海外マネーの経路（現物・先物・裁定）</text>
+    <text x="20" y="658" fill="#fbbf24" font-size="13" font-weight="bold">③ 市場の温度計 — 過熱と売られすぎ（答え合わせ付き）</text>
+    <text x="20" y="988" fill="#4ade80" font-size="13" font-weight="bold">④ 資金の行き先</text>
+    <text x="20" y="1174" fill="#f472b6" font-size="13" font-weight="bold">⑤ 銘柄検討 — スクリーナー × 個別の需給・大物の売買</text>
 
     <!-- ① マクロ 1段目: 米国→日本の順（米国があっての日本株） -->
     <a href="cpi.html">
@@ -168,105 +168,103 @@
     <text x="714" y="506" text-anchor="middle" fill="#93c5fd" font-size="10">解消=売り</text>
     <text x="714" y="544" text-anchor="middle" fill="#93c5fd" font-size="10">(証券自己)</text>
 
-    <!-- ② 需給 2段目: 個別の需給（米国=左の縦積み / 日本=右） -->
-    <text x="190" y="612" text-anchor="middle" fill="#93c5fd" font-size="10">米国の「個別」需給 — 大物の売買</text>
-    <text x="890" y="612" text-anchor="middle" fill="#93c5fd" font-size="10">日本の「個別」需給 — 信用の偏り</text>
-    <a href="insider.html">
-      <rect x="40" y="620" width="300" height="76" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
-      <text x="190" y="644" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">インサイダー売買 🇺🇸</text>
-      <text x="190" y="663" text-anchor="middle" fill="#94a3b8" font-size="11">Mag7+SPCX首脳のSEC Form 4を毎日追跡</text>
-      <text x="190" y="681" text-anchor="middle" fill="#94a3b8" font-size="11">売りは10b5-1が多い / 自腹の買いは重要</text>
-    </a>
-    <a href="buffett.html">
-      <rect x="40" y="712" width="300" height="76" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
-      <text x="190" y="736" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">バフェット新規買い 🇺🇸</text>
-      <text x="190" y="755" text-anchor="middle" fill="#94a3b8" font-size="11">13Fの差分から新規買い/売却を検出</text>
-      <text x="190" y="773" text-anchor="middle" fill="#94a3b8" font-size="11">勝率67%・平均5.1四半期・保有中の含み損益</text>
-    </a>
-    <a href="margin.html">
-      <rect x="740" y="620" width="300" height="76" rx="10" fill="#1e293b" stroke="#2563eb" stroke-width="1.5"/>
-      <text x="890" y="644" text-anchor="middle" fill="#bfdbfe" font-size="14" font-weight="bold">銘柄別信用倍率（検索）🇯🇵</text>
-      <text x="890" y="663" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用買残÷売残を全3,800銘柄で蓄積</text>
-      <text x="890" y="681" text-anchor="middle" fill="#94a3b8" font-size="11">&lt;1 踏み上げ期待 / 高倍率 = 追証連鎖注意</text>
-    </a>
-
-    <line x1="540" y1="582" x2="540" y2="800" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="700" fill="#94a3b8" font-size="11">需給の偏りは「温度」として現れる</text>
+    <line x1="540" y1="582" x2="540" y2="668" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="552" y="630" fill="#94a3b8" font-size="11">需給の偏りは「温度」として現れる</text>
 
     <!-- ③ 温度計 1段目 -->
     <a href="shinyou.html">
-      <rect x="40" y="834" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
-      <text x="190" y="860" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">信用評価率</text>
-      <text x="190" y="880" text-anchor="middle" fill="#94a3b8" font-size="11">個人の含み損益 = 相場の体温</text>
-      <text x="190" y="898" text-anchor="middle" fill="#94a3b8" font-size="11">&gt;-2 天井圏:調整警戒 / &lt;-15 底値圏</text>
-      <text x="190" y="916" text-anchor="middle" fill="#94a3b8" font-size="11">1570制度信用倍率カラムも（&lt;1で踏み上げ）</text>
+      <rect x="40" y="674" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="190" y="700" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">信用評価率</text>
+      <text x="190" y="720" text-anchor="middle" fill="#94a3b8" font-size="11">個人の含み損益 = 相場の体温</text>
+      <text x="190" y="738" text-anchor="middle" fill="#94a3b8" font-size="11">&gt;-2 天井圏:調整警戒 / &lt;-15 底値圏</text>
+      <text x="190" y="756" text-anchor="middle" fill="#94a3b8" font-size="11">1570制度信用倍率カラムも（&lt;1で踏み上げ）</text>
     </a>
     <a href="touraku.html">
-      <rect x="390" y="834" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
-      <text x="540" y="860" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">騰落レシオ</text>
-      <text x="540" y="880" text-anchor="middle" fill="#94a3b8" font-size="11">値上がり/値下がり銘柄数（25/15/10/6日）</text>
-      <text x="540" y="898" text-anchor="middle" fill="#94a3b8" font-size="11">120以上 過熱（朱） / 70以下 売られすぎ（青）</text>
-      <text x="540" y="916" text-anchor="middle" fill="#94a3b8" font-size="11">50接近 = 自律反発期待大</text>
+      <rect x="390" y="674" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="540" y="700" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">騰落レシオ</text>
+      <text x="540" y="720" text-anchor="middle" fill="#94a3b8" font-size="11">値上がり/値下がり銘柄数（25/15/10/6日）</text>
+      <text x="540" y="738" text-anchor="middle" fill="#94a3b8" font-size="11">120以上 過熱（朱） / 70以下 売られすぎ（青）</text>
+      <text x="540" y="756" text-anchor="middle" fill="#94a3b8" font-size="11">50接近 = 自律反発期待大</text>
     </a>
     <a href="karauri.html">
-      <rect x="740" y="834" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
-      <text x="890" y="860" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">空売り比率</text>
-      <text x="890" y="880" text-anchor="middle" fill="#94a3b8" font-size="11">売り方の勢い。40以上（薄赤）で</text>
-      <text x="890" y="898" text-anchor="middle" fill="#94a3b8" font-size="11">踏み上げ燃料あり、44以上（濃赤）は極端</text>
-      <text x="890" y="916" text-anchor="middle" fill="#94a3b8" font-size="11">35未満の下落 = 実需売り主体を疑う</text>
+      <rect x="740" y="674" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="890" y="700" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">空売り比率</text>
+      <text x="890" y="720" text-anchor="middle" fill="#94a3b8" font-size="11">売り方の勢い。40以上（薄赤）で</text>
+      <text x="890" y="738" text-anchor="middle" fill="#94a3b8" font-size="11">踏み上げ燃料あり、44以上（濃赤）は極端</text>
+      <text x="890" y="756" text-anchor="middle" fill="#94a3b8" font-size="11">35未満の下落 = 実需売り主体を疑う</text>
     </a>
 
     <!-- ③ 温度計 2段目: VIX温度計 -->
     <a href="vix.html">
-      <rect x="215" y="954" width="650" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
-      <text x="540" y="980" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">VIX温度計（米国発の恐怖の答え合わせ）</text>
-      <text x="540" y="1000" text-anchor="middle" fill="#94a3b8" font-size="11">VIX MACD(12-26-9, SMAシグナル) GC=下落期間 / DC=上昇期間の説を検証</text>
-      <text x="540" y="1018" text-anchor="middle" fill="#94a3b8" font-size="11">期間の終わり: GC→SPX StochRSI押し目完成(K≦30) / DC→天井完成(K≧80)。日経はDC後64%・GC後72%で説に従う</text>
-      <text x="540" y="1036" text-anchor="middle" fill="#94a3b8" font-size="11">CFTC投機筋ショート -15万枚超=踏み上げ警戒 / -9万枚超=要注意（GCのだまし検知）</text>
+      <rect x="215" y="794" width="650" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="540" y="820" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">VIX温度計（米国発の恐怖の答え合わせ）</text>
+      <text x="540" y="840" text-anchor="middle" fill="#94a3b8" font-size="11">VIX MACD(12-26-9, SMAシグナル) GC=下落期間 / DC=上昇期間の説を検証</text>
+      <text x="540" y="858" text-anchor="middle" fill="#94a3b8" font-size="11">期間の終わり: GC→SPX StochRSI押し目完成(K≦30) / DC→天井完成(K≧80)。日経はDC後64%・GC後72%で説に従う</text>
+      <text x="540" y="876" text-anchor="middle" fill="#94a3b8" font-size="11">CFTC投機筋ショート -15万枚超=踏み上げ警戒 / -9万枚超=要注意（GCのだまし検知）</text>
     </a>
-    <line x1="540" y1="930" x2="540" y2="952" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="946" fill="#94a3b8" font-size="10">日本の温度 + 米国の温度</text>
+    <line x1="540" y1="770" x2="540" y2="792" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="552" y="786" fill="#94a3b8" font-size="10">日本の温度 + 米国の温度</text>
 
-    <line x1="540" y1="1050" x2="540" y2="1124" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="1092" fill="#94a3b8" font-size="11">需給と温度が「どこに」現れているかを特定</text>
+    <line x1="540" y1="890" x2="540" y2="964" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="552" y="932" fill="#94a3b8" font-size="11">需給と温度が「どこに」現れているかを特定</text>
 
     <!-- ④ 資金の行き先 -->
     <a href="flow.html">
-      <rect x="215" y="1164" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
-      <text x="365" y="1190" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">資金フロー（世界）</text>
-      <text x="365" y="1210" text-anchor="middle" fill="#94a3b8" font-size="11">資産クラス×テーマETFの騰落ヒートマップ</text>
-      <text x="365" y="1228" text-anchor="middle" fill="#94a3b8" font-size="11">半導体/金/防衛/量子/インド… どこへ回る?</text>
+      <rect x="215" y="1004" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+      <text x="365" y="1030" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">資金フロー（世界）</text>
+      <text x="365" y="1050" text-anchor="middle" fill="#94a3b8" font-size="11">資産クラス×テーマETFの騰落ヒートマップ</text>
+      <text x="365" y="1068" text-anchor="middle" fill="#94a3b8" font-size="11">半導体/金/防衛/量子/インド… どこへ回る?</text>
     </a>
     <a href="daikin.html">
-      <rect x="565" y="1164" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
-      <text x="715" y="1190" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">売買代金 TOP200（日本）</text>
-      <text x="715" y="1210" text-anchor="middle" fill="#94a3b8" font-size="11">↑連続 = 資金流入の継続、NEW = 初動</text>
-      <text x="715" y="1228" text-anchor="middle" fill="#94a3b8" font-size="11">101〜200位から連騰銘柄を早期発見</text>
+      <rect x="565" y="1004" width="300" height="88" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+      <text x="715" y="1030" text-anchor="middle" fill="#a7f3d0" font-size="15" font-weight="bold">売買代金 TOP200（日本）</text>
+      <text x="715" y="1050" text-anchor="middle" fill="#94a3b8" font-size="11">↑連続 = 資金流入の継続、NEW = 初動</text>
+      <text x="715" y="1068" text-anchor="middle" fill="#94a3b8" font-size="11">101〜200位から連騰銘柄を早期発見</text>
     </a>
-    <line x1="515" y1="1208" x2="563" y2="1208" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="539" y="1198" text-anchor="middle" fill="#94a3b8" font-size="10">世界→日本</text>
+    <line x1="515" y1="1048" x2="563" y2="1048" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="539" y="1038" text-anchor="middle" fill="#94a3b8" font-size="10">世界→日本</text>
 
-    <line x1="540" y1="1252" x2="540" y2="1310" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="540" y1="1092" x2="540" y2="1150" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
 
-    <!-- ⑤ 銘柄選び（米国→日本の順） -->
+    <!-- ⑤ 銘柄検討 1段目: スクリーナー（米国→日本の順） -->
     <a href="minervini_report_v2.html">
-      <rect x="40" y="1350" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="190" y="1378" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">米国株 (Minervini)</text>
-      <text x="190" y="1398" text-anchor="middle" fill="#94a3b8" font-size="11">S&amp;P500 + NASDAQ100 / 押し目分析</text>
+      <rect x="40" y="1190" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="190" y="1218" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">米国株 (Minervini)</text>
+      <text x="190" y="1238" text-anchor="middle" fill="#94a3b8" font-size="11">S&amp;P500 + NASDAQ100 / 押し目分析</text>
     </a>
     <a href="jpminervini.html">
-      <rect x="390" y="1350" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="540" y="1378" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
-      <text x="540" y="1398" text-anchor="middle" fill="#94a3b8" font-size="11">トレンドテンプレート + RS + VCP</text>
-      <text x="540" y="1416" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
+      <rect x="390" y="1190" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="540" y="1218" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (Minervini)</text>
+      <text x="540" y="1238" text-anchor="middle" fill="#94a3b8" font-size="11">トレンドテンプレート + RS + VCP</text>
+      <text x="540" y="1256" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
     </a>
     <a href="haitou.html">
-      <rect x="740" y="1350" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
-      <text x="890" y="1378" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (配当)</text>
-      <text x="890" y="1398" text-anchor="middle" fill="#94a3b8" font-size="11">高配当 × 低PBR × 時価総額500億+</text>
-      <text x="890" y="1416" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
+      <rect x="740" y="1190" width="300" height="84" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="890" y="1218" text-anchor="middle" fill="#fbcfe8" font-size="15" font-weight="bold">日本株 (配当)</text>
+      <text x="890" y="1238" text-anchor="middle" fill="#94a3b8" font-size="11">高配当 × 低PBR × 時価総額500億+</text>
+      <text x="890" y="1256" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用倍率カラムで需給チェック</text>
     </a>
-    <text x="540" y="1480" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="bold">個別銘柄のテクニカル分析はTrading Viewで</text>
+
+    <!-- ⑤ 銘柄検討 2段目: 候補銘柄の裏取り（個別の需給・大物の売買） -->
+    <a href="insider.html">
+      <rect x="40" y="1290" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="190" y="1314" text-anchor="middle" fill="#fbcfe8" font-size="14" font-weight="bold">インサイダー売買 🇺🇸</text>
+      <text x="190" y="1333" text-anchor="middle" fill="#94a3b8" font-size="11">Mag7+SPCX首脳のSEC Form 4を毎日追跡</text>
+      <text x="190" y="1351" text-anchor="middle" fill="#94a3b8" font-size="11">売りは10b5-1が多い / 自腹の買いは重要</text>
+    </a>
+    <a href="margin.html">
+      <rect x="390" y="1290" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="540" y="1314" text-anchor="middle" fill="#fbcfe8" font-size="14" font-weight="bold">銘柄別信用倍率（検索）🇯🇵</text>
+      <text x="540" y="1333" text-anchor="middle" fill="#94a3b8" font-size="11">制度信用買残÷売残を全3,800銘柄で蓄積</text>
+      <text x="540" y="1351" text-anchor="middle" fill="#94a3b8" font-size="11">&lt;1 踏み上げ期待 / 高倍率 = 追証連鎖注意</text>
+    </a>
+    <a href="buffett.html">
+      <rect x="740" y="1290" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="890" y="1314" text-anchor="middle" fill="#fbcfe8" font-size="14" font-weight="bold">バフェット新規買い 🇺🇸</text>
+      <text x="890" y="1333" text-anchor="middle" fill="#94a3b8" font-size="11">13Fの差分から新規買い/売却を検出</text>
+      <text x="890" y="1351" text-anchor="middle" fill="#94a3b8" font-size="11">勝率67%・平均5.1四半期・保有中の含み損益</text>
+    </a>
+    <text x="540" y="1410" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="bold">個別銘柄のテクニカル分析はTrading Viewで</text>
   </svg>
   </div>
 
