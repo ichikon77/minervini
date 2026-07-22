@@ -68,6 +68,37 @@ THEMES = [
     ("PEJ",      "エンタメ・レジャー",   "テーマ"),
     ("ESPO",     "ゲーム・eスポーツ",   "テーマ"),
     ("XRT",      "小売",              "テーマ"),
+    ("SLX",      "鉄鋼",              "テーマ"),
+    ("XLP",      "生活必需品(食品)",    "テーマ"),
+    ("CARZ",     "自動車",            "テーマ"),
+    ("XLB",      "素材・化学",         "テーマ"),
+    ("XLI",      "資本財(機械)",       "テーマ"),
+    # テーマ（日本）: TOPIX-17業種ETF + 特別枠（半導体）
+    ("2644.T",   "半導体（日本）",      "テーマ（日本）"),
+    ("1617.T",   "食品",             "テーマ（日本）"),
+    ("1618.T",   "エネルギー資源",     "テーマ（日本）"),
+    ("1619.T",   "建設・資材",         "テーマ（日本）"),
+    ("1620.T",   "素材・化学",         "テーマ（日本）"),
+    ("1621.T",   "医薬品",            "テーマ（日本）"),
+    ("1622.T",   "自動車・輸送機",     "テーマ（日本）"),
+    ("1623.T",   "鉄鋼・非鉄",         "テーマ（日本）"),
+    ("1624.T",   "機械",             "テーマ（日本）"),
+    ("1625.T",   "電機・精密",         "テーマ（日本）"),
+    ("1626.T",   "情報通信・サービス",  "テーマ（日本）"),
+    ("1627.T",   "電力・ガス",         "テーマ（日本）"),
+    ("1628.T",   "運輸・物流",         "テーマ（日本）"),
+    ("1629.T",   "商社・卸売",         "テーマ（日本）"),
+    ("1630.T",   "小売（日本）",       "テーマ（日本）"),
+    ("1631.T",   "銀行",             "テーマ（日本）"),
+    ("1632.T",   "金融（除く銀行）",    "テーマ（日本）"),
+    ("1633.T",   "不動産（日本）",     "テーマ（日本）"),
+]
+
+# 日本の特別枠バスケット（専用ETFがないテーマは個別株の等ウェイト平均で自前計算）
+# (表示名, [構成銘柄], 表示ticker)
+JP_BASKETS = [
+    ("造船", ["7014.T", "7003.T", "6016.T"], "7014+7003+6016"),          # 名村造船・三井E&S・ジャパンエンジン
+    ("重工・防衛", ["7011.T", "7012.T", "7013.T"], "7011+7012+7013"),     # 三菱重工・川重・IHI
 ]
 
 PERIODS = [("3営業日", 3), ("5営業日", 5), ("10営業日", 10), ("15営業日", 15),
@@ -81,8 +112,23 @@ def log(msg):
 # -----------------------------------------
 # リターン計算
 # -----------------------------------------
+def _calc_returns(close):
+    """終値Seriesから各期間の騰落率dictを返す（データ不足はNone）"""
+    out = {}
+    for label, n in PERIODS:
+        if len(close) > n:
+            out[label] = round((close.iloc[-1] / close.iloc[-1 - n] - 1) * 100, 2)
+        else:
+            out[label] = None
+    year = close.index[-1].year
+    ytd_base = close[close.index.year < year]
+    out["年初来"] = round((close.iloc[-1] / ytd_base.iloc[-1] - 1) * 100, 2) if len(ytd_base) else None
+    return out
+
+
 def fetch_returns():
-    tickers = [t for t, _, _ in THEMES]
+    basket_tickers = [t for _, members, _ in JP_BASKETS for t in members]
+    tickers = [t for t, _, _ in THEMES] + basket_tickers
     data = yf.download(tickers, period="2y", auto_adjust=True,
                        progress=False, group_by="ticker", threads=True)
 
@@ -100,18 +146,31 @@ def fetch_returns():
         rec = {"ticker": t, "name": name, "group": group,
                "last_date": close.index[-1].strftime("%Y-%m-%d"),
                "price": float(close.iloc[-1])}
-        for label, n in PERIODS:
-            if len(close) > n:
-                rec[label] = round((close.iloc[-1] / close.iloc[-1 - n] - 1) * 100, 2)
-            else:
-                rec[label] = None
-        # 年初来
-        year = close.index[-1].year
-        ytd_base = close[close.index.year < year]
-        if len(ytd_base):
-            rec["年初来"] = round((close.iloc[-1] / ytd_base.iloc[-1] - 1) * 100, 2)
-        else:
-            rec["年初来"] = None
+        rec.update(_calc_returns(close))
+        rows.append(rec)
+
+    # 特別枠バスケット: 構成銘柄の騰落率の等ウェイト平均
+    for name, members, disp in JP_BASKETS:
+        member_rets = []
+        last_date = None
+        for t in members:
+            try:
+                close = data[t]["Close"].dropna()
+            except Exception:
+                log(f"  {name}構成 {t}: データなし、スキップ")
+                continue
+            if len(close) < 70:
+                continue
+            member_rets.append(_calc_returns(close))
+            last_date = close.index[-1].strftime("%Y-%m-%d")
+        if not member_rets:
+            log(f"  {name}: 構成銘柄が全滅、スキップ")
+            continue
+        rec = {"ticker": disp, "name": name, "group": "テーマ（日本）",
+               "last_date": last_date, "price": None}
+        for c in [label for label, _ in PERIODS] + ["年初来"]:
+            vals = [m[c] for m in member_rets if m[c] is not None]
+            rec[c] = round(sum(vals) / len(vals), 2) if vals else None
         rows.append(rec)
     return rows
 
@@ -195,7 +254,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・世界のマネーがどの資産・テーマに向かっているかを騰落率で観察する。緑=資金流入（上昇）、赤=資金流出（下落）。<br>
     ・5/10/15営業日の並びで「加速中か失速中か」が分かる（右肩上がりの緑=ローテーション初動、5営業日だけ赤=直近で変調）。<br>
-    ・1ヶ月=21営業日、3ヶ月=63営業日。年初来は前年末終値比。ETFは米国上場のため為替の影響を含む。
+    ・1ヶ月=21営業日、3ヶ月=63営業日。年初来は前年末終値比。米国テーマETFは米国上場のため為替の影響を含む。<br>
+    ・テーマ（日本）はTOPIX-17業種ETF（1617〜1633）+ 半導体（2644 グローバルX半導体）。
+    造船（名村造船・三井E&S・ジャパンエンジン）と重工・防衛（三菱重工・川重・IHI）は専用ETFがないため個別株の等ウェイト平均で自前計算。<br>
+    ・米国→日本の対応の目安: 半導体↔半導体、テック/ソフトウェア↔情報通信・サービス、防衛↔重工・防衛、エネルギー(石油)↔エネルギー資源、
+    金融↔銀行/金融、ヘルスケア↔医薬品、公益↔電力・ガス、鉄道・運輸↔運輸・物流、小売↔小売・商社、
+    鉄鋼↔鉄鋼・非鉄、生活必需品(食品)↔食品、自動車↔自動車・輸送機、素材・化学↔素材・化学、資本財(機械)↔機械。同じテーマが両国で緑なら世界的な資金流入。
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
@@ -218,7 +282,9 @@ def cell(v):
 def generate_html(rows):
     theme_order = [t for t, _, _ in THEMES]  # 定義順
     sections = []
-    for group in ["資産クラス", "テーマ"]:
+    for group, title in [("資産クラス", "資産クラス"),
+                         ("テーマ", "テーマ（米国）"),
+                         ("テーマ（日本）", "テーマ（日本）")]:
         grp = [r for r in rows if r["group"] == group]
         if group == "資産クラス":
             # 定義順で固定（株式: 米国→日本→アジア → 債券 → 金 → BTC → 通貨 → REIT）
@@ -232,7 +298,7 @@ def generate_html(rows):
             body.append(f'      <tr><td>{r["name"]}</td><td class="tk">{r["ticker"]}</td>{tds}</tr>')
         header = "".join(f"<th>{c}</th>" for c in COLS)
         sections.append(
-            f'  <h2>{group}</h2>\n  <div class="table-wrap">\n  <table>\n'
+            f'  <h2>{title}</h2>\n  <div class="table-wrap">\n  <table>\n'
             f'    <thead><tr><th>テーマ</th><th style="text-align:left">ticker</th>{header}</tr></thead>\n'
             f'    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>')
 
@@ -291,7 +357,7 @@ def main():
         log(f"エラー: データの取得に失敗しました: {e}")
         sys.exit(1)
 
-    if len(rows) < 10:
+    if len(rows) < 25:
         log(f"エラー: 取得テーマが少なすぎます（{len(rows)}件）")
         sys.exit(1)
 
