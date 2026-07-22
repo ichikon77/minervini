@@ -125,7 +125,9 @@ def fetch_weekly_data():
     JSON行の構造: [タイムスタンプms, 日経平均, 出来高?,
                    売り残枚数, 売り残金額, 買い残枚数, 買い残金額,
                    信用評価率, 信用倍率, ...投資部門別データ...]
-    信用データがない行（空文字）はスキップ
+    信用データがない行（空文字）はスキップ。
+    残高系（売り残・買い残）が揃っていれば、信用評価率・信用倍率が未公表(None)でも
+    行として採用する（評価率は公表が1〜2日遅れることがあるため。後続実行で補完）。
     """
     s = fetch_with_retry(DATA_URL)
     start = s.find('[')
@@ -133,6 +135,12 @@ def fetch_weekly_data():
     if start < 0 or end < 0:
         raise ValueError("データJSONの形式が想定と異なります")
     raw = json.loads(s[start:end + 1].replace('""', 'null'))
+
+    def opt_float(v):
+        """未公表(None/空)はNoneのまま返す"""
+        if v is None or v == "":
+            return None
+        return float(v)
 
     out = []
     for row in raw:
@@ -145,8 +153,8 @@ def fetch_weekly_data():
                 "売り残金額": float(row[4]),
                 "買い残枚数": float(row[5]),
                 "買い残金額": float(row[6]),
-                "信用評価率": float(row[7]),
-                "信用倍率": float(row[8]),
+                "信用評価率": opt_float(row[7]),
+                "信用倍率": opt_float(row[8]),
                 "売り残変化": None,  # 後で前週比から計算
                 "買い残変化": None,
             }
@@ -515,10 +523,21 @@ def main():
     added = 0
     for d, rec in weekly:
         if d in hist:
+            # 未公表(None)だった評価率・倍率が後から公表されたら補完する
+            filled = []
+            for k in ("信用評価率", "信用倍率"):
+                if hist[d].get(k) is None and rec.get(k) is not None:
+                    hist[d][k] = rec[k]
+                    filled.append(k)
+            if filled:
+                added += 1
+                log(f"補完: {d}  {'/'.join(filled)} が公表されたため更新")
             continue
         hist[d] = rec
         added += 1
-        log(f"追記: {d}  評価率={rec['信用評価率']:+.2f}% 売り残={rec['売り残金額']:,.0f} 買い残={rec['買い残金額']:,.0f}")
+        rate = rec["信用評価率"]
+        rate_s = f"{rate:+.2f}%" if rate is not None else "未公表"
+        log(f"追記: {d}  評価率={rate_s} 売り残={rec['売り残金額']:,.0f} 買い残={rec['買い残金額']:,.0f}")
 
     lev_added = fetch_lev_ratios(hist)
 
