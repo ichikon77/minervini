@@ -33,6 +33,11 @@ REPORT_HTML = "riron.html"
 PBR_LEVELS = [0.87, 0.82]
 PER_LEVELS = [10.5 + 0.5 * i for i in range(22)]  # 10.5〜21.0
 
+# 2624(iFreeETF日経225・年1回決算) 買い下がりラダー: (PERライン, 株数)
+# 仮説⑭: 暴落の底 = 直前1年高値PERの67〜75% → 本命PER15.5前後
+LADDER_ETF = "2624.T"
+LADDER_PLAN = [(17.5, 2), (17.0, 4), (16.5, 12), (16.0, 24), (15.5, 48), (15.0, 96)]
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
@@ -131,6 +136,71 @@ def fetch_daily():
         except (TypeError, ValueError):
             continue
     return out
+
+
+def fetch_ladder_price():
+    """2624の直近終値をyfinanceで取得（失敗したらNone: ラダー表はスキップ）"""
+    try:
+        import yfinance as yf
+        h = yf.Ticker(LADDER_ETF).history(period="5d")["Close"]
+        if len(h):
+            return round(float(h.iloc[-1]), 1)
+    except Exception as e:
+        log(f"  2624価格の取得失敗（ラダー表はスキップ）: {e}")
+    return None
+
+
+def build_ladder_html(nikkei, eps, etf_price):
+    """2624買い下がりラダー表のHTMLを生成（毎日EPS/現値から再計算）"""
+    if etf_price is None:
+        return ""
+    rows = []
+    sh_cum = 0
+    cost_cum = 0.0
+    for per, sh in LADDER_PLAN:
+        target_n = eps * per
+        drop = target_n / nikkei - 1
+        etf = etf_price * (1 + drop)
+        cost = etf * sh
+        sh_cum += sh
+        cost_cum += cost
+        avg = cost_cum / sh_cum
+        dev = (avg / etf - 1) * 100
+        reached = target_n >= nikkei  # 既に到達済みのライン
+        row_cls = ' style="background:rgba(56,189,248,0.12)"' if reached else ""
+        rows.append(
+            f'      <tr{row_cls}><td>PER {per:g}</td>'
+            f'<td>{target_n:,.0f}</td>'
+            f'<td>{drop * 100:+.1f}%</td>'
+            f'<td><b>{etf:,.0f}</b></td>'
+            f'<td>{sh}</td>'
+            f'<td>{cost:,.0f}</td>'
+            f'<td>{sh_cum}</td>'
+            f'<td>{cost_cum:,.0f}</td>'
+            f'<td>{avg:,.0f}</td>'
+            f'<td>{dev:+.1f}%</td></tr>')
+    return f"""
+  <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">【実験】2624 買い下がりラダー（毎日自動再計算）</h2>
+  <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">
+    仮説⑭（暴落の底=直前1年高値PERの67〜75%）に基づく買い下がり目安。本命PER15.5。
+    iFreeETF日経225(2624・現値{etf_price:,.0f}円)を1倍連動と仮定してEPS×PERから換算。指値の置き直しに使う。</p>
+  <div class="table-wrap" style="max-height:none; max-width:980px;">
+  <table>
+    <thead>
+      <tr><th>買い場</th><th>日経換算</th><th>現値比</th><th>2624目安</th><th>株数</th><th>投入金額</th>
+      <th>累計株数</th><th>累計金額</th><th>平均買値</th><th>乖離率</th></tr>
+    </thead>
+    <tbody>
+{chr(10).join(rows)}
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:0.78rem; color:#64748b; margin-top:8px; line-height:1.8;">
+    ・乖離率 = その階層まで買った時点の平均買値が当階層の株価より何%上か（≒その時点の含み損率）。<br>
+    ・日経換算 = EPS × 各PER（EPSは毎日更新されるため、ラインの円換算も毎日動く。指値は週1回程度置き直す）。<br>
+    ・2624目安は日経の下落率をそのまま適用した近似値。発注は成行でなく<b>指値</b>で（売買代金約3億円/日と薄いため）。<br>
+    ・景気後退でEPS自体が削られると全ラインが下方シフトする点に注意（仮説⑭の注意書き参照）。投資判断は自己責任で。
+  </p>"""
 
 
 def enrich(hist):
@@ -303,6 +373,7 @@ HTML_HEAD = """<!DOCTYPE html>
     ・ROE = PBR ÷ PER（暗黙ROE）。日経平均全体の「稼ぐ力」。2009年3%台→2010年代8%前後→2026年10%超と構造的に上昇。PBRの高さが正当化されるかはROE次第で、ROEが崩れる兆候が出たら高PBRは警戒。<br>
     ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 日経平均PER</a>
   </p>
+{ladder}
   <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
@@ -396,11 +467,16 @@ def generate_html(hist):
             cells.append(f'<td{attr}>{t:,}</td>')
         rows.append('      <tr>' + "".join(cells) + '</tr>')
 
+    # 2624買い下がりラダー表（最新日のEPS/日経現値から再計算）
+    latest = hist[dates[0]]
+    ladder = build_ladder_html(latest["日経平均"], latest["EPS"], fetch_ladder_price())
+
     html = HTML_HEAD.format(
         latest_date=dates[0].replace("-", "/") if dates else "-",
         per_headers=per_headers,
         rows="\n".join(rows),
         src_url=PAGE_URL,
+        ladder=ladder,
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
