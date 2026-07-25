@@ -38,6 +38,7 @@ PER_LEVELS = [10.5 + 0.5 * i for i in range(22)]  # 10.5〜21.0
 LADDER_ETF = "2624.T"
 LADDER_PLAN = [(17.5, 2), (17.0, 4), (16.5, 12), (16.0, 24), (15.5, 48), (15.0, 96),
                (14.5, 192), (14.0, 384)]  # 14.5以下はオーバーシュート域（2018/12型=高値の67.7%）
+LADDER_EXIT_PER = 20.0  # 出口: 各階層を独立ポジションとしてPER20戻りで売った場合の損益を表示
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -155,6 +156,10 @@ def build_ladder_html(nikkei, eps, etf_price):
     """2624買い下がりラダー表のHTMLを生成（毎日EPS/現値から再計算）"""
     if etf_price is None:
         return ""
+    # 出口価格: PER20戻り時の2624換算値（現値からの変化率を1倍で適用）
+    exit_n = eps * LADDER_EXIT_PER
+    exit_etf = etf_price * (exit_n / nikkei)
+
     rows = []
     sh_cum = 0
     cost_cum = 0.0
@@ -167,6 +172,8 @@ def build_ladder_html(nikkei, eps, etf_price):
         cost_cum += cost
         avg = cost_cum / sh_cum
         dev = (avg / etf - 1) * 100
+        profit = (exit_etf - etf) * sh          # この階層だけをPER20で売った損益
+        profit_pct = (exit_etf / etf - 1) * 100
         reached = target_n >= nikkei  # 既に到達済みのライン
         row_cls = ' style="background:rgba(56,189,248,0.12)"' if reached else ""
         rows.append(
@@ -179,7 +186,9 @@ def build_ladder_html(nikkei, eps, etf_price):
             f'<td>{sh_cum}</td>'
             f'<td>{cost_cum:,.0f}</td>'
             f'<td>{avg:,.0f}</td>'
-            f'<td>{dev:+.1f}%</td></tr>')
+            f'<td>{dev:+.1f}%</td>'
+            f'<td class="pos">+{profit:,.0f}</td>'
+            f'<td class="pos">+{profit_pct:.1f}%</td></tr>')
     return f"""
   <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">【実験】2624 買い下がりラダー（毎日自動再計算）</h2>
   <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">
@@ -189,7 +198,8 @@ def build_ladder_html(nikkei, eps, etf_price):
   <table>
     <thead>
       <tr><th>買い場</th><th>日経換算</th><th>現値比</th><th>2624目安</th><th>株数</th><th>投入金額</th>
-      <th>累計株数</th><th>累計金額</th><th>平均買値</th><th>乖離率</th></tr>
+      <th>累計株数</th><th>累計金額</th><th>平均買値</th><th>乖離率</th>
+      <th>PER20戻り収益額</th><th>収益率</th></tr>
     </thead>
     <tbody>
 {chr(10).join(rows)}
@@ -198,6 +208,9 @@ def build_ladder_html(nikkei, eps, etf_price):
   </div>
   <p style="font-size:0.78rem; color:#64748b; margin-top:8px; line-height:1.8;">
     ・乖離率 = その階層まで買った時点の平均買値が当階層の株価より何%上か（≒その時点の含み損率）。<br>
+    ・<b>PER20戻り収益</b> = <b>各階層を独立ポジションとして</b>、その階層の投入金額（累計ではない）に対し
+    PER20（日経{exit_n:,.0f}円 ≒ 2624約{exit_etf:,.0f}円）まで戻したときに売った場合の収益額・収益率。
+    下の階層ほど安く買えるぶん収益率が大きい。運用方針: 途中で買った階層は戻り局面で随時利確し、一番下の階層はPER20超まで持つ。<br>
     ・日経換算 = EPS × 各PER（EPSは毎日更新されるため、ラインの円換算も毎日動く。指値は週1回程度置き直す）。<br>
     ・2624目安は日経の下落率をそのまま適用した近似値。発注は成行でなく<b>指値</b>で（売買代金約3億円/日と薄いため）。<br>
     ・景気後退でEPS自体が削られると全ラインが下方シフトする点に注意（仮説⑭の注意書き参照）。投資判断は自己責任で。
