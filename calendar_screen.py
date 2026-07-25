@@ -48,6 +48,12 @@ EARNINGS = [
     # SPCX(SpaceX)は上場直後で決算日程未公表。判明したら追記
 ]
 
+# 韓国半導体決算（現地日付=日本と同時刻）。半導体市況の先行指標・急落の起点になりうる
+KR_EARNINGS = [
+    ("2026-07-28", "000660.KS", "SKハイニックス 決算"),
+    ("2026-07-29", "005930.KS", "サムスン電子 決算"),
+]
+
 # 米雇用統計（BLS公表スケジュール、現地8:30 = 日本21:30/22:30）
 EMPLOYMENT_DATES = [
     "2026-08-07", "2026-09-04", "2026-10-02", "2026-11-06", "2026-12-04",
@@ -180,6 +186,12 @@ def build_events(today):
             ev.append((d, "🇺🇸", name, f"{ticker}・引け後発表（日本時間 翌朝）",
                        link("flow.html", "資金フロー"), False))
 
+    for s, ticker, name in KR_EARNINGS:
+        d = datetime.date.fromisoformat(s)
+        if d >= today:
+            ev.append((d, "🇰🇷", name, f"{ticker}・日本の場中に発表。半導体市況の先行指標",
+                       link("flow.html", "資金フロー"), False))
+
     for s in EMPLOYMENT_DATES:
         d = datetime.date.fromisoformat(s)
         if d >= today:
@@ -221,6 +233,7 @@ def check_list_freshness(today):
     """手動リストの残りが少なければ警告"""
     for name, dates in [("FOMC_DATES", FOMC_DATES), ("BOJ_DATES", BOJ_DATES),
                         ("EARNINGS", [e[0] for e in EARNINGS]),
+                        ("KR_EARNINGS", [e[0] for e in KR_EARNINGS]),
                         ("EMPLOYMENT_DATES", EMPLOYMENT_DATES), ("CPI_DATES", CPI_DATES)]:
         future = [d for d in dates if datetime.date.fromisoformat(d) >= today]
         if not future:
