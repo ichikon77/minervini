@@ -198,6 +198,19 @@ CORR_TH = 0.3       # ±この値でレジーム判定
 CORR_MIN_DAYS = 3   # 新レジームがこの営業日数続いたら転換と確定（ノイズ除去）
 
 
+CORR_START = "2009-06-01"  # レジーム履歴の開始日（riron等と揃える）
+
+
+def fetch_corr_long():
+    """相関レジーム用の長期データ（2009年〜）。日経とドル円をmaxで取得"""
+    n = yf.Ticker("^N225").history(period="max")["Close"]
+    fx = yf.Ticker("JPY=X").history(period="max")["Close"]
+    n.index = n.index.tz_localize(None).normalize()
+    fx.index = fx.index.tz_localize(None).normalize()
+    df = pd.DataFrame({"NIKKEI": n, "USDJPY": fx}).dropna()
+    return df[df.index >= CORR_START]
+
+
 def corr_regime_data(df):
     """価格水準の20日ローリング相関からレジーム転換履歴を作る。
     （日次リターンでなく価格そのものの相関 = チャートに見える「トレンドの向きの一致」を測る。
@@ -254,7 +267,9 @@ def corr_regime_data(df):
 
 def build_corr_html(df):
     try:
-        cur_v, cur_regime, recent, periods = corr_regime_data(df)
+        long_df = fetch_corr_long()
+        log(f"  相関レジーム: {long_df.index[0].date()}〜{long_df.index[-1].date()} {len(long_df)}日分")
+        cur_v, cur_regime, recent, periods = corr_regime_data(long_df)
     except Exception as e:
         log(f"  相関レジーム生成をスキップ: {e}")
         return ""
@@ -265,9 +280,9 @@ def build_corr_html(df):
                  "中立": "background:rgba(100,116,139,0.3); color:#cbd5e1"}[l]
         return f'<span style="{color}; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">{l}</span>'
 
-    # 転換履歴（新しい順・最大12区間）
+    # 転換履歴（新しい順・2009年からの全区間、スクロール表示）
     hist_rows = []
-    for p in reversed(periods[-12:]):
+    for p in reversed(periods):
         end_s = "継続中" if p["ongoing"] else p["end"].strftime("%Y/%m/%d")
         row_style = ' style="background:rgba(30,64,175,0.15)"' if p["ongoing"] else ""
         hist_rows.append(
@@ -298,7 +313,7 @@ def build_corr_html(df):
     — <span style="color:#4ade80">正相関=円安→株高の教科書通り</span> /
     <span style="color:#f87171">逆相関=円安なのに株安（「日本売り」型か金利ショック型）or 円と無関係の相場</span></p>
   <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
-  <div class="table-wrap" style="max-width:700px;">
+  <div class="table-wrap" style="max-width:700px; max-height:520px; overflow-y:auto;">
   <table>
     <thead><tr><th style="text-align:left">開始</th><th style="text-align:left">終了</th><th style="text-align:left">レジーム</th>
     <th>期間</th><th>日経騰落</th><th>日経最大DD</th><th>ドル円騰落</th></tr></thead>
@@ -323,7 +338,7 @@ def build_corr_html(df):
     ・逆相関のまま日経が下げ続ける場合は
     <a href="riron.html" style="color:#60a5fa">日経理論株価</a>のPERライン（買い下がりラダー・前月最安値）で下値目処を確認 →
     <a href="vix.html" style="color:#60a5fa">VIX温度計</a>で接近の型（パニック型79% vs 静か52%）を判定。<br>
-    ・データはyfinance日次終値（直近2年分）。日経とドル円の観測時刻のズレによるノイズは15日窓で平滑化。
+    ・データはyfinance日次終値（2009年6月〜の全期間）。表はスクロールで過去まで遡れる。
   </p>"""
 
 
