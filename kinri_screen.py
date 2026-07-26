@@ -101,8 +101,8 @@ def fetch_jgb():
 
 
 def fetch_yf():
-    """yfinanceから US10Y/US02Y/ドル円/KBE/1615.T を取得"""
-    tickers = ["^TNX", "2YY=F", "USDJPY=X", "KBE", "1615.T"]
+    """yfinanceから US10Y/US02Y/ドル円/KBE/1615.T/日経平均 を取得"""
+    tickers = ["^TNX", "2YY=F", "USDJPY=X", "KBE", "1615.T", "^N225"]
     data = yf.download(tickers, period="2y", auto_adjust=True,
                        progress=False, group_by="ticker", threads=True)
     out = {}
@@ -128,6 +128,7 @@ def build_frame():
         "USDJPY": y["USDJPY=X"],
         "KBE": y["KBE"],
         "JPBANK": y["1615.T"],
+        "NIKKEI": y["^N225"],
     }).sort_index()
     df = df.ffill().dropna()
     df["US_CURVE"] = df["US10Y"] - df["US02Y"]      # 米イールドカーブ
@@ -187,6 +188,139 @@ def judge(drv_bps, ans_pct, drv_name, ans_name, legs=None, soften=False):
     if soften and short_led:
         return "j-mid", tip + detail + " → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能"
     return "j-ng", tip + detail + " → 逆行（要注意）"
+
+
+# -----------------------------------------
+# 日経×ドル円 相関レジーム（正相関/逆相関の転換履歴）
+# -----------------------------------------
+CORR_WINDOW = 15    # ローリング相関の窓（営業日）
+CORR_TH = 0.2       # ±この値でレジーム判定
+CORR_MIN_DAYS = 5   # 新レジームがこの営業日数続いたら転換と確定（ノイズ除去）
+
+
+def corr_regime_data(df):
+    """日次リターンの15日ローリング相関からレジーム転換履歴を作る。
+    戻り値: (現在の相関値, 現在レジーム, 直近推移リスト, 転換履歴リスト)"""
+    ret = df[["NIKKEI", "USDJPY"]].pct_change().dropna()
+    corr = ret["NIKKEI"].rolling(CORR_WINDOW).corr(ret["USDJPY"]).dropna()
+
+    def regime(v):
+        if v >= CORR_TH:
+            return "正相関"
+        if v <= -CORR_TH:
+            return "逆相関"
+        return "中立"
+
+    labels = corr.apply(regime)
+    # 転換の確定: 新しいレジームがCORR_MIN_DAYS営業日続いたら、その初日を転換日とする
+    confirmed = []  # (転換日, レジーム)
+    cur = None
+    cand = None
+    cand_start = None
+    cand_n = 0
+    for d, l in labels.items():
+        if l == cur:
+            cand, cand_n = None, 0
+            continue
+        if l == cand:
+            cand_n += 1
+        else:
+            cand, cand_start, cand_n = l, d, 1
+        if cand_n >= CORR_MIN_DAYS:
+            confirmed.append((cand_start, l))
+            cur = l
+            cand, cand_n = None, 0
+
+    # 各レジーム期間の日経・ドル円の騰落と日経最大DD
+    periods = []
+    for i, (s, l) in enumerate(confirmed):
+        e = confirmed[i + 1][0] if i + 1 < len(confirmed) else df.index[-1]
+        seg = df[(df.index >= s) & (df.index <= e)]
+        if len(seg) < 2:
+            continue
+        periods.append({
+            "start": s, "end": e, "label": l, "days": len(seg),
+            "nikkei": (seg["NIKKEI"].iloc[-1] / seg["NIKKEI"].iloc[0] - 1) * 100,
+            "dd": (seg["NIKKEI"].min() / seg["NIKKEI"].iloc[0] - 1) * 100,
+            "fx": (seg["USDJPY"].iloc[-1] / seg["USDJPY"].iloc[0] - 1) * 100,
+            "ongoing": i + 1 >= len(confirmed),
+        })
+
+    recent = [(d.date(), float(v), regime(v)) for d, v in corr.iloc[-10:].items()]
+    cur_regime = confirmed[-1][1] if confirmed else regime(float(corr.iloc[-1]))
+    return float(corr.iloc[-1]), cur_regime, recent, periods
+
+
+def build_corr_html(df):
+    try:
+        cur_v, cur_regime, recent, periods = corr_regime_data(df)
+    except Exception as e:
+        log(f"  相関レジーム生成をスキップ: {e}")
+        return ""
+
+    def badge(l):
+        color = {"正相関": "background:rgba(34,197,94,0.22); color:#86efac",
+                 "逆相関": "background:rgba(239,68,68,0.25); color:#fca5a5",
+                 "中立": "background:rgba(100,116,139,0.3); color:#cbd5e1"}[l]
+        return f'<span style="{color}; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">{l}</span>'
+
+    # 転換履歴（新しい順・最大12区間）
+    hist_rows = []
+    for p in reversed(periods[-12:]):
+        end_s = "継続中" if p["ongoing"] else p["end"].strftime("%Y/%m/%d")
+        row_style = ' style="background:rgba(30,64,175,0.15)"' if p["ongoing"] else ""
+        hist_rows.append(
+            f'      <tr{row_style}><td>{p["start"].strftime("%Y/%m/%d")}</td>'
+            f'<td>{end_s}</td>'
+            f'<td>{badge(p["label"])}</td>'
+            f'<td>{p["days"]}日</td>'
+            f'<td class="{"pos" if p["nikkei"] > 0 else "neg"}">{p["nikkei"]:+.1f}%</td>'
+            f'<td class="neg">{p["dd"]:+.1f}%</td>'
+            f'<td class="{"pos" if p["fx"] > 0 else "neg"}">{p["fx"]:+.1f}%</td></tr>')
+
+    # 直近10営業日の相関推移（ミニバー）
+    spark = []
+    for d, v, l in recent:
+        w = int(abs(v) * 40)
+        color = "#4ade80" if v >= CORR_TH else ("#f87171" if v <= -CORR_TH else "#64748b")
+        bar = f'<div style="display:inline-block; width:{max(w,2)}px; height:9px; background:{color}; border-radius:2px"></div>'
+        spark.append(f'<tr><td style="padding:2px 10px">{d.strftime("%m/%d")}</td>'
+                     f'<td style="padding:2px 10px; text-align:right">{v:+.2f}</td>'
+                     f'<td style="padding:2px 10px; text-align:left">{bar}</td></tr>')
+
+    return f"""
+  <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">日経平均 × ドル円の相関レジーム（転換の記録）</h2>
+  <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">
+    日次リターンの{CORR_WINDOW}日ローリング相関。±{CORR_TH}を{CORR_MIN_DAYS}営業日超えたら転換と確定。
+    現在: <b style="font-size:1rem">{cur_v:+.2f}</b> {badge(cur_regime)}
+    — <span style="color:#4ade80">正相関=円安→株高の教科書通り</span> /
+    <span style="color:#f87171">逆相関=円安なのに株安（「日本売り」型か金利ショック型）</span></p>
+  <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
+  <div class="table-wrap" style="max-width:700px;">
+  <table>
+    <thead><tr><th style="text-align:left">開始</th><th style="text-align:left">終了</th><th style="text-align:left">レジーム</th>
+    <th>期間</th><th>日経騰落</th><th>日経最大DD</th><th>ドル円騰落</th></tr></thead>
+    <tbody>
+{chr(10).join(hist_rows)}
+    </tbody>
+  </table>
+  </div>
+  <div>
+  <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">直近10営業日の相関推移</p>
+  <table style="font-size:0.78rem; border-collapse:collapse;">
+{chr(10).join(spark)}
+  </table>
+  </div>
+  </div>
+  <p style="font-size:0.78rem; color:#64748b; margin-top:10px; line-height:1.8; max-width:980px;">
+    ・<span style="color:#f87171">逆相関への転換</span>は「円安=株高」の前提が切れたサイン。
+    原因の見極め: 上の表でJP10Yが急上昇していれば<b>日本売り型</b>（円・株・債券のトリプル安、最も警戒）、
+    米金利主導ならバリュエーション圧迫型。<span style="color:#4ade80">pos</span>/<span style="color:#f87171">neg</span>色は騰落方向。<br>
+    ・逆相関のまま日経が下げ続ける場合は
+    <a href="riron.html" style="color:#60a5fa">日経理論株価</a>のPERライン（買い下がりラダー・前月最安値）で下値目処を確認 →
+    <a href="vix.html" style="color:#60a5fa">VIX温度計</a>で接近の型（パニック型79% vs 静か52%）を判定。<br>
+    ・データはyfinance日次終値（直近2年分）。日経とドル円の観測時刻のズレによるノイズは15日窓で平滑化。
+  </p>"""
 
 
 # -----------------------------------------
@@ -276,6 +410,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     border-top: 2px solid #334155;
   }}
   tr.ghead:hover td {{ filter: none; }}
+  .pos {{ color: #4ade80; }}
+  .neg {{ color: #f87171; }}
   td.j-ok {{ background: rgba(59,130,246,0.28); }}
   td.j-mid {{ background: rgba(251,191,36,0.22); }}
   td.j-ng {{ background: rgba(239,68,68,0.34); font-weight: 700; }}
@@ -346,6 +482,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<span style="color:#f87171">赤（逆行）が続く場合</span>は、金利以外の要因（介入観測・リスクオフ・信用不安・決算など）が支配しているサイン。<br>
     ・US02YはCBOT 2年利回り先物(2YY=F)の値。日本国債金利は財務省公表値（前営業日分）。閾値: 金利±{rate_th}bps未満・価格±{px_th}%未満は判定なし。
   </p>
+{corr}
   <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
@@ -444,6 +581,7 @@ def generate_html(df):
         period_headers=period_headers,
         rows="\n".join(rows_html),
         orikomi=ori_html,
+        corr=build_corr_html(df),
         rate_th=f"{RATE_TH_BPS:.0f}",
         px_th=f"{PX_TH_PCT:.1f}",
     )
