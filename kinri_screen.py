@@ -197,6 +197,15 @@ ZZ_TH_NIKKEI = 0.05   # 日経: 直近極値から5%逆行でトレンド転換�
 ZZ_TH_FX = 0.025      # ドル円: 2.5%逆行で転換（ボラが小さいため閾値も小さく）
 CORR_START = "2009-06-01"  # 履歴の開始日（riron等と揃える）
 
+# 円キャリー燃料計: CFTC投機筋の円先物ネットポジション（vixデッキと同じCOT API）
+YEN_CFTC_URL = ("https://publicreporting.cftc.gov/resource/6dca-aqww.json"
+                "?$where=starts_with(market_and_exchange_names,'JAPANESE%20YEN')"
+                "&$select=report_date_as_yyyy_mm_dd,noncomm_positions_long_all,noncomm_positions_short_all"
+                "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=550")
+YEN_SHORT_EXTREME = -150000  # ネットがこれ以下 = 燃料満タン（濃赤）
+YEN_SHORT_HEAVY = -100000    # これ以下 = 燃料多め（薄赤）
+YEN_UNWIND_PCT = 25          # 直近ピークショートから25%以上減 = 巻き戻し進行中サイン
+
 QUAD_STYLE = {
     "円安×株高": "background:rgba(34,197,94,0.22); color:#86efac",    # 教科書通り（緑）
     "円高×株安": "background:rgba(239,68,68,0.25); color:#fca5a5",    # リスクオフ連動・暴落型（赤）
@@ -312,6 +321,97 @@ def corr_regime_data(df):
     marked.sort(key=lambda x: x[0], reverse=True)
     cur_state = {"日経": n_trend, "ドル円": f_trend}
     return cur_state, (periods[-1][2] if periods else None), marked[:8], out
+
+
+def fetch_yen_cot():
+    """CFTC投機筋の円先物ネットポジション週次 [(date, net, long, short), ...] 新しい順"""
+    import urllib.request
+    req = urllib.request.Request(YEN_CFTC_URL, headers={"User-Agent": "Mozilla/5.0"})
+    data = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    rows = []
+    for d in data:
+        try:
+            lo = int(d["noncomm_positions_long_all"])
+            sh = int(d["noncomm_positions_short_all"])
+            rows.append((datetime.date.fromisoformat(d["report_date_as_yyyy_mm_dd"][:10]),
+                         lo - sh, lo, sh))
+        except (KeyError, ValueError):
+            continue
+    rows.sort(reverse=True)
+    return rows
+
+
+def build_yen_cot_html():
+    """円キャリー燃料計（CFTC円ネットポジション）のHTML"""
+    try:
+        rows = fetch_yen_cot()
+        if len(rows) < 20:
+            raise RuntimeError(f"データ不足（{len(rows)}週）")
+        log(f"  円COT: {len(rows)}週分（最新 {rows[0][0]} ネット {rows[0][1]:+,}枚）")
+    except Exception as e:
+        log(f"  円COT取得をスキップ: {e}")
+        return ""
+
+    cur_d, cur_net, cur_l, cur_s = rows[0]
+    # 直近1年のピークショート（最小ネット）と巻き戻し率
+    yr = [r for r in rows if (cur_d - r[0]).days <= 365]
+    peak_net = min(r[1] for r in yr)
+    unwind = (1 - cur_net / peak_net) * 100 if peak_net < 0 else 0
+    # 3年パーセンタイル（0=最ショート）
+    yr3 = [r[1] for r in rows if (cur_d - r[0]).days <= 365 * 3]
+    pctile = sum(1 for v in yr3 if v < cur_net) / len(yr3) * 100
+
+    if cur_net <= YEN_SHORT_EXTREME:
+        level = ('<span style="background:rgba(220,38,38,0.35); color:#fecaca; padding:1px 10px; '
+                 'border-radius:9px; font-weight:700">燃料満タン（歴史的ショート）</span>')
+    elif cur_net <= YEN_SHORT_HEAVY:
+        level = ('<span style="background:rgba(220,38,38,0.18); color:#fca5a5; padding:1px 10px; '
+                 'border-radius:9px; font-weight:700">燃料多め</span>')
+    elif cur_net < 0:
+        level = ('<span style="background:rgba(100,116,139,0.3); color:#cbd5e1; padding:1px 10px; '
+                 'border-radius:9px; font-weight:700">燃料普通</span>')
+    else:
+        level = ('<span style="background:rgba(34,197,94,0.22); color:#86efac; padding:1px 10px; '
+                 'border-radius:9px; font-weight:700">ネットロング（キャリーほぼ解消）</span>')
+    unwind_note = ""
+    if peak_net < 0 and unwind >= YEN_UNWIND_PCT:
+        unwind_note = (f' <span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 10px; '
+                       f'border-radius:9px; font-weight:700">⚠ 巻き戻し進行中（ピーク比-{unwind:.0f}%）</span>')
+
+    # 直近12週の推移表
+    trs = []
+    for d, net, lo, sh in rows[:12]:
+        w = min(int(abs(net) / 4000), 60)
+        color = "#f87171" if net < 0 else "#4ade80"
+        bar = f'<div style="display:inline-block; width:{max(w,2)}px; height:9px; background:{color}; border-radius:2px"></div>'
+        style = ""
+        if net <= YEN_SHORT_EXTREME:
+            style = ' style="background:rgba(220,38,38,0.15)"'
+        trs.append(f'<tr{style}><td style="padding:2px 10px">{d.strftime("%m/%d")}</td>'
+                   f'<td style="padding:2px 10px; text-align:right" class="{"neg" if net < 0 else "pos"}">{net:+,}</td>'
+                   f'<td style="padding:2px 10px; text-align:left">{bar}</td></tr>')
+
+    return f"""
+  <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">円キャリー燃料計（CFTC投機筋の円ポジション）</h2>
+  <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">
+    最新（{cur_d.strftime("%m/%d")}報告）: ネット <b style="font-size:1rem" class="{"neg" if cur_net < 0 else "pos"}">{cur_net:+,}枚</b>
+    （ロング{cur_l:,} / ショート{cur_s:,}） {level}{unwind_note}<br>
+    <span style="font-size:0.76rem; color:#64748b">3年レンジで下位{pctile:.0f}%タイル（0%に近いほど極端な円ショート） /
+    直近1年のピークショート {peak_net:+,}枚 → 現在まで{unwind:.0f}%巻き戻し</span></p>
+  <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
+  <table style="font-size:0.78rem; border-collapse:collapse;">
+    <tr><td style="padding:2px 10px; color:#64748b">報告日</td><td style="padding:2px 10px; color:#64748b">ネット枚数</td>
+    <td style="padding:2px 10px; color:#64748b"></td></tr>
+{chr(10).join(trs)}
+  </table>
+  </div>
+  <p style="font-size:0.78rem; color:#64748b; margin-top:10px; line-height:1.8; max-width:980px;">
+    ・投機筋の円ショート = 円を借りて売り高利回り資産を買う<b>円キャリー取引の積み上がり</b>の近似。
+    ショートが深いほど、円高反転時の巻き戻し（円買い戻し+株投げ売り）の燃料が大きい。<br>
+    ・<b>{YEN_SHORT_EXTREME/10000:+.0f}万枚以下 = 燃料満タン</b>（2024/8植田ショック直前は-18万枚前後の歴史的ショートだった）。
+    ネットの<b>急減（ピーク比-{YEN_UNWIND_PCT}%以上）は巻き戻し開始のサイン</b>で、上のジグザグの「円安ピーク確定」より早く出ることがある先行指標。<br>
+    ・シカゴ円先物のCOT（毎週金曜公表・火曜時点）。<a href="vix.html" style="color:#60a5fa">VIX温度計</a>のCFTCだまし判定と同じデータ源の円版。
+  </p>"""
 
 
 def build_corr_html(df):
@@ -557,6 +657,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・US02YはCBOT 2年利回り先物(2YY=F)の値。日本国債金利は財務省公表値（前営業日分）。閾値: 金利±{rate_th}bps未満・価格±{px_th}%未満は判定なし。
   </p>
 {corr}
+{yen_cot}
   <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
@@ -656,6 +757,7 @@ def generate_html(df):
         rows="\n".join(rows_html),
         orikomi=ori_html,
         corr=build_corr_html(df),
+        yen_cot=build_yen_cot_html(),
         rate_th=f"{RATE_TH_BPS:.0f}",
         px_th=f"{PX_TH_PCT:.1f}",
     )
