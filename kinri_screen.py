@@ -193,16 +193,17 @@ def judge(drv_bps, ans_pct, drv_name, ans_name, legs=None, soften=False):
 # -----------------------------------------
 # 日経×ドル円 相関レジーム（正相関/逆相関の転換履歴）
 # -----------------------------------------
-CORR_WINDOW = 15    # ローリング相関の窓（営業日）
-CORR_TH = 0.2       # ±この値でレジーム判定
-CORR_MIN_DAYS = 5   # 新レジームがこの営業日数続いたら転換と確定（ノイズ除去）
+CORR_WINDOW = 20    # ローリング相関の窓（営業日）
+CORR_TH = 0.3       # ±この値でレジーム判定
+CORR_MIN_DAYS = 3   # 新レジームがこの営業日数続いたら転換と確定（ノイズ除去）
 
 
 def corr_regime_data(df):
-    """日次リターンの15日ローリング相関からレジーム転換履歴を作る。
+    """価格水準の20日ローリング相関からレジーム転換履歴を作る。
+    （日次リターンでなく価格そのものの相関 = チャートに見える「トレンドの向きの一致」を測る。
+      ドル円の線が上がっている時に日経も上がっていれば正相関）
     戻り値: (現在の相関値, 現在レジーム, 直近推移リスト, 転換履歴リスト)"""
-    ret = df[["NIKKEI", "USDJPY"]].pct_change().dropna()
-    corr = ret["NIKKEI"].rolling(CORR_WINDOW).corr(ret["USDJPY"]).dropna()
+    corr = df["NIKKEI"].rolling(CORR_WINDOW).corr(df["USDJPY"]).dropna()
 
     def regime(v):
         if v >= CORR_TH:
@@ -291,10 +292,11 @@ def build_corr_html(df):
     return f"""
   <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">日経平均 × ドル円の相関レジーム（転換の記録）</h2>
   <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">
-    日次リターンの{CORR_WINDOW}日ローリング相関。±{CORR_TH}を{CORR_MIN_DAYS}営業日超えたら転換と確定。
+    直近{CORR_WINDOW}営業日の値動き（価格）の相関。ドル円の線と日経のトレンドの向きが揃っていれば正、逆向きなら逆。
+    ±{CORR_TH}を{CORR_MIN_DAYS}営業日超えたら転換と確定。
     現在: <b style="font-size:1rem">{cur_v:+.2f}</b> {badge(cur_regime)}
     — <span style="color:#4ade80">正相関=円安→株高の教科書通り</span> /
-    <span style="color:#f87171">逆相関=円安なのに株安（「日本売り」型か金利ショック型）</span></p>
+    <span style="color:#f87171">逆相関=円安なのに株安（「日本売り」型か金利ショック型）or 円と無関係の相場</span></p>
   <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
   <div class="table-wrap" style="max-width:700px;">
   <table>
@@ -313,6 +315,8 @@ def build_corr_html(df):
   </div>
   </div>
   <p style="font-size:0.78rem; color:#64748b; margin-top:10px; line-height:1.8; max-width:980px;">
+    ・<b>レジーム=直近{CORR_WINDOW}営業日のトレンドの向きの一致</b>（チャートに日経とドル円を重ねたときの見た目と対応）。
+    ドル円が上がる局面で日経も上がっていれば正相関、ドル円が上がるのに日経が下がっていれば逆相関。<br>
     ・<span style="color:#f87171">逆相関への転換</span>は「円安=株高」の前提が切れたサイン。
     原因の見極め: 上の表でJP10Yが急上昇していれば<b>日本売り型</b>（円・株・債券のトリプル安、最も警戒）、
     米金利主導ならバリュエーション圧迫型。<span style="color:#4ade80">pos</span>/<span style="color:#f87171">neg</span>色は騰落方向。<br>
