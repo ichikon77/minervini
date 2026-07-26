@@ -191,10 +191,10 @@ def judge(drv_bps, ans_pct, drv_name, ans_name, legs=None, soften=False):
 
 
 # -----------------------------------------
-# 日経×ドル円 トレンド4象限（円安/円高 × 株高/株安 の転換履歴）
+# 日経×ドル円 トレンド4象限（ジグザグ方式: 実際の天井・底で区切る）
 # -----------------------------------------
-CORR_WINDOW = 20    # トレンド方向の判定窓（20営業日前比の符号 = チャートの傾き）
-CORR_MIN_DAYS = 3   # 新しい象限がこの営業日数続いたら転換と確定（ノイズ除去）
+ZZ_TH_NIKKEI = 0.05   # 日経: 直近極値から5%逆行でトレンド転換と確定
+ZZ_TH_FX = 0.025      # ドル円: 2.5%逆行で転換（ボラが小さいため閾値も小さく）
 CORR_START = "2009-06-01"  # 履歴の開始日（riron等と揃える）
 
 QUAD_STYLE = {
@@ -215,69 +215,110 @@ def fetch_corr_long():
     return df[df.index >= CORR_START]
 
 
+def zigzag(s, th):
+    """ジグザグ転換点検出（TradingViewのZigZagと同じ考え方）。
+    直近の極値からth(%)逆行した時点で「トレンド転換・極値の日が天井/底」と確定する。
+    戻り値: ([(極値日, 極値, 新方向)], 現在のトレンド)  新方向'下'=極値は天井, '上'=極値は底"""
+    turns = []
+    hi_v, hi_d = s.iloc[0], s.index[0]
+    lo_v, lo_d = s.iloc[0], s.index[0]
+    trend = None
+    for d, v in s.items():
+        if v > hi_v:
+            hi_v, hi_d = v, d
+        if v < lo_v:
+            lo_v, lo_d = v, d
+        if trend is None:
+            if v <= hi_v * (1 - th):
+                trend = "下"
+                turns.append((hi_d, hi_v, "下"))
+                lo_v, lo_d = v, d
+            elif v >= lo_v * (1 + th):
+                trend = "上"
+                turns.append((lo_d, lo_v, "上"))
+                hi_v, hi_d = v, d
+        elif trend == "上":
+            if v <= hi_v * (1 - th):
+                turns.append((hi_d, hi_v, "下"))
+                trend = "下"
+                lo_v, lo_d = v, d
+        else:
+            if v >= lo_v * (1 + th):
+                turns.append((lo_d, lo_v, "上"))
+                trend = "上"
+                hi_v, hi_d = v, d
+    return turns, trend
+
+
+def _dir_series(idx, turns):
+    """転換点リスト → 各日のトレンド方向Series（転換点の翌日から新方向）"""
+    ds = pd.Series(index=idx, dtype=object)
+    for i, (d, v, nd) in enumerate(turns):
+        end = turns[i + 1][0] if i + 1 < len(turns) else idx[-1]
+        ds[(ds.index > d) & (ds.index <= end)] = nd
+    return ds
+
+
 def corr_regime_data(df):
-    """20営業日前比のトレンド方向で4象限（円安/円高 × 株高/株安）に分類し、転換履歴を作る。
-    戻り値: (現在の(fx%,n%), 現在象限, 直近推移リスト, 転換履歴リスト)"""
-    fx_chg = (df["USDJPY"] / df["USDJPY"].shift(CORR_WINDOW) - 1) * 100
-    n_chg = (df["NIKKEI"] / df["NIKKEI"].shift(CORR_WINDOW) - 1) * 100
+    """ジグザグで検出した実際の天井・底で4象限（円安/円高 × 株高/株安）区間を作る。
+    区間の切れ目 = 日経またはドル円の天井/底の実日付（チャートの山谷と一致）。
+    戻り値: (現在トレンドdict, 現在象限, 転換点リスト, 区間リスト)"""
+    n_turns, n_trend = zigzag(df["NIKKEI"], ZZ_TH_NIKKEI)
+    f_turns, f_trend = zigzag(df["USDJPY"], ZZ_TH_FX)
+    ndir = _dir_series(df.index, n_turns)
+    fdir = _dir_series(df.index, f_turns)
 
     def quad(f, s):
-        if f >= 0 and s >= 0:
+        if f == "上" and s == "上":
             return "円安×株高"
-        if f < 0 and s < 0:
+        if f == "下" and s == "下":
             return "円高×株安"
-        if f >= 0 and s < 0:
+        if f == "上" and s == "下":
             return "円安×株安"
-        return "円高×株高"
+        if f == "下" and s == "上":
+            return "円高×株高"
+        return None
 
-    labels = pd.Series([quad(f, s) for f, s in zip(fx_chg, n_chg)],
-                       index=df.index)[CORR_WINDOW:]
+    labels = pd.Series([quad(f, s) for f, s in zip(fdir, ndir)],
+                       index=df.index).dropna()
 
-    # 転換の確定: 新しい象限がCORR_MIN_DAYS営業日続いたら、その初日を転換日とする
-    confirmed = []  # (転換日, 象限)
-    cur = None
-    cand = None
-    cand_start = None
-    cand_n = 0
-    for d, l in labels.items():
-        if l == cur:
-            cand, cand_n = None, 0
-            continue
-        if l == cand:
-            cand_n += 1
-        else:
-            cand, cand_start, cand_n = l, d, 1
-        if cand_n >= CORR_MIN_DAYS:
-            confirmed.append((cand_start, l))
-            cur = l
-            cand, cand_n = None, 0
-
-    # 各期間の日経・ドル円の騰落と日経の最大沈み込み
+    # 区間化（ラベルが変わった日 = どちらかの天井/底の実日付）
     periods = []
-    for i, (s, l) in enumerate(confirmed):
-        e = confirmed[i + 1][0] if i + 1 < len(confirmed) else df.index[-1]
+    cur = None
+    start = None
+    for d, l in labels.items():
+        if l != cur:
+            if cur is not None:
+                periods.append((start, d, cur))
+            cur, start = l, d
+    periods.append((start, labels.index[-1], cur))
+
+    out = []
+    for i, (s, e, l) in enumerate(periods):
         seg = df[(df.index >= s) & (df.index <= e)]
         if len(seg) < 2:
             continue
-        periods.append({
+        out.append({
             "start": s, "end": e, "label": l, "days": len(seg),
             "nikkei": (seg["NIKKEI"].iloc[-1] / seg["NIKKEI"].iloc[0] - 1) * 100,
             "dd": (seg["NIKKEI"].min() / seg["NIKKEI"].iloc[0] - 1) * 100,
             "fx": (seg["USDJPY"].iloc[-1] / seg["USDJPY"].iloc[0] - 1) * 100,
-            "ongoing": i + 1 >= len(confirmed),
+            "ongoing": i + 1 >= len(periods),
         })
 
-    recent = [(d.date(), float(fx_chg[d]), float(n_chg[d]), labels[d])
-              for d in labels.index[-10:]]
-    cur_quad = confirmed[-1][1] if confirmed else labels.iloc[-1]
-    return (float(fx_chg.iloc[-1]), float(n_chg.iloc[-1])), cur_quad, recent, periods
+    # 直近の転換点（両系列マージ・新しい順8件）
+    marked = ([(d, "日経", "天井" if nd == "下" else "底", v) for d, v, nd in n_turns]
+              + [(d, "ドル円", "円安ピーク" if nd == "下" else "円高ピーク", v) for d, v, nd in f_turns])
+    marked.sort(key=lambda x: x[0], reverse=True)
+    cur_state = {"日経": n_trend, "ドル円": f_trend}
+    return cur_state, (periods[-1][2] if periods else None), marked[:8], out
 
 
 def build_corr_html(df):
     try:
         long_df = fetch_corr_long()
-        log(f"  トレンド4象限: {long_df.index[0].date()}〜{long_df.index[-1].date()} {len(long_df)}日分")
-        (cur_fx, cur_n), cur_quad, recent, periods = corr_regime_data(long_df)
+        cur_state, cur_quad, turns, periods = corr_regime_data(long_df)
+        log(f"  トレンド4象限(ジグザグ): {long_df.index[0].date()}〜 区間{len(periods)}")
     except Exception as e:
         log(f"  トレンド4象限生成をスキップ: {e}")
         return ""
@@ -300,19 +341,24 @@ def build_corr_html(df):
             f'<td class="neg">{p["dd"]:+.1f}%</td>'
             f'<td class="{"pos" if p["fx"] > 0 else "neg"}">{p["fx"]:+.1f}%</td></tr>')
 
-    # 直近10営業日のトレンド方向（20日前比）
+    # 直近の天井・底（両系列マージ）
     spark = []
-    for d, f, nk, l in recent:
-        spark.append(f'<tr><td style="padding:2px 10px">{d.strftime("%m/%d")}</td>'
-                     f'<td style="padding:2px 10px; text-align:right" class="{"pos" if f >= 0 else "neg"}">{f:+.1f}%</td>'
-                     f'<td style="padding:2px 10px; text-align:right" class="{"pos" if nk >= 0 else "neg"}">{nk:+.1f}%</td>'
-                     f'<td style="padding:2px 10px">{badge(l)}</td></tr>')
+    for d, series, kind, v in turns:
+        color = "#f87171" if kind in ("天井", "円安ピーク") else "#4ade80"
+        val = f"{v:,.0f}円" if series == "日経" else f"{v:.1f}円"
+        spark.append(f'<tr><td style="padding:2px 10px">{d.strftime("%Y/%m/%d")}</td>'
+                     f'<td style="padding:2px 10px">{series}</td>'
+                     f'<td style="padding:2px 10px; color:{color}; font-weight:700">{kind}</td>'
+                     f'<td style="padding:2px 10px; text-align:right">{val}</td></tr>')
 
+    n_tr = cur_state.get("日経")
+    f_tr = cur_state.get("ドル円")
     return f"""
-  <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">日経平均 × ドル円のトレンド4象限（転換の記録）</h2>
+  <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">日経平均 × ドル円のトレンド4象限（天井・底で区切る転換の記録）</h2>
   <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">
-    それぞれの{CORR_WINDOW}営業日前比の符号で、いまの相場を4つの型に分類。新しい型が{CORR_MIN_DAYS}営業日続いたら転換と確定。
-    現在: ドル円{cur_fx:+.1f}% / 日経{cur_n:+.1f}%（20日前比） → {badge(cur_quad)}</p>
+    ジグザグ方式: 日経は直近極値から{ZZ_TH_NIKKEI*100:.0f}%・ドル円は{ZZ_TH_FX*100:.1f}%逆行した時点でトレンド転換と確定し、
+    <b>実際の天井・底の日付</b>で区間を区切る（TradingViewのZigZagと同じ考え方）。
+    現在: 日経<b>{"上昇" if n_tr == "上" else "下降"}</b> × ドル円<b>{"円安" if f_tr == "上" else "円高"}</b>トレンド → {badge(cur_quad)}</p>
   <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">
     {badge("円安×株高")} 教科書通りの円安ドリブン相場
     {badge("円高×株高")} 円と無関係の強さ（業績・テーマ主導）
@@ -329,20 +375,21 @@ def build_corr_html(df):
   </table>
   </div>
   <div>
-  <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">直近10営業日（各20日前比）</p>
+  <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">直近の天井・底（確定済みの転換点）</p>
   <table style="font-size:0.78rem; border-collapse:collapse;">
-    <tr><td style="padding:2px 10px; color:#64748b">日付</td><td style="padding:2px 10px; color:#64748b">ドル円</td>
-    <td style="padding:2px 10px; color:#64748b">日経</td><td style="padding:2px 10px; color:#64748b">型</td></tr>
+    <tr><td style="padding:2px 10px; color:#64748b">日付</td><td style="padding:2px 10px; color:#64748b">系列</td>
+    <td style="padding:2px 10px; color:#64748b">種別</td><td style="padding:2px 10px; color:#64748b">値</td></tr>
 {chr(10).join(spark)}
   </table>
   </div>
   </div>
   <p style="font-size:0.78rem; color:#64748b; margin-top:10px; line-height:1.8; max-width:980px;">
-    ・型 = ドル円と日経それぞれの<b>直近{CORR_WINDOW}営業日前比の符号</b>（チャートの傾きの組み合わせ）。
-    「日経最大沈み」= 期間の開始値から期間中の最安終値までの下落率（途中の深掘りを捕まえる）。<br>
-    ・<b>バックテスト（2009年〜）</b>: 円安×株安への転換後に暴落した例はほぼない（60日内-10%超 0/12回）。
+    ・区間の切れ目 = 日経またはドル円の<b>天井・底の実日付</b>。転換の確定はそこから逆行{ZZ_TH_NIKKEI*100:.0f}%/{ZZ_TH_FX*100:.1f}%が
+    出た時点なので、直近数日の山谷はまだ表に出ていないことがある（ダマシ防止のコスト）。<br>
+    ・「日経最大沈み」= 期間の開始値から期間中の最安終値までの下落率（途中の深掘りを捕まえる）。<br>
+    ・<b>バックテスト（2009年〜、20日前比方式）</b>: 円安×株安の局面から暴落に直結した例はほぼない（60日内-10%超 0/12回）。
     <b>歴代の暴落（2024/8植田ショック、2020/3コロナ等）はすべて円高×株安の型で発生</b> —
-    円安×株安は「じわ下げ」、本当に危険なのは円高転換を伴う下げ。<br>
+    円安×株安は「じわ下げ」、本当に危険なのは<b>ドル円の天井（円高転換）が確定した後の下げ</b>。<br>
     ・円高×株安に転換して下げが加速する場合は
     <a href="riron.html" style="color:#60a5fa">日経理論株価</a>のPERライン（買い下がりラダー・前月最安値）で下値目処を確認 →
     <a href="vix.html" style="color:#60a5fa">VIX温度計</a>で接近の型（パニック型79% vs 静か52%）を判定。<br>
