@@ -198,10 +198,12 @@ ZZ_TH_FX = 0.025      # ドル円: 2.5%逆行で転換（ボラが小さいた�
 CORR_START = "2009-06-01"  # 履歴の開始日（riron等と揃える）
 
 # 円キャリー燃料計: CFTC投機筋の円先物ネットポジション（vixデッキと同じCOT API）
+# APIは1986年まで遡れる。2009-06以降（約890週）を全表示する
 YEN_CFTC_URL = ("https://publicreporting.cftc.gov/resource/6dca-aqww.json"
                 "?$where=starts_with(market_and_exchange_names,'JAPANESE%20YEN')"
+                "%20AND%20report_date_as_yyyy_mm_dd%20>=%20'2009-06-01'"
                 "&$select=report_date_as_yyyy_mm_dd,noncomm_positions_long_all,noncomm_positions_short_all"
-                "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=550")
+                "&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=1200")
 YEN_SHORT_EXTREME = -150000  # ネットがこれ以下 = 燃料満タン（濃赤）
 YEN_SHORT_HEAVY = -100000    # これ以下 = 燃料多め（薄赤）
 YEN_UNWIND_PCT = 25          # 直近ピークショートから25%以上減 = 巻き戻し進行中サイン
@@ -378,18 +380,37 @@ def build_yen_cot_html():
         unwind_note = (f' <span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 10px; '
                        f'border-radius:9px; font-weight:700">⚠ 巻き戻し進行中（ピーク比-{unwind:.0f}%）</span>')
 
-    # 直近12週の推移表
-    trs = []
-    for d, net, lo, sh in rows[:12]:
+    def bar_html(net):
         w = min(int(abs(net) / 4000), 60)
         color = "#f87171" if net < 0 else "#4ade80"
-        bar = f'<div style="display:inline-block; width:{max(w,2)}px; height:9px; background:{color}; border-radius:2px"></div>'
+        return (f'<div style="display:inline-block; width:{max(w, 2)}px; height:9px; '
+                f'background:{color}; border-radius:2px"></div>')
+
+    # 直近12週の詳細表
+    trs = []
+    for d, net, lo, sh in rows[:12]:
+        style = ' style="background:rgba(220,38,38,0.15)"' if net <= YEN_SHORT_EXTREME else ""
+        trs.append(f'<tr{style}><td style="padding:2px 10px">{d.strftime("%m/%d")}</td>'
+                   f'<td style="padding:2px 10px; text-align:right" class="{"neg" if net < 0 else "pos"}">{net:+,}</td>'
+                   f'<td style="padding:2px 10px; text-align:left">{bar_html(net)}</td></tr>')
+
+    # 全期間の月次サマリー（各月の月末値=その月の最終報告週。2009年6月〜）
+    monthly = {}
+    for d, net, lo, sh in rows:  # rowsは新しい順なので、最初に出た週がその月の最終報告
+        ym = d.strftime("%Y/%m")
+        if ym not in monthly:
+            monthly[ym] = (d, net)
+    mtrs = []
+    for ym in sorted(monthly, reverse=True):
+        d, net = monthly[ym]
         style = ""
         if net <= YEN_SHORT_EXTREME:
             style = ' style="background:rgba(220,38,38,0.15)"'
-        trs.append(f'<tr{style}><td style="padding:2px 10px">{d.strftime("%m/%d")}</td>'
-                   f'<td style="padding:2px 10px; text-align:right" class="{"neg" if net < 0 else "pos"}">{net:+,}</td>'
-                   f'<td style="padding:2px 10px; text-align:left">{bar}</td></tr>')
+        elif net >= 50000:
+            style = ' style="background:rgba(34,197,94,0.10)"'
+        mtrs.append(f'<tr{style}><td style="padding:2px 10px">{ym}</td>'
+                    f'<td style="padding:2px 10px; text-align:right" class="{"neg" if net < 0 else "pos"}">{net:+,}</td>'
+                    f'<td style="padding:2px 10px; text-align:left">{bar_html(net)}</td></tr>')
 
     return f"""
   <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">円キャリー燃料計（CFTC投機筋の円ポジション）</h2>
@@ -399,11 +420,24 @@ def build_yen_cot_html():
     <span style="font-size:0.76rem; color:#64748b">3年レンジで下位{pctile:.0f}%タイル（0%に近いほど極端な円ショート） /
     直近1年のピークショート {peak_net:+,}枚 → 現在まで{unwind:.0f}%巻き戻し</span></p>
   <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
+  <div>
+  <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">直近12週（週次）</p>
   <table style="font-size:0.78rem; border-collapse:collapse;">
     <tr><td style="padding:2px 10px; color:#64748b">報告日</td><td style="padding:2px 10px; color:#64748b">ネット枚数</td>
     <td style="padding:2px 10px; color:#64748b"></td></tr>
 {chr(10).join(trs)}
   </table>
+  </div>
+  <div>
+  <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">2009年6月〜の全履歴（月末値・スクロール）</p>
+  <div style="max-height:420px; overflow-y:auto; border:1px solid #1e293b; border-radius:6px;">
+  <table style="font-size:0.78rem; border-collapse:collapse;">
+    <tr><td style="padding:2px 10px; color:#64748b">年月</td><td style="padding:2px 10px; color:#64748b">ネット枚数</td>
+    <td style="padding:2px 10px; color:#64748b"></td></tr>
+{chr(10).join(mtrs)}
+  </table>
+  </div>
+  </div>
   </div>
   <p style="font-size:0.78rem; color:#64748b; margin-top:10px; line-height:1.8; max-width:980px;">
     ・投機筋の円ショート = 円を借りて売り高利回り資産を買う<b>円キャリー取引の積み上がり</b>の近似。
