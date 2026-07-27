@@ -259,6 +259,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {sections}
   <p class="note">
     ・世界のマネーがどの資産・テーマに向かっているかを騰落率で観察する。緑=資金流入（上昇）、赤=資金流出（下落）。<br>
+    ・<b>対指数相対（デフォルト表示）</b> = テーマの騰落から指数（米国=S&amp;P500、日本=日経平均）の騰落を差し引いた相対力。
+    緑=指数より強い、赤=指数より弱い。指数が下げていても相対が緑なら「資金が逃げ込んでいる」業種、
+    指数が上げているのに赤なら「置いていかれている」業種。トップダウンの業種絞り込みはこちらで見る。<br>
     ・5/10/15営業日の並びで「加速中か失速中か」が分かる（右肩上がりの緑=ローテーション初動、5営業日だけ赤=直近で変調）。<br>
     ・1ヶ月=21営業日、3ヶ月=63営業日。年初来は前年末終値比。米国テーマETFは米国上場のため為替の影響を含む。<br>
     ・テーマ（日本）はTOPIX-17業種ETF（1617〜1633）+ 半導体（2644 グローバルX半導体）。
@@ -287,28 +290,116 @@ def cell(v):
     return f"<td{style}>{v:+.2f}%</td>"
 
 
+def cell_rel(v):
+    """相対力セル（対指数）: 絶対リターンより振れが小さいので±8%で最大濃度"""
+    if v is None:
+        return "<td>-</td>"
+    alpha = min(0.6, abs(v) / 8 * 0.6)
+    color = "34,197,94" if v > 0 else "239,68,68"
+    style = f' style="background:rgba({color},{alpha:.2f})"' if abs(v) >= 0.05 else ""
+    return f"<td{style}>{v:+.2f}%</td>"
+
+
+def rel_value(v, vb):
+    """対指数の相対リターン: (1+テーマ)/(1+指数)-1"""
+    if v is None or vb is None:
+        return None
+    return round(((1 + v / 100) / (1 + vb / 100) - 1) * 100, 2)
+
+
+def build_ratio_html(by_ticker):
+    """倍率ダッシュボード（NS/NT/NG/TG）: 日米・市場の優位性をトップダウンで確認"""
+    pairs = [
+        ("NS倍率", "^N225", "^GSPC", "日経÷S&P500", "上昇=日本株優位 / 下落=米国株優位"),
+        ("NT倍率", "^N225", "1306.T", "日経÷TOPIX", "上昇=日経寄与の大型株優位 / 下落=バリュー・高配当優位"),
+        ("NG倍率", "^N225", "2516.T", "日経÷グロース250", "下落=中小型グロース優位（夏枯れ・年末に下がりやすい）"),
+        ("TG倍率", "1306.T", "2516.T", "TOPIX÷グロース250", "下落=中小型グロース優位"),
+    ]
+    body = []
+    for name, num_tk, den_tk, desc, yomi in pairs:
+        num, den = by_ticker.get(num_tk), by_ticker.get(den_tk)
+        if not num or not den:
+            continue
+        cur = num["price"] / den["price"]
+        tds = "".join(cell_rel(rel_value(num.get(c), den.get(c))) for c in COLS)
+        body.append(f'      <tr><td>{name}</td><td class="tk">{desc}</td>'
+                    f'<td style="font-weight:700">{cur:,.2f}</td>{tds}</tr>')
+        body.append(f'      <tr><td colspan="10" style="color:#64748b; font-size:0.74rem; '
+                    f'text-align:left; padding:0 12px 7px">└ {yomi}</td></tr>')
+    header = "".join(f"<th>{c}</th>" for c in COLS)
+    return (f'  <h2>倍率ダッシュボード — 日米・市場の優位性（トップダウンの入口）</h2>\n'
+            f'  <div class="table-wrap">\n  <table>\n'
+            f'    <thead><tr><th>倍率</th><th style="text-align:left">定義</th><th>現在値</th>{header}</tr></thead>\n'
+            f'    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>\n'
+            f'  <p style="font-size:0.76rem; color:#64748b; margin:6px 0 0;">'
+            f'変化率は分子÷分母の倍率の騰落（緑=分子優位へ、赤=分母優位へ）。'
+            f'「日本株か米国株か → 日経かTOPIXかグロースか」を先に決めてから下のテーマに進む。</p>')
+
+
 def generate_html(rows):
     theme_order = [t for t, _, _ in THEMES]  # 定義順
-    sections = []
-    for group, title in [("資産クラス", "資産クラス"),
-                         ("テーマ", "テーマ（米国）"),
-                         ("テーマ（日本）", "テーマ（日本）")]:
-        grp = [r for r in rows if r["group"] == group]
-        if group == "資産クラス":
-            # 定義順で固定（株式: 米国→日本→アジア → 債券 → 金 → BTC → 通貨 → REIT）
-            grp.sort(key=lambda r: theme_order.index(r["ticker"]))
-        else:
-            # 3営業日リターンの降順（直近の資金流入が上に）
-            grp.sort(key=lambda r: (r.get("3営業日") is None, -(r.get("3営業日") or 0)))
+    by_ticker = {r["ticker"]: r for r in rows}
+    header = "".join(f"<th>{c}</th>" for c in COLS)
+
+    def table_html(grp_vals, cls, hidden=False):
         body = []
-        for r in grp:
-            tds = "".join(cell(r.get(c)) for c in COLS)
+        for r, vals, cellfn in grp_vals:
+            tds = "".join(cellfn(vals.get(c)) for c in COLS)
             body.append(f'      <tr><td>{r["name"]}</td><td class="tk">{r["ticker"]}</td>{tds}</tr>')
-        header = "".join(f"<th>{c}</th>" for c in COLS)
+        style = ' style="display:none"' if hidden else ""
+        return (f'  <div class="table-wrap {cls}"{style}>\n  <table>\n'
+                f'    <thead><tr><th>テーマ</th><th style="text-align:left">ticker</th>{header}</tr></thead>\n'
+                f'    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>')
+
+    sections = []
+
+    # 資産クラス（定義順・絶対リターンのみ・トグル対象外）
+    grp = sorted([r for r in rows if r["group"] == "資産クラス"],
+                 key=lambda r: theme_order.index(r["ticker"]))
+    sections.append('  <h2>資産クラス</h2>\n'
+                    + table_html([(r, r, cell) for r in grp], "always-view"))
+
+    # 倍率ダッシュボード
+    sections.append(build_ratio_html(by_ticker))
+
+    # 表示切り替えボタン（テーマ2表に効く。デフォルト=対指数相対）
+    sections.append(
+        '  <div style="margin:22px 0 2px; display:flex; gap:10px; align-items:center;">\n'
+        '    <span style="font-size:0.8rem; color:#94a3b8">テーマの表示:</span>\n'
+        '    <button id="btn-rel" onclick="setMode(true)" style="background:#1e40af; color:#bfdbfe; '
+        'border:1px solid #3b82f6; border-radius:6px; padding:4px 14px; cursor:pointer; font-size:0.8rem">対指数相対（vs S&amp;P500 / vs 日経）</button>\n'
+        '    <button id="btn-abs" onclick="setMode(false)" style="background:#1e293b; color:#60a5fa; '
+        'border:1px solid #334155; border-radius:6px; padding:4px 14px; cursor:pointer; font-size:0.8rem">絶対リターン</button>\n'
+        '  </div>')
+
+    # テーマ2表: 絶対リターン + 対指数相対（トグル）
+    for group, title, bench_tk, bench_label in [
+            ("テーマ", "テーマ（米国）", "^GSPC", "S&P500"),
+            ("テーマ（日本）", "テーマ（日本）", "^N225", "日経平均")]:
+        grp = [r for r in rows if r["group"] == group]
+        bench = by_ticker.get(bench_tk, {})
+        abs_grp = sorted(grp, key=lambda r: (r.get("3営業日") is None, -(r.get("3営業日") or 0)))
+        rel_vals = {r["ticker"]: {c: rel_value(r.get(c), bench.get(c)) for c in COLS} for r in grp}
+        rel_grp = sorted(grp, key=lambda r: (rel_vals[r["ticker"]]["3営業日"] is None,
+                                             -(rel_vals[r["ticker"]]["3営業日"] or 0)))
         sections.append(
-            f'  <h2>{title}</h2>\n  <div class="table-wrap">\n  <table>\n'
-            f'    <thead><tr><th>テーマ</th><th style="text-align:left">ticker</th>{header}</tr></thead>\n'
-            f'    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>')
+            f'  <h2>{title} <span style="font-size:0.72rem; color:#64748b" class="rel-view">'
+            f'（対{bench_label}の相対力 — TradingViewの「業種÷NI225」と同じ思想）</span></h2>\n'
+            + table_html([(r, rel_vals[r["ticker"]], cell_rel) for r in rel_grp], "rel-view")
+            + "\n"
+            + table_html([(r, r, cell) for r in abs_grp], "abs-view", hidden=True))
+
+    # トグル用スクリプト（デフォルト=相対。sections経由なので中括弧OK）
+    sections.append("""  <script>
+  function setMode(rel) {
+    document.querySelectorAll('.abs-view').forEach(function(e){ e.style.display = rel ? 'none' : ''; });
+    document.querySelectorAll('.rel-view').forEach(function(e){ e.style.display = rel ? '' : 'none'; });
+    var on = 'background:#1e40af; color:#bfdbfe; border:1px solid #3b82f6; border-radius:6px; padding:4px 14px; cursor:pointer; font-size:0.8rem';
+    var off = 'background:#1e293b; color:#60a5fa; border:1px solid #334155; border-radius:6px; padding:4px 14px; cursor:pointer; font-size:0.8rem';
+    document.getElementById('btn-abs').style.cssText = rel ? off : on;
+    document.getElementById('btn-rel').style.cssText = rel ? on : off;
+  }
+  </script>""")
 
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
