@@ -287,12 +287,24 @@ function fundHtml(code, fund) {{
   }}
   // ベータ + レーティング
   h += '<div style="display:flex; gap:26px; flex-wrap:wrap; margin-top:10px;">';
-  h += '<div><h3 style="font-size:0.92rem; color:#cbd5e1; margin:0 0 6px;">ベータ値（2年日次）</h3>'
-     + '<table><thead><tr><th>対日経平均</th><th>対TOPIX</th></tr></thead><tbody><tr>'
+  const corrCell = function(v) {{
+    if (v === null || v === undefined) return '<td>-</td>';
+    let style = '';
+    if (v < 0.3) style = ' style="color:#f87171; font-weight:700"';       // 低相関=指数と別の生き物
+    else if (v >= 0.6) style = ' style="color:#4ade80"';                  // 高相関=指数連動
+    return '<td' + style + '>' + v.toFixed(2) + '</td>';
+  }};
+  h += '<div><h3 style="font-size:0.92rem; color:#cbd5e1; margin:0 0 6px;">ベータ値・相関係数（2年日次）</h3>'
+     + '<table><thead><tr><th></th><th>対日経平均</th><th>対TOPIX</th></tr></thead><tbody>'
+     + '<tr><td style="text-align:left">ベータ</td>'
      + '<td>' + (s.beta && s.beta[0] !== null ? s.beta[0].toFixed(2) : '-') + '</td>'
-     + '<td>' + (s.beta && s.beta[1] !== null ? s.beta[1].toFixed(2) : '-') + '</td>'
+     + '<td>' + (s.beta && s.beta[1] !== null ? s.beta[1].toFixed(2) : '-') + '</td></tr>'
+     + '<tr><td style="text-align:left">相関係数</td>'
+     + corrCell(s.beta ? s.beta[2] : null)
+     + corrCell(s.beta ? s.beta[3] : null)
      + '</tr></tbody></table>'
-     + '<p class="hint" style="margin-top:4px">1未満=指数が1%動いてもそれ以下しか動かない</p></div>';
+     + '<p class="hint" style="margin-top:4px">ベータ1未満=指数が1%動いてもそれ以下しか動かない。'
+     + '<span style="color:#f87171">相関0.3未満</span>=指数と無関係に動く（指数上昇を前提にした投資には不向き）。ベータは相関とセットで見る</p></div>';
   const r = s.rating;
   if (r) {{
     const kai = (r.target && r.price) ? ((r.target / r.price - 1) * 100) : null;

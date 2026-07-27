@@ -51,9 +51,19 @@ def load_codes():
     return sorted(names.keys()), names
 
 
+def progress(label, i, total, t0):
+    """進捗ログ: 件数・%・経過・残り見積もり"""
+    if i == 0:
+        return
+    elapsed = time.time() - t0
+    eta = elapsed / i * (total - i)
+    log(f"  {label} {i}/{total} ({i/total*100:.0f}%) 経過{elapsed/60:.0f}分 残り約{eta/60:.0f}分")
+
+
 def fetch_market_caps(codes):
     """fast_infoで時価総額（億円）を取得。失敗はNone"""
     caps = {}
+    t0 = time.time()
     for i, code in enumerate(codes):
         try:
             fi = yf.Ticker(code + ".T").fast_info
@@ -61,8 +71,8 @@ def fetch_market_caps(codes):
             caps[code] = round(mc / 1e8) if mc else None
         except Exception:
             caps[code] = None
-        if i % 200 == 0:
-            log(f"  時価総額 {i}/{len(codes)}")
+        if i % 100 == 0:
+            progress("時価総額", i, len(codes), t0)
         time.sleep(0.15)
     json.dump(caps, open(MCAP_CACHE, "w", encoding="utf-8"))
     return caps
@@ -135,13 +145,23 @@ def _clean_ret(close):
 
 
 def calc_betas(codes):
-    """対日経・対TOPIXのベータ（2年日次リターン、±20%超の異常値は除外）。
-    TOPIXは1308.T（1306.Tは2026年の併合でyfinanceの調整が壊れているため）"""
+    """対日経・対TOPIXのベータと相関係数（2年日次リターン、±20%超の異常値は除外）。
+    TOPIXは1308.T（1306.Tは2026年の併合でyfinanceの調整が壊れているため）
+    戻り値: {code: [β対N225, β対TOPIX, 相関対N225, 相関対TOPIX]}"""
     bench = yf.download(["^N225", "1308.T"], period="2y", auto_adjust=True,
                         progress=False, group_by="ticker", threads=True)
     n225 = _clean_ret(bench["^N225"]["Close"])
     topix = _clean_ret(bench["1308.T"]["Close"])
     betas = {}
+
+    def beta_corr(ret, bench_ret):
+        df = pd.concat([ret, bench_ret], axis=1).dropna()
+        if len(df) <= 100:
+            return None, None
+        b = df.iloc[:, 0].cov(df.iloc[:, 1]) / df.iloc[:, 1].var()
+        r = df.iloc[:, 0].corr(df.iloc[:, 1])
+        return round(b, 2), round(r, 2)
+
     for i in range(0, len(codes), BETA_CHUNK):
         chunk = [c + ".T" for c in codes[i:i + BETA_CHUNK]]
         data = yf.download(chunk, period="2y", auto_adjust=True,
@@ -149,14 +169,11 @@ def calc_betas(codes):
         for c in codes[i:i + BETA_CHUNK]:
             try:
                 ret = _clean_ret(data[c + ".T"]["Close"])
-                df_n = pd.concat([ret, n225], axis=1).dropna()
-                df_t = pd.concat([ret, topix], axis=1).dropna()
-                b_n = df_n.iloc[:, 0].cov(df_n.iloc[:, 1]) / df_n.iloc[:, 1].var() if len(df_n) > 100 else None
-                b_t = df_t.iloc[:, 0].cov(df_t.iloc[:, 1]) / df_t.iloc[:, 1].var() if len(df_t) > 100 else None
-                betas[c] = [round(b_n, 2) if b_n is not None else None,
-                            round(b_t, 2) if b_t is not None else None]
+                b_n, r_n = beta_corr(ret, n225)
+                b_t, r_t = beta_corr(ret, topix)
+                betas[c] = [b_n, b_t, r_n, r_t]
             except Exception:
-                betas[c] = [None, None]
+                betas[c] = [None, None, None, None]
         log(f"  ベータ {min(i + BETA_CHUNK, len(codes))}/{len(codes)}")
     return betas
 
@@ -213,18 +230,20 @@ def main():
 
     log("③ 四半期業績...")
     stocks = {}
+    t0 = time.time()
     for i, c in enumerate(fund_codes):
         try:
             quarters = fetch_quarters(c)
         except Exception:
             quarters = []
         stocks[c] = {"name": names.get(c, ""), "mcap_oku": caps.get(c),
-                     "beta": betas.get(c, [None, None]), "quarters": quarters}
-        if i % 100 == 0:
-            log(f"  業績 {i}/{len(fund_codes)}")
+                     "beta": betas.get(c, [None, None, None, None]), "quarters": quarters}
+        if i % 50 == 0:
+            progress("業績", i, len(fund_codes), t0)
         time.sleep(SLEEP)
 
     log("④ レーティング...")
+    t0 = time.time()
     for i, c in enumerate(rating_codes):
         try:
             r = fetch_rating(c)
@@ -232,8 +251,8 @@ def main():
             r = None
         if r:
             stocks[c]["rating"] = r
-        if i % 100 == 0:
-            log(f"  レーティング {i}/{len(rating_codes)}")
+        if i % 50 == 0:
+            progress("レーティング", i, len(rating_codes), t0)
         time.sleep(SLEEP)
 
     out = {"updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
