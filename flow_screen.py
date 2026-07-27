@@ -73,6 +73,9 @@ THEMES = [
     ("CARZ",     "自動車",            "テーマ"),
     ("XLB",      "素材・化学",         "テーマ"),
     ("XLI",      "資本財(機械)",       "テーマ"),
+    ("XLY",      "一般消費財",         "テーマ"),
+    ("XLRE",     "不動産(米)",         "テーマ"),
+    ("XLC",      "通信サービス",       "テーマ"),
     # テーマ（日本）: TOPIX-17業種ETF + 特別枠（半導体）
     ("2644.T",   "半導体（日本）",      "テーマ（日本）"),
     ("1617.T",   "食品",             "テーマ（日本）"),
@@ -91,6 +94,21 @@ THEMES = [
     ("1631.T",   "銀行",             "テーマ（日本）"),
     ("1632.T",   "金融（除く銀行）",    "テーマ（日本）"),
     ("1633.T",   "不動産（日本）",     "テーマ（日本）"),
+]
+
+# セクターローテーション4局面（投資時計）: (局面名, 特徴, [(ticker, 表示名)])
+# 循環の順: 金融相場 → 業績相場 → 逆金融相場 → 逆業績相場 → 金融相場…
+# 表示は2x2グリッド（左上=金融相場/右上=業績相場/左下=逆業績相場/右下=逆金融相場、円グラフと同配置）
+ROTATION_QUADRANTS = [
+    ("① 金融相場（回復期）", "低金利×景気回復へ。デフレピーク・新興国回復",
+     [("XLK", "情報技術"), ("XLRE", "不動産"), ("XLF", "金融")]),
+    ("② 業績相場（好況期）", "好景気×高金利へ。長短金利差縮小・株価ピーク",
+     [("XLI", "資本財"), ("XLB", "素材"), ("XLY", "一般消費財")]),
+    ("④ 逆業績相場（不況期）", "不景気×低金利へ。長短金利差拡大・株価底打ち",
+     [("XLC", "通信サービス"), ("XLV", "ヘルスケア"), ("XLP", "生活必需品"),
+      ("XLU", "公益事業")]),
+    ("③ 逆金融相場（後退期）", "高金利×景気減速へ。インフレピーク・新興国減速",
+     [("XLE", "エネルギー"), ("TLT", "米長期債"), ("DX-Y.NYB", "ドル指数(安全通貨)")]),
 ]
 
 # 日本の特別枠バスケット（専用ETFがないテーマは個別株の等ウェイト平均で自前計算）
@@ -370,6 +388,76 @@ def build_ratio_html(by_ticker):
             f'セルにカーソルで実際の騰落率。左（短期）と右（長期）で顔ぶれが違えばローテーションが起きている。</p>')
 
 
+def build_rotation_html(by_ticker):
+    """セクターローテーション4象限グリッド: 各象限にvs S&P500の相対力ミニ表 + 象限平均で点灯判定"""
+    bench = by_ticker.get("^GSPC", {})
+    quad_html = {}
+    quad_avg = {}
+    for qname, qdesc, members in ROTATION_QUADRANTS:
+        trs = []
+        avgs = {}
+        for c in COLS:
+            vals = []
+            for tk, mname in members:
+                r = by_ticker.get(tk)
+                if r:
+                    v = rel_value(r.get(c), bench.get(c))
+                    if v is not None:
+                        vals.append(v)
+            avgs[c] = round(sum(vals) / len(vals), 2) if vals else None
+        quad_avg[qname] = avgs
+        for tk, mname in members:
+            r = by_ticker.get(tk)
+            if not r:
+                continue
+            tds = "".join(cell_rel(rel_value(r.get(c), bench.get(c))) for c in COLS)
+            trs.append(f'<tr><td style="text-align:left; font-weight:600; padding:4px 8px">{mname}</td>'
+                       f'<td class="tk" style="padding:4px 8px">{tk}</td>{tds}</tr>')
+        # 象限平均の行
+        avg_tds = "".join(cell_rel(avgs.get(c)) for c in COLS)
+        trs.append(f'<tr style="border-top:2px solid #334155"><td style="text-align:left; font-weight:700; '
+                   f'color:#fbbf24; padding:4px 8px">象限平均</td><td></td>{avg_tds}</tr>')
+        quad_html[qname] = "\n".join(trs)
+
+    # 点灯判定: 15営業日の象限平均が最大の象限
+    lit = max(quad_avg, key=lambda q: quad_avg[q].get("15営業日") or -999)
+
+    header_small = "".join(f'<th style="padding:4px 6px; font-size:0.72rem">{c}</th>' for c in COLS)
+
+    def quad_box(qname, qdesc):
+        is_lit = qname == lit
+        border = "#fbbf24" if is_lit else "#334155"
+        badge = ('<span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 10px; '
+                 'border-radius:9px; font-size:0.72rem; font-weight:700; margin-left:8px">🔥 点灯中</span>') if is_lit else ""
+        return (f'<div style="border:1.5px solid {border}; border-radius:10px; padding:10px 12px; background:#1e293b;">\n'
+                f'<div style="font-weight:700; color:#f8fafc; font-size:0.9rem">{qname}{badge}</div>\n'
+                f'<div style="color:#64748b; font-size:0.72rem; margin:2px 0 8px">{qdesc}</div>\n'
+                f'<div style="overflow-x:auto"><table style="font-size:0.76rem">\n'
+                f'<thead><tr><th style="text-align:left; padding:4px 8px">セクター</th>'
+                f'<th style="text-align:left; padding:4px 8px">ticker</th>{header_small}</tr></thead>\n'
+                f'<tbody>\n{quad_html[qname]}\n</tbody></table></div>\n</div>')
+
+    q = {name: (name, desc) for name, desc, _ in ROTATION_QUADRANTS}
+    names = [name for name, _, _ in ROTATION_QUADRANTS]
+    # グリッド配置: 左上=金融相場, 右上=業績相場, 左下=逆業績相場, 右下=逆金融相場（円グラフと同じ）
+    return f"""  <h2>セクターローテーション4局面 — いまどこが点灯しているか（vs S&amp;P500の相対力）</h2>
+  <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">
+    投資時計の循環: ① 金融相場 → ② 業績相場 → ③ 逆金融相場 → ④ 逆業績相場 → ①…（時計回り）。
+    各セクターのS&amp;P500に対する相対力を象限ごとに集計。<b>15営業日の象限平均が最大の象限に 🔥 が点灯</b>。
+    点灯象限の「次」の象限が既に緑になり始めていればローテーション進行中。</p>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; max-width:1200px;">
+{quad_box(*q[names[0]])}
+{quad_box(*q[names[1]])}
+{quad_box(*q[names[2]])}
+{quad_box(*q[names[3]])}
+  </div>
+  <p style="font-size:0.76rem; color:#64748b; margin-top:8px; line-height:1.8; max-width:1200px;">
+    ・配置は左上→右上→右下→左下の時計回りが循環の順（②業績相場の次は③逆金融相場）。
+    金利の局面判定は<a href="fedwatch.html" style="color:#60a5fa">FRB利上げ確率</a>・
+    <a href="cpi.html" style="color:#60a5fa">米インフレと雇用</a>とあわせて確認。<br>
+    ・対称の象限（①⇔③、②⇔④）は反対の動きになりやすい。点灯象限と対称象限の色が両方緑/両方赤なら過渡期のサイン。</p>"""
+
+
 def generate_html(rows):
     theme_order = [t for t, _, _ in THEMES]  # 定義順
     by_ticker = {r["ticker"]: r for r in rows}
@@ -393,8 +481,11 @@ def generate_html(rows):
     sections.append('  <h2>資産クラス</h2>\n'
                     + table_html([(r, r, cell) for r in grp], "always-view"))
 
-    # 倍率ダッシュボード
+    # 市場比較ダッシュボード + 序列マトリクス
     sections.append(build_ratio_html(by_ticker))
+
+    # セクターローテーション4局面グリッド
+    sections.append(build_rotation_html(by_ticker))
 
     # 表示切り替えボタン（テーマ2表に効く。デフォルト=対指数相対）
     sections.append(
