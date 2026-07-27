@@ -308,32 +308,66 @@ def rel_value(v, vb):
 
 
 def build_ratio_html(by_ticker):
-    """倍率ダッシュボード（NS/NT/NG/TG）: 日米・市場の優位性をトップダウンで確認"""
+    """市場比較ダッシュボード: 日米・市場の優位性をトップダウンで確認"""
     pairs = [
-        ("NS倍率", "^N225", "^GSPC", "日経÷S&P500", "上昇=日本株優位 / 下落=米国株優位"),
-        ("NT倍率", "^N225", "1306.T", "日経÷TOPIX", "上昇=日経寄与の大型株優位 / 下落=バリュー・高配当優位"),
-        ("NG倍率", "^N225", "2516.T", "日経÷グロース250", "下落=中小型グロース優位（夏枯れ・年末に下がりやすい）"),
-        ("TG倍率", "1306.T", "2516.T", "TOPIX÷グロース250", "下落=中小型グロース優位"),
+        ("^N225", "^GSPC", "日経÷S&P500", "上昇=日本株優位 / 下落=米国株優位"),
+        ("^N225", "1306.T", "日経÷TOPIX", "上昇=日経寄与の大型株優位 / 下落=バリュー・高配当優位"),
+        ("^N225", "2516.T", "日経÷グロース250", "下落=中小型グロース優位（夏枯れ・年末に下がりやすい）"),
+        ("1306.T", "2516.T", "TOPIX÷グロース250", "下落=中小型グロース優位"),
     ]
     body = []
-    for name, num_tk, den_tk, desc, yomi in pairs:
+    for num_tk, den_tk, desc, yomi in pairs:
         num, den = by_ticker.get(num_tk), by_ticker.get(den_tk)
         if not num or not den:
             continue
         cur = num["price"] / den["price"]
         tds = "".join(cell_rel(rel_value(num.get(c), den.get(c))) for c in COLS)
-        body.append(f'      <tr><td>{name}</td><td class="tk">{desc}</td>'
+        body.append(f'      <tr><td>{desc}</td>'
                     f'<td style="font-weight:700">{cur:,.2f}</td>{tds}</tr>')
-        body.append(f'      <tr><td colspan="10" style="color:#64748b; font-size:0.74rem; '
+        body.append(f'      <tr><td colspan="9" style="color:#64748b; font-size:0.74rem; '
                     f'text-align:left; padding:0 12px 7px">└ {yomi}</td></tr>')
     header = "".join(f"<th>{c}</th>" for c in COLS)
-    return (f'  <h2>倍率ダッシュボード — 日米・市場の優位性（トップダウンの入口）</h2>\n'
+
+    # 市場の序列マトリクス: 各期間の騰落率で4市場をランキングし、セルに市場名を置く
+    MARKETS = [("^GSPC", "米国(S&P500)", "#93c5fd"),
+               ("^N225", "日経平均", "#fca5a5"),
+               ("1306.T", "TOPIX", "#fde68a"),
+               ("2516.T", "グロース250", "#86efac")]
+    RANK_LABELS = ["最も優位", "やや優位", "やや劣位", "最も劣位"]
+    rank_cells = {label: [] for label in RANK_LABELS}
+    for c in COLS:
+        vals = []
+        for tk, mname, color in MARKETS:
+            r = by_ticker.get(tk)
+            v = r.get(c) if r else None
+            if v is not None:
+                vals.append((v, mname, color))
+        vals.sort(reverse=True)
+        for i, label in enumerate(RANK_LABELS):
+            if i < len(vals):
+                v, mname, color = vals[i]
+                rank_cells[label].append(
+                    f'<td style="color:{color}; font-weight:600" title="{c}: {v:+.2f}%">{mname}</td>')
+            else:
+                rank_cells[label].append("<td>-</td>")
+    rank_rows = []
+    for label in RANK_LABELS:
+        rank_rows.append(f'      <tr><td>{label}</td>' + "".join(rank_cells[label]) + '</tr>')
+
+    return (f'  <h2>市場比較ダッシュボード — 日米・市場の優位性（トップダウンの入口）</h2>\n'
             f'  <div class="table-wrap">\n  <table>\n'
-            f'    <thead><tr><th>倍率</th><th style="text-align:left">定義</th><th>現在値</th>{header}</tr></thead>\n'
+            f'    <thead><tr><th>比較</th><th>現在値</th>{header}</tr></thead>\n'
             f'    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>\n'
             f'  <p style="font-size:0.76rem; color:#64748b; margin:6px 0 0;">'
-            f'変化率は分子÷分母の倍率の騰落（緑=分子優位へ、赤=分母優位へ）。'
-            f'「日本株か米国株か → 日経かTOPIXかグロースか」を先に決めてから下のテーマに進む。</p>')
+            f'変化率は分子÷分母の比の騰落（緑=分子優位へ、赤=分母優位へ）。'
+            f'「日本株か米国株か → 日経かTOPIXかグロースか」を先に決めてから下のテーマに進む。</p>\n'
+            f'  <h2 style="font-size:0.95rem;">市場の序列 — 期間ごとのランキング</h2>\n'
+            f'  <div class="table-wrap">\n  <table>\n'
+            f'    <thead><tr><th>順位</th>{header}</tr></thead>\n'
+            f'    <tbody>\n' + "\n".join(rank_rows) + '\n    </tbody>\n  </table>\n  </div>\n'
+            f'  <p style="font-size:0.76rem; color:#64748b; margin:6px 0 0;">'
+            f'各期間の騰落率で4市場（米国=S&amp;P500・日経平均・TOPIX・グロース250）を順位付け。'
+            f'セルにカーソルで実際の騰落率。左（短期）と右（長期）で顔ぶれが違えばローテーションが起きている。</p>')
 
 
 def generate_html(rows):
@@ -384,7 +418,7 @@ def generate_html(rows):
                                              -(rel_vals[r["ticker"]]["3営業日"] or 0)))
         sections.append(
             f'  <h2>{title} <span style="font-size:0.72rem; color:#64748b" class="rel-view">'
-            f'（対{bench_label}の相対力 — TradingViewの「業種÷NI225」と同じ思想）</span></h2>\n'
+            f'（対{bench_label}の相対力）</span></h2>\n'
             + table_html([(r, rel_vals[r["ticker"]], cell_rel) for r in rel_grp], "rel-view")
             + "\n"
             + table_html([(r, r, cell) for r in abs_grp], "abs-view", hidden=True))
