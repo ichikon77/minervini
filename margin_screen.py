@@ -234,6 +234,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="updated">最終更新: {updated}</p>
 <script>
 let DATA = null;
+let FUND = null;
 
 async function loadData() {{
   if (DATA) return DATA;
@@ -242,16 +243,85 @@ async function loadData() {{
   return DATA;
 }}
 
+async function loadFund() {{
+  if (FUND !== null) return FUND;
+  try {{
+    const res = await fetch('margin_fundamentals.json');
+    FUND = await res.json();
+  }} catch (e) {{
+    FUND = {{}};
+  }}
+  return FUND;
+}}
+
 function fmt(n) {{ return n.toLocaleString('ja-JP'); }}
+
+function pctCell(v, suffix) {{
+  if (v === null || v === undefined) return '<td>-</td>';
+  const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  const sign = v > 0 ? '+' : '';
+  return '<td><span class="' + cls + '">' + sign + v.toLocaleString('ja-JP') + (suffix || '') + '</span></td>';
+}}
+
+function fundHtml(code, fund) {{
+  const s = fund.stocks ? fund.stocks[code] : null;
+  if (!s) {{
+    return '<p class="hint">業績・ベータ・レーティングは時価総額' + (fund.fund_min_oku || 500)
+         + '億円以上の銘柄のみ対応（毎週土曜更新）</p>';
+  }}
+  let h = '';
+  // 四半期業績
+  if (s.quarters && s.quarters.length) {{
+    h += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">四半期業績（直近' + s.quarters.length + '四半期・単位億円）</h3>';
+    h += '<table><thead><tr><th>四半期</th><th>売上高</th><th>売上YoY</th><th>営業利益</th><th>営利YoY</th><th>営業利益率</th><th>営利率YoY</th></tr></thead><tbody>';
+    for (const q of s.quarters) {{
+      h += '<tr><td>' + q[0] + '</td><td>' + (q[1] !== null ? fmt(q[1]) : '-') + '</td>'
+         + pctCell(q[4], '%')
+         + '<td>' + (q[2] !== null ? fmt(q[2]) : '-') + '</td>'
+         + pctCell(q[5], '%')
+         + '<td>' + (q[3] !== null ? q[3].toFixed(1) + '%' : '-') + '</td>'
+         + pctCell(q[6], 'bps') + '</tr>';
+    }}
+    h += '</tbody></table>';
+    h += '<p class="hint" style="margin-top:4px">YoYはデータ源の制約で最新期のみ（前年同期がある場合）。営業利益率が過去平均から切り上がっているかに注目。</p>';
+  }}
+  // ベータ + レーティング
+  h += '<div style="display:flex; gap:26px; flex-wrap:wrap; margin-top:10px;">';
+  h += '<div><h3 style="font-size:0.92rem; color:#cbd5e1; margin:0 0 6px;">ベータ値（2年日次）</h3>'
+     + '<table><thead><tr><th>対日経平均</th><th>対TOPIX</th></tr></thead><tbody><tr>'
+     + '<td>' + (s.beta && s.beta[0] !== null ? s.beta[0].toFixed(2) : '-') + '</td>'
+     + '<td>' + (s.beta && s.beta[1] !== null ? s.beta[1].toFixed(2) : '-') + '</td>'
+     + '</tr></tbody></table>'
+     + '<p class="hint" style="margin-top:4px">1未満=指数が1%動いてもそれ以下しか動かない</p></div>';
+  const r = s.rating;
+  if (r) {{
+    const kai = (r.target && r.price) ? ((r.target / r.price - 1) * 100) : null;
+    h += '<div><h3 style="font-size:0.92rem; color:#cbd5e1; margin:0 0 6px;">アナリスト評価（' + r.n + '名）</h3>'
+       + '<table><thead><tr><th>平均スコア</th><th>強気買/買/中立/売/強気売</th><th>目標株価 平均</th><th>現値からの乖離</th><th>最高</th><th>最低</th></tr></thead><tbody><tr>'
+       + '<td>' + r.mean.toFixed(2) + '</td>'
+       + '<td>' + (r.dist ? r.dist.join(' / ') : '-') + '</td>'
+       + '<td>' + (r.target ? fmt(Math.round(r.target)) + '円' : '-') + '</td>'
+       + (kai !== null ? pctCell(Math.round(kai * 10) / 10, '%') : '<td>-</td>')
+       + '<td>' + (r.high ? fmt(Math.round(r.high)) : '-') + '</td>'
+       + '<td>' + (r.low ? fmt(Math.round(r.low)) : '-') + '</td>'
+       + '</tr></tbody></table>'
+       + '<p class="hint" style="margin-top:4px">スコア: 1=強気買い〜5=売り。目標株価から大きく下方乖離している銘柄は注目（1社のレーティングを鵜呑みにしない）</p></div>';
+  }} else if (s.mcap_oku !== null && fund.rating_min_oku && s.mcap_oku < fund.rating_min_oku) {{
+    h += '<div><p class="hint">レーティングは時価総額' + fund.rating_min_oku + '億円以上のみ（この銘柄: ' + fmt(s.mcap_oku) + '億円）</p></div>';
+  }}
+  h += '</div>';
+  return h;
+}}
 
 async function search() {{
   const raw = document.getElementById('codes').value.trim();
   const out = document.getElementById('result');
   if (!raw) {{ out.innerHTML = ''; return; }}
   out.innerHTML = '<p class="hint">読み込み中...</p>';
-  let data;
+  let data, fund;
   try {{
     data = await loadData();
+    fund = await loadFund();
   }} catch (e) {{
     out.innerHTML = '<p class="err">データの読み込みに失敗しました</p>';
     return;
@@ -266,6 +336,8 @@ async function search() {{
       continue;
     }}
     html += '<h2>' + code + ' ' + name + '</h2>';
+    html += fundHtml(code, fund);
+    html += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">制度信用倍率（週次）</h3>';
     html += '<table><thead><tr><th>週（申込日）</th><th>制度買残</th><th>制度売残</th><th>制度信用倍率</th><th>前週比</th></tr></thead><tbody>';
     let prev = null;
     const rows = [];

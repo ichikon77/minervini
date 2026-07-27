@@ -1,0 +1,254 @@
+# -*- coding: utf-8 -*-
+"""
+銘柄別ファンダメンタルズ 週次取得 → margin_fundamentals.json → GitHub Pages公開
+
+margin.html（銘柄別信用倍率の検索ページ）の検索結果に、業績・ベータ・レーティングを
+追加表示するためのデータを週次（土曜朝）で取得する。3段構えの設計:
+  - 制度信用倍率: 全銘柄・毎日更新（既存の margin_screen.py、本スクリプトは触らない）
+  - 四半期業績 + ベータ: 時価総額500億円以上（約1,500銘柄）・週次
+  - レーティング: 時価総額3,000億円以上（約500銘柄）・週次
+    （小型株はアナリストカバレッジがほぼ無く、平均の意味が薄いため絞る）
+
+データ源: yfinance
+  - 時価総額: fast_info（軽い）
+  - 四半期売上・営業利益: quarterly_income_stmt（直近5四半期まで。YoYは最新期のみ計算可能）
+  - ベータ: 2年日次リターンから対日経(^N225)・対TOPIX(1306.T)を自前計算（一括取得）
+  - レーティング: info の recommendationMean / targetMeanPrice 等
+
+実行: 毎週土曜 7:00（margin_weekly_run.bat）。--test で先頭20銘柄のみ。
+"""
+
+import os
+import sys
+import json
+import time
+import subprocess
+import datetime
+
+import yfinance as yf
+import pandas as pd
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+HISTORY_JSON = os.path.join(SCRIPT_DIR, "margin_all_history.json")   # 銘柄コード一覧の元
+OUT_JSON = os.path.join(SCRIPT_DIR, "margin_fundamentals.json")
+MCAP_CACHE = os.path.join(SCRIPT_DIR, "margin_mcap_cache.json")      # 時価総額キャッシュ（毎回更新）
+
+FUND_MIN_OKU = 500     # 業績・ベータの対象: 時価総額500億円以上
+RATING_MIN_OKU = 3000  # レーティングの対象: 3,000億円以上
+BETA_CHUNK = 200       # ベータ用株価の一括取得チャンク
+SLEEP = 0.4            # API呼び出し間隔（レート制限対策）
+
+
+def log(msg):
+    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
+
+
+def load_codes():
+    """margin_all_history.json の names から銘柄コード一覧（4桁数字のみ=ETF等を除外しない。
+    ETFはfast_infoで時価総額が取れないか業績が無いので自然に落ちる）"""
+    with open(HISTORY_JSON, encoding="utf-8") as f:
+        names = json.load(f)["names"]
+    return sorted(names.keys()), names
+
+
+def fetch_market_caps(codes):
+    """fast_infoで時価総額（億円）を取得。失敗はNone"""
+    caps = {}
+    for i, code in enumerate(codes):
+        try:
+            fi = yf.Ticker(code + ".T").fast_info
+            mc = fi["marketCap"] if "marketCap" in fi else None
+            caps[code] = round(mc / 1e8) if mc else None
+        except Exception:
+            caps[code] = None
+        if i % 200 == 0:
+            log(f"  時価総額 {i}/{len(codes)}")
+        time.sleep(0.15)
+    json.dump(caps, open(MCAP_CACHE, "w", encoding="utf-8"))
+    return caps
+
+
+def fetch_quarters(code):
+    """四半期の [期末, 売上(億), 営利(億), 営利率%, 売上YoY%, 営利YoY%, 営利率YoY bps] 最新順。
+    quarterly_income_stmt は直近5四半期まで → YoYが出るのは最新期のみ（4期前があるとき）"""
+    q = yf.Ticker(code + ".T").quarterly_income_stmt
+    if q is None or q.empty:
+        return []
+    cols = sorted(q.columns, reverse=True)
+    out = []
+    vals = {}
+    for c in cols:
+        try:
+            rev = q.loc["Total Revenue", c] if "Total Revenue" in q.index else None
+            op = q.loc["Operating Income", c] if "Operating Income" in q.index else None
+        except Exception:
+            continue
+        rev = None if rev is None or rev != rev else round(float(rev) / 1e8)
+        op = None if op is None or op != op else round(float(op) / 1e8)
+        margin = round(op / rev * 100, 1) if rev and op is not None and rev != 0 else None
+        vals[str(c.date())[:7]] = (rev, op, margin)
+    keys = sorted(vals, reverse=True)
+    for i, k in enumerate(keys):
+        rev, op, margin = vals[k]
+        # YoY: 4四半期前が取れていれば計算
+        yoy_r = yoy_o = yoy_m = None
+        if i + 4 < len(keys):
+            pr, po, pm = vals[keys[i + 4]]
+            if rev and pr:
+                yoy_r = round((rev / pr - 1) * 100, 1)
+            if op is not None and po not in (None, 0):
+                yoy_o = round((op / po - 1) * 100, 1)
+            if margin is not None and pm is not None:
+                yoy_m = round((margin - pm) * 100)  # bps
+        out.append([k, rev, op, margin, yoy_r, yoy_o, yoy_m])
+    return out
+
+
+def fetch_rating(code):
+    """レーティング: {mean, n, target, high, low, dist:[strongBuy,buy,hold,sell,strongSell], price}"""
+    t = yf.Ticker(code + ".T")
+    info = t.info
+    mean = info.get("recommendationMean")
+    n = info.get("numberOfAnalystOpinions")
+    if not mean or not n:
+        return None
+    rec = {"mean": round(mean, 2), "n": n,
+           "target": info.get("targetMeanPrice"),
+           "high": info.get("targetHighPrice"),
+           "low": info.get("targetLowPrice"),
+           "price": info.get("currentPrice")}
+    try:
+        r = t.recommendations
+        if r is not None and len(r):
+            row = r.iloc[0]
+            rec["dist"] = [int(row.get(k, 0)) for k in
+                           ["strongBuy", "buy", "hold", "sell", "strongSell"]]
+    except Exception:
+        pass
+    return rec
+
+
+def _clean_ret(close):
+    """日次リターン。±20%超は併合・分割の調整漏れとみなして除外"""
+    r = close.pct_change()
+    return r[abs(r) <= 0.2]
+
+
+def calc_betas(codes):
+    """対日経・対TOPIXのベータ（2年日次リターン、±20%超の異常値は除外）。
+    TOPIXは1308.T（1306.Tは2026年の併合でyfinanceの調整が壊れているため）"""
+    bench = yf.download(["^N225", "1308.T"], period="2y", auto_adjust=True,
+                        progress=False, group_by="ticker", threads=True)
+    n225 = _clean_ret(bench["^N225"]["Close"])
+    topix = _clean_ret(bench["1308.T"]["Close"])
+    betas = {}
+    for i in range(0, len(codes), BETA_CHUNK):
+        chunk = [c + ".T" for c in codes[i:i + BETA_CHUNK]]
+        data = yf.download(chunk, period="2y", auto_adjust=True,
+                           progress=False, group_by="ticker", threads=True)
+        for c in codes[i:i + BETA_CHUNK]:
+            try:
+                ret = _clean_ret(data[c + ".T"]["Close"])
+                df_n = pd.concat([ret, n225], axis=1).dropna()
+                df_t = pd.concat([ret, topix], axis=1).dropna()
+                b_n = df_n.iloc[:, 0].cov(df_n.iloc[:, 1]) / df_n.iloc[:, 1].var() if len(df_n) > 100 else None
+                b_t = df_t.iloc[:, 0].cov(df_t.iloc[:, 1]) / df_t.iloc[:, 1].var() if len(df_t) > 100 else None
+                betas[c] = [round(b_n, 2) if b_n is not None else None,
+                            round(b_t, 2) if b_t is not None else None]
+            except Exception:
+                betas[c] = [None, None]
+        log(f"  ベータ {min(i + BETA_CHUNK, len(codes))}/{len(codes)}")
+    return betas
+
+
+def push_to_github():
+    log("GitHub Pages に公開中...")
+    today = datetime.date.today().isoformat()
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add",
+                    os.path.basename(OUT_JSON), "margin_weekly.py", "margin_weekly_run.bat"],
+                   check=True)
+    result = subprocess.run(
+        ["git", "-C", SCRIPT_DIR, "commit", "-m", "update margin fundamentals " + today],
+        capture_output=True)
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            log("  commit skip (already committed)")
+        else:
+            log("  commit failed: " + msg)
+            return
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", SCRIPT_DIR, "pull", "--rebase", "--autostash"], check=True)
+            subprocess.run(["git", "-C", SCRIPT_DIR, "push"], check=True)
+            log("  Done")
+            return
+        except subprocess.CalledProcessError as e:
+            log(f"  push failed (attempt {attempt}/5): {e}")
+            time.sleep(10)
+    log("  push failed finally")
+
+
+def main():
+    test = "--test" in sys.argv
+    log("銘柄別ファンダメンタルズ 週次取得 開始" + ("（テスト: 20銘柄）" if test else ""))
+
+    codes, names = load_codes()
+    log(f"銘柄コード: {len(codes)}件")
+    if test:
+        codes = [c for c in codes if c in
+                 ("1570", "2802", "4368", "6098", "6501", "7014", "7203", "7974",
+                  "8306", "9101", "9984", "6146", "6857", "8035", "9020", "9201",
+                  "9433", "9613", "4063", "6981")][:20]
+
+    log("① 時価総額スクリーニング...")
+    caps = fetch_market_caps(codes)
+    fund_codes = [c for c in codes if (caps.get(c) or 0) >= FUND_MIN_OKU]
+    rating_codes = [c for c in fund_codes if (caps.get(c) or 0) >= RATING_MIN_OKU]
+    log(f"  業績・ベータ対象: {len(fund_codes)}銘柄（{FUND_MIN_OKU}億以上） / "
+        f"レーティング対象: {len(rating_codes)}銘柄（{RATING_MIN_OKU}億以上）")
+
+    log("② ベータ計算（一括）...")
+    betas = calc_betas(fund_codes)
+
+    log("③ 四半期業績...")
+    stocks = {}
+    for i, c in enumerate(fund_codes):
+        try:
+            quarters = fetch_quarters(c)
+        except Exception:
+            quarters = []
+        stocks[c] = {"name": names.get(c, ""), "mcap_oku": caps.get(c),
+                     "beta": betas.get(c, [None, None]), "quarters": quarters}
+        if i % 100 == 0:
+            log(f"  業績 {i}/{len(fund_codes)}")
+        time.sleep(SLEEP)
+
+    log("④ レーティング...")
+    for i, c in enumerate(rating_codes):
+        try:
+            r = fetch_rating(c)
+        except Exception:
+            r = None
+        if r:
+            stocks[c]["rating"] = r
+        if i % 100 == 0:
+            log(f"  レーティング {i}/{len(rating_codes)}")
+        time.sleep(SLEEP)
+
+    out = {"updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+           "fund_min_oku": FUND_MIN_OKU, "rating_min_oku": RATING_MIN_OKU,
+           "stocks": stocks}
+    with open(OUT_JSON, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    log(f"保存: {OUT_JSON}（{len(stocks)}銘柄）")
+
+    if "--nopush" in sys.argv or test:
+        log("push スキップ")
+    else:
+        push_to_github()
+    log("完了")
+
+
+if __name__ == "__main__":
+    main()
