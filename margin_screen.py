@@ -217,7 +217,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
-  <h1>銘柄チェッカー — 需給・業績・評価を一画面で</h1>
+  <h1>銘柄チェッカー</h1>
   <p class="subtitle">最終更新: {updated} | 出所: JPX 銘柄別信用取引週末残高（週次） | 収録: {n_codes}銘柄 × {n_weeks}週分</p>
   <div class="searchbox">
     <input type="text" id="codes" placeholder="証券コード（例: 5411 または 5411,7203,1570）"
