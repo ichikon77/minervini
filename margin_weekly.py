@@ -11,7 +11,8 @@ margin.html（銘柄別信用倍率の検索ページ）の検索結果に、業
 
 データ源: yfinance
   - 時価総額: fast_info（軽い）
-  - 四半期売上・営業利益: quarterly_income_stmt（直近5四半期まで。YoYは最新期のみ計算可能）
+  - 四半期売上・営業利益: かぶたん(kabutan.jp)の3ヵ月実績テーブル（8四半期・百万円。YoYは自前計算で4期分出る）
+    ※yfinanceのquarterly_income_stmtは日本株の欠落が多く（日立・JAL等でEPSのみ）不採用
   - ベータ: 2年日次リターンから対日経(^N225)・対TOPIX(1306.T)を自前計算（一括取得）
   - レーティング: info の recommendationMean / targetMeanPrice 等
 
@@ -19,6 +20,7 @@ margin.html（銘柄別信用倍率の検索ページ）の検索結果に、業
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -78,39 +80,63 @@ def fetch_market_caps(codes):
     return caps
 
 
+KABUTAN_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0"}
+
+
 def fetch_quarters(code):
-    """四半期の [期末, 売上(億), 営利(億), 営利率%, 売上YoY%, 営利YoY%, 営利率YoY bps] 最新順。
-    quarterly_income_stmt は直近5四半期まで → YoYが出るのは最新期のみ（4期前があるとき）"""
-    q = yf.Ticker(code + ".T").quarterly_income_stmt
-    if q is None or q.empty:
-        return []
-    cols = sorted(q.columns, reverse=True)
-    out = []
-    vals = {}
-    for c in cols:
-        try:
-            rev = q.loc["Total Revenue", c] if "Total Revenue" in q.index else None
-            op = q.loc["Operating Income", c] if "Operating Income" in q.index else None
-        except Exception:
+    """かぶたんの四半期業績（3ヵ月実績）テーブルから
+    [期間, 売上(百万円), 営利(百万円), 営利率%, 売上YoY%, 営利YoY%, 営利率YoY bps] 最新順を返す。
+    8四半期取れるため、最新4四半期でYoYを自前計算できる。
+    銀行等は営業益がNone（銀行決算に営業利益の概念がないため）"""
+    import urllib.request
+    url = f"https://kabutan.jp/stock/finance?code={code}"
+    req = urllib.request.Request(url, headers=KABUTAN_UA)
+    html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", errors="replace")
+
+    best = None
+    for m in re.finditer(r"<table[^>]*>(.*?)</table>", html, re.S):
+        tbl = m.group(1)
+        flat = re.sub(r"<[^>]+>", "", tbl)
+        if "売上営業" not in flat or "損益率" not in flat:
             continue
-        rev = None if rev is None or rev != rev else round(float(rev) / 1e8)
-        op = None if op is None or op != op else round(float(op) / 1e8)
-        margin = round(op / rev * 100, 1) if rev and op is not None and rev != 0 else None
-        vals[str(c.date())[:7]] = (rev, op, margin)
-    keys = sorted(vals, reverse=True)
-    for i, k in enumerate(keys):
-        rev, op, margin = vals[k]
-        # YoY: 4四半期前が取れていれば計算
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tbl, re.S)
+        parsed = []
+        for r in rows:
+            cells = [re.sub(r"<[^>]+>", "", c).replace("&nbsp;", " ").strip()
+                     for c in re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", r, re.S)]
+            if len(cells) < 7:
+                continue
+            m2 = re.search(r"(\d{2})\.(\d{2})-(\d{2})", cells[0])
+            if not m2 or "予" in cells[0]:
+                continue
+            yy, ms, me = m2.groups()
+
+            def num(x):
+                x = x.replace(",", "").replace("－", "").strip()
+                try:
+                    return float(x)
+                except ValueError:
+                    return None
+            parsed.append([f"20{yy}.{ms}-{me}", num(cells[1]), num(cells[2]), num(cells[6])])
+        if parsed and (best is None or len(parsed) > len(best)):
+            best = parsed
+    if not best:
+        return []
+
+    # 古い順に並んでいる → 新しい順に。YoYは4四半期前と比較
+    best.sort(key=lambda x: x[0], reverse=True)
+    out = []
+    for i, (period, rev, op, margin) in enumerate(best):
         yoy_r = yoy_o = yoy_m = None
-        if i + 4 < len(keys):
-            pr, po, pm = vals[keys[i + 4]]
+        if i + 4 < len(best):
+            _, pr, po, pm = best[i + 4]
             if rev and pr:
                 yoy_r = round((rev / pr - 1) * 100, 1)
             if op is not None and po not in (None, 0):
                 yoy_o = round((op / po - 1) * 100, 1)
             if margin is not None and pm is not None:
                 yoy_m = round((margin - pm) * 100)  # bps
-        out.append([k, rev, op, margin, yoy_r, yoy_o, yoy_m])
+        out.append([period, rev, op, margin, yoy_r, yoy_o, yoy_m])
     return out
 
 
