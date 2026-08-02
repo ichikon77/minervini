@@ -139,6 +139,30 @@ def fetch_daily():
     return out
 
 
+def compute_monthly(hist):
+    """月別の平均値を計算 {月(YYYY-MM): {日数, 日経平均, 合計, 規制あり, 規制なし}}（各値は月内平均）"""
+    buckets = {}
+    for d, r in hist.items():
+        ym = d[:7]
+        b = buckets.setdefault(ym, {"n": 0, "日経平均": 0.0, "合計": 0.0, "規制あり": 0.0, "規制なし": 0.0})
+        b["n"] += 1
+        b["日経平均"] += r.get("日経平均") or 0.0
+        b["合計"] += r.get("合計") or 0.0
+        b["規制あり"] += r.get("規制あり") or 0.0
+        b["規制なし"] += r.get("規制なし") or 0.0
+    out = {}
+    for ym, b in buckets.items():
+        n = b["n"] or 1
+        out[ym] = {
+            "n": b["n"],
+            "日経平均": round(b["日経平均"] / n, 2),
+            "合計": round(b["合計"] / n, 1),
+            "規制あり": round(b["規制あり"] / n, 1),
+            "規制なし": round(b["規制なし"] / n, 1),
+        }
+    return out
+
+
 def compute_diffs(hist):
     """前日比を全期間計算"""
     dates = sorted(hist.keys())
@@ -193,11 +217,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .nav a.active {{ background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }}
   .legend {{ display: flex; gap: 10px; margin-bottom: 14px; font-size: 0.78rem; color: #94a3b8; flex-wrap: wrap; align-items: center; }}
   .chip {{ padding: 2px 10px; border-radius: 10px; }}
+  .panels {{ display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }}
   .table-wrap {{
     overflow: auto;
     max-height: calc(100vh - 210px);
     max-width: 860px;
   }}
+  .table-wrap.monthly {{ max-width: 480px; }}
+  h2 {{ font-size: 0.95rem; color: #cbd5e1; margin-bottom: 8px; }}
   table {{ border-collapse: collapse; font-size: 0.84rem; }}
   thead th {{
     background: #1e293b; color: #94a3b8; padding: 9px 12px;
@@ -255,6 +282,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <span class="chip" style="background:rgba(220,38,38,0.18); color:#fecaca">合計40以上 = 空売り増加</span>
     <span class="chip" style="background:rgba(220,38,38,0.45); color:#fee2e2">合計44以上 = 空売り過熱（買い戻し反発に注意）</span>
   </div>
+  <div class="panels">
+  <div>
+  <h2>日別</h2>
   <div class="table-wrap">
   <table>
     <thead>
@@ -272,6 +302,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {rows}
     </tbody>
   </table>
+  </div>
+  </div>
+  <div>
+  <h2>月別平均（推移）</h2>
+  <div class="table-wrap monthly">
+  <table>
+    <thead>
+      <tr>
+        <th>月</th>
+        <th>空売り比率合計</th>
+      </tr>
+    </thead>
+    <tbody>
+{monthly_rows}
+    </tbody>
+  </table>
+  </div>
+  </div>
   </div>
   <p class="note">
     ・空売り比率 = 売り注文全体に占める空売りの割合（プライム市場）。40%超は歴史的に高水準で、空売りの買い戻しによる反発が起きやすいとされる。<br>
@@ -324,9 +372,22 @@ def generate_html(hist):
             f'<td>{fmt_num(r.get("規制なし"), 1)}</td></tr>'
         )
 
+    monthly = compute_monthly(hist)
+    months = sorted(monthly.keys(), reverse=True)  # 最新月が上
+    monthly_rows = []
+    for i, ym in enumerate(months):
+        m = monthly[ym]
+        row_cls = ' class="latest-row"' if i == 0 else ""
+        total = m.get("合計")
+        monthly_rows.append(
+            f'      <tr{row_cls}><td>{ym.replace("-", "/")}</td>'
+            f'<td{total_attr(total)}>{fmt_num(total, 1)}</td></tr>'
+        )
+
     html = HTML_TEMPLATE.format(
         latest_date=dates[0].replace("-", "/") if dates else "-",
         rows="\n".join(rows),
+        monthly_rows="\n".join(monthly_rows),
         src_url=PAGE_URL,
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
     )
