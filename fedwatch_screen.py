@@ -96,15 +96,22 @@ def fetch_futures():
 def calc_probs_for_date(rates_at, date_iso):
     """ある日付時点の各会合の変化織り込み確率 {会合ラベル: prob%} を返す
 
-    rates_at: {(y,m): レート%} その日の各限月の織り込みレート
+    rates_at: {(y,m): レート%} その日時点で分かっている各限月の織り込みレート
+      （forward-fillされた値。会合が過ぎて先物が取引終了した月も、
+       最後に観測された確定レートとして常に含まれる＝実現レートとして使える）
+
+    全FOMC_DATESを時系列順（古い→新しい）に必ず通し、r_prev（直前会合の
+    決定後レート）のチェーンを日付に関わらず最後まで引き継ぐ。過去の会合は
+    もう不確実性がなく実現レートが確定しているので、date_iso <= d で
+    チェーンを切ってはいけない（切ると、それ以降の全会合が
+    r_prev=Noneのままcontinueされて消えてしまう）。
+    date_iso以前（＝もう終わった）会合はチェーンの土台として使うだけで、
+    resultには入れない（表に出すのは未来の会合のみ）。
     """
     result = {}
-    r_prev = None  # 直前会合の会合後レート
+    r_prev = None  # 直前会合の会合後レート（実現 or 織り込み）
 
-    for d in FOMC_DATES:
-        if d <= date_iso:
-            r_prev = None  # 過ぎた会合はスキップ（チェーンを切ってNoneから再開）
-            continue
+    for d in sorted(FOMC_DATES):
         y, m = int(d[:4]), int(d[5:7])
         day = int(d[8:10])
         n_days = calendar.monthrange(y, m)[1]
@@ -135,26 +142,36 @@ def calc_probs_for_date(rates_at, date_iso):
                 r_after = (avg_m - w_before * r_before) / w_after
 
             prob = (r_after - r_before) / 0.25 * 100
-            label = f"{y}/{m:02d}"
-            result[label] = round(prob)
             r_prev = r_after
+            if d > date_iso:
+                label = f"{y}/{m:02d}"
+                result[label] = round(prob)
         except Exception:
             continue
     return result
 
 
 def build_history(futures):
-    """全取引日について確率を計算 {日付: {会合: prob}}"""
+    """全取引日について確率を計算 {日付: {会合: prob}}
+
+    各限月の先物は、その月が過ぎる（会合が確定する）と出来高が細り、
+    最終的には取引されなくなる（seriesにその日のキーが無くなる）。
+    そこで forward-fill: 直前に観測された終値を、その月がrates_atに
+    出てこなくなった日以降も「確定レート」として引き継ぐ。これが無いと
+    会合が過ぎた月のavg_mがNoneに戻り、calc_probs_for_dateのr_prevチェーンが
+    そこで切れて以降の会合が全部消える。
+    """
     all_dates = set()
     for series in futures.values():
         all_dates.update(series.keys())
 
+    last_known = {}  # ym -> 直前に観測された値（forward-fill用）
     hist = {}
     for d in sorted(all_dates):
-        rates_at = {}
         for ym, series in futures.items():
             if d in series:
-                rates_at[ym] = series[d]
+                last_known[ym] = series[d]
+        rates_at = dict(last_known)  # その日までに分かっている全限月（forward-fill済み）
         probs = calc_probs_for_date(rates_at, d)
         if probs:
             hist[d] = probs
