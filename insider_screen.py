@@ -21,6 +21,7 @@ import urllib.request
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "insider_history.json")
+FORM144_JSON = os.path.join(SCRIPT_DIR, "insider_form144.json")  # 売却予定の事前通知（Form 4より早く出る）
 REPORT_HTML = "insider.html"
 
 BASE = "http://openinsider.com"
@@ -156,6 +157,83 @@ def save_plan_cache(cache):
 
 
 # -----------------------------------------
+# Form 144（売却予定の事前通知。Form 4より先に出るため早期警戒に使う）
+# -----------------------------------------
+def fetch_form144(cik, max_filings=10):
+    """人物CIKのSEC submissions一覧からForm 144（売却予定の事前通知。Form 4より先に
+    出るため早期警戒として使う）を検出し、直近max_filings件のprimary_doc.xmlをパースして返す。
+    戻り値: [{filing, notice_date, issuer, shares, value, plan_date, remarks, accn}, ...]（新しい順）"""
+    try:
+        data = json.loads(fetch_sec(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json"))
+    except Exception as e:
+        log(f"    Form144 submissions取得失敗 CIK{cik}: {e}")
+        return []
+    recent = data.get("filings", {}).get("recent", {})
+    forms = recent.get("form", [])
+    accs = recent.get("accessionNumber", [])
+    dates = recent.get("filingDate", [])
+    out = []
+    n = 0
+    for i in range(len(forms)):
+        if forms[i] != "144" or n >= max_filings:
+            continue
+        n += 1
+        accn_raw = accs[i]
+        accn = accn_raw.replace("-", "")
+        try:
+            # index.htmは申告者(人物)CIK配下でも参照できる。中のdocument hrefから
+            # 実ファイル（issuer CIK配下）の絶対パスを取り、そこからprimary_doc.xmlを取得
+            idx = fetch_sec(f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn}/{accn_raw}-index.htm")
+            hrefs = re.findall(r'href="(/Archives/edgar/data/[^"]+?primary_doc\.xml)"', idx)
+            # xslNNNX01/primary_doc.xml はXSLT変換後のHTML表示用リンク（実体はXMLでもタグ構造が異なる）。
+            # 生XMLの方（パスにxslが入らない側）を優先して選ぶ
+            raw_hrefs = [h for h in hrefs if "/xsl" not in h]
+            if not raw_hrefs:
+                raw_hrefs = hrefs
+            if not raw_hrefs:
+                continue
+            xml = fetch_sec("https://www.sec.gov" + raw_hrefs[0])
+        except Exception as e:
+            log(f"    Form144取得失敗 {accn_raw}: {e}")
+            continue
+
+        shares = re.search(r"<noOfUnitsSold>([^<]*)", xml)
+        value = re.search(r"<aggregateMarketValue>([^<]*)", xml)
+        sale_date = re.search(r"<approxSaleDate>([^<]*)", xml)
+        plan_date = re.search(r"<planAdoptionDate>([^<]*)", xml)
+        issuer_name = re.search(r"<issuerName>([^<]*)", xml)
+        remarks = re.search(r"<remarks>([^<]*)", xml)
+        out.append({
+            "filing": dates[i],
+            "notice_date": sale_date.group(1).strip() if sale_date else dates[i],
+            "issuer": issuer_name.group(1).strip() if issuer_name else "",
+            "shares": shares.group(1).strip() if shares else "",
+            "value": value.group(1).strip() if value else "",
+            "plan_date": plan_date.group(1).strip() if plan_date else "",
+            "remarks": remarks.group(1).strip() if remarks else "",
+            "accn": accn_raw,
+        })
+        time.sleep(0.2)
+    return out
+
+
+# -----------------------------------------
+# Form 144 履歴
+# -----------------------------------------
+def load_form144_history():
+    if os.path.exists(FORM144_JSON):
+        try:
+            return json.load(open(FORM144_JSON, encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def save_form144_history(hist):
+    json.dump(hist, open(FORM144_JSON, "w", encoding="utf-8"), ensure_ascii=False)
+
+
+# -----------------------------------------
 # 履歴（JSON蓄積。openinsiderは古い行が流れるため）
 # -----------------------------------------
 def load_history():
@@ -267,7 +345,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <b>買い（P - Purchase）は自腹の意思表示なので重要度が高い</b>（マスクの2025/9のTSLA買いなど）。<br>
     ・ゲイツ（MSFT取締役退任済）とジョブズ（故人）はForm 4の提出義務がなくデータが存在しない。
     ペイジ/ブリンは近年ほぼ売買がないため「報告なし」が続く（それ自体が情報）。<br>
-    ・履歴は蓄積式。openinsiderから古い行が消えてもこのページには残る。
+    ・履歴は蓄積式。openinsiderから古い行が消えてもこのページには残る。<br>
+    ・<b>Form 144</b> = 役員等が今後株式を売却する予定であることの事前通知（SEC提出）。
+    実際に売った確定報告（Form 4）より2〜数営業日ほど早く出るため、早期警戒に使える。
+    ただしForm 144の提出＝必ず売却が実行されるわけではない（予定の上限を通知するだけ）。
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
@@ -330,15 +411,64 @@ def make_recent_section(hist, today):
         "    <tbody>\n" + "\n".join(rows) + "\n    </tbody>\n  </table>")
 
 
-def generate_html(hist):
+def fmt_usd(v):
+    try:
+        return f"${float(v):,.0f}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def fmt_shares(v):
+    try:
+        return f"{int(float(v)):,}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def make_form144_table(rows, today):
+    """Form 144（売却予定の事前通知）のテーブルHTML。空ならNone"""
+    if not rows:
+        return None
+    trs = []
+    for r in rows[:5]:
+        try:
+            fd = datetime.date.fromisoformat(r["filing"])
+            is_new = (today - fd).days <= NEW_DAYS
+        except ValueError:
+            is_new = False
+        badge = ' <span class="new-badge">NEW</span>' if is_new else ""
+        tr_cls = ' class="new-row"' if is_new else ""
+        trs.append(
+            f"      <tr{tr_cls}><td>{r['filing']}{badge}</td>"
+            f"<td>{r.get('issuer','-')}</td>"
+            f"<td>{fmt_shares(r.get('shares'))}</td>"
+            f"<td>{fmt_usd(r.get('value'))}</td>"
+            f"<td>{r.get('plan_date','-')}</td>"
+            f"<td style=\"text-align:left; white-space:normal; max-width:420px\">{r.get('remarks','') or '-'}</td></tr>")
+    return (
+        '  <h3 style="font-size:0.85rem; color:#94a3b8; margin:10px 0 4px;">Form 144（売却予定の事前通知。まだ実売却の確定報告(Form 4)ではない）</h3>\n'
+        '  <table>\n    <thead><tr><th>提出日</th><th>対象銘柄</th><th>予定株数</th><th>予定金額</th>'
+        "<th>プラン採用日</th><th>備考</th></tr></thead>\n"
+        "    <tbody>\n" + "\n".join(trs) + "\n    </tbody>\n  </table>")
+
+
+def generate_html(hist, f144_hist=None):
+    f144_hist = f144_hist or {}
     today = datetime.date.today()
     sections = [make_recent_section(hist, today)]
     for name, role, path in PEOPLE:
         recs = list(hist.get(path, {}).values())
         recs.sort(key=lambda r: (r["filing"], r["trade_date"]), reverse=True)
         head = f'  <h2>{name}<span class="role">{role}</span></h2>'
+
+        f144_rows = sorted(f144_hist.get(path, {}).values(), key=lambda r: r["filing"], reverse=True)
+        f144_table = make_form144_table(f144_rows, today)
+
         if not recs:
-            sections.append(head + '\n  <p class="none">直近の報告なし（売買していない＝ホールド継続）</p>')
+            body = '\n  <p class="none">直近の報告なし（売買していない＝ホールド継続）</p>'
+            if f144_table:
+                body += "\n" + f144_table
+            sections.append(head + body)
             continue
         rows = []
         for r in recs[:SHOW_PER_PERSON]:
@@ -364,7 +494,10 @@ def generate_html(hist):
             '  <table>\n    <thead><tr><th>取引日</th><th>銘柄</th><th>肩書</th><th>種別</th><th>プラン</th>'
             "<th>単価</th><th>株数</th><th>取引後保有</th><th>金額</th></tr></thead>\n"
             "    <tbody>\n" + "\n".join(rows) + "\n    </tbody>\n  </table>")
-        sections.append(head + "\n" + table)
+        section = head + "\n" + table
+        if f144_table:
+            section += "\n" + f144_table
+        sections.append(section)
 
     html = HTML_TEMPLATE.format(
         updated_date=today.isoformat(),
@@ -385,7 +518,7 @@ def push_to_github():
     log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
-                    "insider_history.json", ".gitignore",
+                    "insider_history.json", "insider_form144.json", ".gitignore",
                     "insider_screen.py", "insider_run.bat"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update insider report " + today],
@@ -459,7 +592,32 @@ def main():
     save_history(hist)
     save_plan_cache(plan_cache)
 
-    generate_html(hist)
+    # Form 144（売却予定の事前通知）: Form 4より早く出るので毎回全人物チェック
+    f144_hist = load_form144_history()
+    f144_added = 0
+    for name, role, path in PEOPLE:
+        cik = path.rstrip("/").split("/")[-1]
+        try:
+            rows = fetch_form144(cik, max_filings=10)
+        except Exception as e:
+            log(f"  {name}: Form144取得失敗 {e}")
+            continue
+        bucket = f144_hist.setdefault(path, {})
+        n_new = 0
+        for r in rows:
+            k = r["accn"]
+            if k not in bucket:
+                bucket[k] = r
+                n_new += 1
+        f144_added += n_new
+        if rows:
+            log(f"  {name}: Form144 {len(rows)}件取得（新規 {n_new}）")
+        time.sleep(1)
+    if f144_added:
+        save_form144_history(f144_hist)
+        log(f"Form144履歴保存: 新規{f144_added}件")
+
+    generate_html(hist, f144_hist)
 
     if "--nopush" in sys.argv:
         log("--nopush 指定のため git push はスキップ")
