@@ -250,6 +250,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .total {{ font-weight: bold; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; }}
+  .faq {{ margin-top: 22px; max-width: 900px; }}
+  .faq h2 {{ font-size: 1rem; color: #cbd5e1; margin-bottom: 10px; border-left: 4px solid #2563eb; padding-left: 10px; }}
+  .faq .q {{
+    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 10px;
+  }}
+  .faq .q .qtext {{ font-size: 0.88rem; color: #f8fafc; font-weight: 600; margin-bottom: 6px; }}
+  .faq .q .atext {{ font-size: 0.83rem; color: #cbd5e1; line-height: 1.8; }}
+  .faq .q .atext b {{ color: #93c5fd; }}
 </style>
 <script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
@@ -308,6 +317,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・JPX先物データは毎週第4営業日（通常木曜）15:30頃公表。現物より数日遅れるため、最新週は現物のみ先行表示されることがある。<br>
     ・<a href="{jpx_url}" style="color:#60a5fa">JPX 投資部門別取引状況</a> / <a href="{shutai_url}" style="color:#60a5fa">nikkei225jp.com 投資主体別</a>
   </p>
+
+  <div class="faq">
+    <h2>よくある疑問</h2>
+    <div class="q">
+      <div class="qtext">Q. 先物が大幅な「買い」でも、それ自体が大きな下げの引き金になる？</div>
+      <div class="atext">
+        A. <b>先物買い自体は、空売りのような「将来必ず買い戻す」強制構造を持たない</b>ため、
+        直接的な踏み上げ・逆踏み上げの仕組みは存在しない（買ったポジションはロールオーバーで
+        持ち続けることも、単に保有し続けることもできる）。<br><br>
+        ただし間接的に2つの経路で下げ圧力に転化しうる。<br>
+        <b>①ポジション解消そのものの売り圧力</b>: 積み上がった先物ロングを海外投資家が一気に閉じる
+        （＝売る）場合、レバレッジが効いた電子取引の売りが速く・大きく出るため、それ自体が価格を
+        押し下げる直接的な要因になる。円キャリー巻き戻し（<a href="kinri.html" style="color:#60a5fa">金利と為替</a>参照）と
+        構造は同じで、方向が逆（買いポジションの解消）なだけ。<br>
+        <b>②裁定取引を経由した現物への波及</b>: 先物が買われ続けると先物価格が現物より高くなりやすく
+        （ベーシス拡大）、そこに「先物を売って現物を買う」裁定業者の売買が入り込む。この裁定の買い建玉が
+        積み上がると、<a href="saitei.html" style="color:#60a5fa">裁定取引</a>デッキで見ている残高が膨張し、
+        SQ（毎月第2金曜、3/6/9/12月はメジャーSQ。<a href="calendar.html" style="color:#60a5fa">イベント予定</a>参照）や
+        反対売買でまとめて解消されるタイミングに現物側にも影響が及ぶ。<br><br>
+        まとめると「先物買いが多い＝即座に暴落の引き金」ではないが、「その買いポジションが急に
+        解消される時」「裁定を通じて積み上がった現物側ポジションが解消される時」には無関係とは言えない、
+        という位置づけ。単発の週次データだけで判断せず、<a href="saitei.html" style="color:#60a5fa">裁定取引</a>の
+        建玉残高の増減と合わせて見るのが実用的。
+      </div>
+    </div>
+  </div>
+
   <p class="updated">最終更新: {updated}</p>
 </body>
 </html>
