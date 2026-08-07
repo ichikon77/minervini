@@ -72,10 +72,21 @@ def release_label(month_key, table):
     return f"{dt.month}/{dt.day}({WEEKDAYS_JP[dt.weekday()]})発表"
 
 
-def next_release(table, today):
-    """今日以降で最初の発表日 -> '8/12(水)' （なければ空文字）"""
-    future = sorted(d for d in table.values()
-                    if datetime.date.fromisoformat(d) >= today)
+def next_release(table, today, latest_month=None):
+    """直近発表済みの対象月より後の最初の発表日 -> '8/12(水)' （なければ空文字）
+
+    latest_month（'2026-07'等、既にデータを取得できている最新の対象月）を渡すと、
+    その月の発表日は「もう発表済み」として除外する。今日と発表日が同じ日でも、
+    BLSデータが既に取得できていればその月は発表済みとみなす（当日中に
+    「次回発表」が古い済み分のまま残るのを防ぐ）。
+    latest_monthを渡さない場合は日付のみでの比較（today以降）にフォールバック。
+    """
+    if latest_month is not None:
+        future = sorted(d for m, d in table.items()
+                        if m > latest_month and datetime.date.fromisoformat(d) >= today)
+    else:
+        future = sorted(d for d in table.values()
+                        if datetime.date.fromisoformat(d) >= today)
     if not future:
         return ""
     dt = datetime.date.fromisoformat(future[0])
@@ -365,7 +376,7 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
         rel_s = f'<td style="color:#64748b; font-size:0.78rem">{rel}</td>' if rel else "<td></td>"
         rows.append(f"<tr><td>{m.replace('-', '/')}分</td><td><b>{yoy[m]:.1f}%</b>{arrow}</td>{rel_s}</tr>")
     vals = [yoy[m] for m in last3]
-    nx = next_release(CPI_RELEASE, today)
+    nx = next_release(CPI_RELEASE, today, latest_month=months[0])
     nx_s = f'<br>→ 次回発表: {nx}' if nx else ""
     cpi_card = (
         '    <div class="card"><div class="label">入力1: CPI 前年比（物価の使命）</div>'
@@ -419,7 +430,7 @@ def make_cards(yoy, nfp_chg, unemp, rates, fed):
         pressure = "利下げ圧力が芽生え中"
     else:
         pressure = "利下げ圧力なし"
-    nxn = next_release(NFP_RELEASE, today)
+    nxn = next_release(NFP_RELEASE, today, latest_month=nfp_months[0])
     nxn_s = f'<br>→ 次回発表: {nxn}' if nxn else ""
     nfp_card = (
         '    <div class="card"><div class="label">入力2: 非農業部門雇用者数（雇用の使命）</div>'
