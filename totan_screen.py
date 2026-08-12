@@ -183,6 +183,23 @@ def parse_table(img_path):
             freq = float(cell(4, "0123456789.-"))
         except ValueError as e:
             raise ValueError(f"{meeting} 行の数値が読み取れません: {e}")
+
+        # 比率セルはpsm=7だと「7」を「1」に誤読することがある（フォント起因のtesseract既知の弱点）。
+        # 差分から逆算した期待値と大きくズレる場合は、psm=8（単語モード）で再読みして
+        # そちらが期待値に近ければ採用する（誤読の自動リトライ、検算ロジック自体は維持）
+        expected_pct = diff / RATE_STEP * 100
+        if abs(expected_pct - pct) > PCT_TOLERANCE:
+            pct_txt_alt = ocr_region(img, (vlines[3] + 3, y0 + 3, vlines[4] - 3, y1 - 3),
+                                     whitelist="0123456789.%-", psm="8")
+            try:
+                pct_alt = float(pct_txt_alt.replace("%", ""))
+            except ValueError:
+                pct_alt = None
+            if pct_alt is not None and abs(expected_pct - pct_alt) <= PCT_TOLERANCE:
+                log(f"  {meeting}: 比率セルをpsm=8で再読み取り ({pct}% -> {pct_alt}%、"
+                    f"差分{diff}からの期待値{expected_pct:.1f}%に近い方を採用)")
+                pct = pct_alt
+
         rows.append((meeting, ois, diff, pct, freq))
 
     if not rows:
