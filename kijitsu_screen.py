@@ -13,9 +13,20 @@
     180日通過後に改善（勝率52%）、330日以降でさらに改善（57%）
   → 「120-179日=需給最悪のトンネル / 180日通過=改善ゾーン」として色分け表示
 
-スクリーニング対象: 時価総額500億円以上・直近12ヶ月高値から15%以上下落中
-表示: 高値からの経過日数（ゾーン色分け）/ 期日目安日 / 最安値からの位置 /
+スクリーニング対象: 時価総額500億円以上・「大きな下落区間」内で基準高値から15%以上下落中
+
+基準高値の定義（2026-08-13変更、ユーザー発案）:
+  単純な12ヶ月最高値ではなく「逃げ場がなくなった後の高値」を使う。
+  例: 任天堂2025年は8/18が最高値だが、11/6の戻り高値で8/18組は逃げられた。
+  本当に信用で捕まっているのは11/6以降に買った人 → 期日カウントの起点は11/6。
+  - 下落区間 = 日足5MAが200MAを下抜け(DC)〜再上抜け(GC)まで。
+    10営業日未満の一時的な上抜けはダマシとして同一区間の継続扱い
+  - 基準高値 = DC直前の最後のスイング高値（ジグザグ5%閾値で確定したピボット高値）
+  - 5MAが200MAより上にいる銘柄は「下落区間にいない」ので対象外
+
+表示: 基準高値からの経過日数（ゾーン色分け）/ 期日目安日 / 最安値からの位置 /
       制度信用倍率の10週推移 / 過去10年の同様エピソードの癖（回数・中央値日数・深さ）
+      ※過去の癖統計は従来の「高値-15%エピソード」定義のまま（銘柄の性格把握が目的）
 
 データ: yfinance（株価）+ margin_all_history.json（週次信用残・margin_screen.py蓄積）
        + margin_mcap_cache.json（時価総額・margin_weekly.py更新）
@@ -41,11 +52,13 @@ KUSE_CACHE = os.path.join(SCRIPT_DIR, "kijitsu_kuse_cache.json")
 REPORT_HTML = "kijitsu.html"
 
 MIN_MCAP_OKU = 500     # 時価総額の下限（億円）
-DD_THRESHOLD = -15.0   # スクリーニング: 12ヶ月高値からの下落率
+DD_THRESHOLD = -15.0   # スクリーニング: 基準高値からの下落率
 EP_THRESHOLD = 0.15    # 過去エピソード抽出の下落閾値（バックテストと同じ）
 KIJITSU_DAYS = 183     # 制度信用期日の目安（6ヶ月）
 CHUNK = 150
 KUSE_MAX_AGE_DAYS = 7  # 癖キャッシュのリビルド間隔
+ZZ_TH = 0.05           # 基準高値検出のジグザグ閾値（5%）
+WHIPSAW_DAYS = 10      # GC後この営業日数未満で再DCならダマシ（同一下落区間の継続）
 
 
 def log(msg):
@@ -160,6 +173,78 @@ def load_kuse_cache(codes):
 
 
 # -----------------------------------------
+# 基準高値の検出（5MA×200MAの下落区間 + ジグザグ）
+# -----------------------------------------
+def find_downtrend_anchor(close):
+    """現在「大きな下落区間」内にある場合、(DC日, 基準高値日, 基準高値) を返す。
+    区間外（5MA>200MA）ならNone。
+
+    下落区間 = 5MAが200MAを下抜け(DC)〜再上抜け(GC)。
+    GC後WHIPSAW_DAYS営業日未満で再DCした場合はダマシとして同一区間の継続。
+    基準高値 = DC直前の最後のスイング高値（ジグザグZZ_THで確定したピボット高値）"""
+    ma5 = close.rolling(5).mean()
+    ma200 = close.rolling(200).mean()
+    diff = (ma5 - ma200).dropna()
+    if len(diff) < 30 or diff.iloc[-1] >= 0:
+        return None  # 現在は下落区間にいない
+
+    sign = (diff > 0).astype(int)
+    # 直近から遡って「区間の始まりのDC」を探す（ダマシGCはスキップ）
+    i = len(sign) - 1
+    dc_i = None
+    while i > 0:
+        if sign.iloc[i] == 0 and sign.iloc[i - 1] == 1:  # DC
+            # このDCの前の「上抜け期間」の長さを数える
+            j = i - 1
+            up_len = 0
+            while j >= 0 and sign.iloc[j] == 1:
+                up_len += 1
+                j -= 1
+            dc_i = i
+            if up_len >= WHIPSAW_DAYS or j < 0:
+                break  # 本物の上昇期間の後のDC = 区間の始まり
+            i = j  # ダマシGCだった → さらに前のDCへ遡る
+        else:
+            i -= 1
+    if dc_i is None:
+        return None
+    dc_date = diff.index[dc_i]
+
+    # ジグザグ: DC以前の最後のスイング高値
+    s = close[close.index <= dc_date]
+    last_high = None
+    ext_p = s.iloc[0]
+    ext_d = s.index[0]
+    trend = None
+    for d, p in s.items():
+        if trend in (None, "up"):
+            if p > ext_p:
+                ext_p = p
+                ext_d = d
+            elif (ext_p - p) / ext_p >= ZZ_TH:
+                last_high = (ext_d, ext_p)
+                trend = "down"
+                ext_p = p
+                ext_d = d
+        if trend == "down":
+            if p < ext_p:
+                ext_p = p
+                ext_d = d
+            elif (p - ext_p) / ext_p >= ZZ_TH:
+                trend = "up"
+                ext_p = p
+                ext_d = d
+    # DC時点で上昇トレンド中（=直近の山が未確定）の場合、DC自体が5%下落の証拠なので
+    # 未確定の山も基準高値候補として採用する
+    if trend in (None, "up") and (last_high is None or ext_p > 0):
+        if last_high is None or ext_d > last_high[0]:
+            last_high = (ext_d, ext_p)
+    if last_high is None:
+        return None
+    return dc_date, last_high[0], float(last_high[1])
+
+
+# -----------------------------------------
 # 現在のスクリーニング（2年日足）
 # -----------------------------------------
 def screen_current(codes, names, caps, kuse):
@@ -176,12 +261,13 @@ def screen_current(codes, names, caps, kuse):
                 close = data[c + ".T"]["Close"].dropna()
             except Exception:
                 continue
-            if len(close) < 200:
+            if len(close) < 220:
                 continue
+            anchor = find_downtrend_anchor(close)
+            if anchor is None:
+                continue  # 下落区間にいない
+            dc_date, peak_date, peak = anchor
             last = float(close.iloc[-1])
-            win = close[close.index >= close.index[-1] - pd.Timedelta(days=365)]
-            peak = float(win.max())
-            peak_date = win.idxmax()
             dd = (last / peak - 1) * 100
             if dd > DD_THRESHOLD:
                 continue
@@ -195,6 +281,7 @@ def screen_current(codes, names, caps, kuse):
                 "mcap": caps.get(c),
                 "price": last,
                 "peak_date": peak_date.strftime("%Y-%m-%d"),
+                "dc_date": dc_date.strftime("%Y-%m-%d"),
                 "cal_days": cal_days,
                 "dd": round(dd, 1),
                 "trough_date": trough_date.strftime("%Y-%m-%d"),
@@ -205,7 +292,7 @@ def screen_current(codes, names, caps, kuse):
                 "kuse": kuse.get("stocks", {}).get(c, {}),
             })
         progress("スクリーニング", min(ci + CHUNK, len(codes)), len(codes), t0)
-    log(f"該当: {len(rows)}銘柄（高値-15%超）")
+    log(f"該当: {len(rows)}銘柄（下落区間内・基準高値-15%超）")
     return rows
 
 
@@ -312,13 +399,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>信用期日スクリーナー — 高値から半年の需給サイクル</h1>
-  <p class="subtitle">最終更新: {updated} | 対象: 時価総額{min_mcap}億円以上・12ヶ月高値から{dd_th}%以上下落中（{n_hits}銘柄） | 週次信用残: {margin_week}時点</p>
+  <p class="subtitle">最終更新: {updated} | 対象: 時価総額{min_mcap}億円以上・下落区間内（5MA&lt;200MA）で基準高値から{dd_th}%以上下落中（{n_hits}銘柄） | 週次信用残: {margin_week}時点</p>
   <div class="evidence">
     <b>考え方と検証（2026-08-13、1,334銘柄・10年・5,680エピソード）:</b>
     高値から暴落すると信用買いの投げが重しになりズルズル下がるが、高値から6ヶ月で制度信用の期日が到来して需給が軽くなる、という説を検証。<br>
     ・下落中の銘柄のその後60日リターンは<b>高値から120〜179日が最悪期</b>（勝率49〜50%）、<b>180日通過後に改善</b>（勝率52%）、330日以降でさらに改善（57%）<br>
     ・底打ち率も150-179日の10.3%→180-209日で11.1%に反転上昇。ただし「180日=スイッチ」ではなく「トンネルを抜けると徐々に軽くなる」効果（差は小さい）<br>
-    ・単独の売買根拠ではなく、需給（信用倍率の低下）・過去の癖・テクニカルと重ねる1要素として使う
+    ・単独の売買根拠ではなく、需給（信用倍率の低下）・過去の癖・テクニカルと重ねる1要素として使う<br>
+    <b>基準高値の定義:</b> 単純な12ヶ月最高値ではなく「逃げ場がなくなった後の高値」を使う。
+    下落区間=日足5MAが200MAを下抜け（DC）てから再上抜けするまで（10営業日未満の上抜けはダマシ扱い）。
+    基準高値=DC直前の最後のスイング高値（ジグザグ5%）。それより前の高値で買った人は途中の戻りで逃げられたが、
+    基準高値以降に信用で買った人が本当に捕まっている＝期日カウントの起点。
   </div>
   <div class="legend">
     <span class="chip zone-early">下落初期（〜119日）</span>
@@ -332,7 +423,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <thead>
       <tr>
         <th>コード</th><th>銘柄</th><th>時価総額<br>(億円)</th><th>現値</th>
-        <th>12ヶ月高値日</th><th>経過<br>日数</th><th>期日目安<br>(高値+6ヶ月)</th>
+        <th>基準高値日<br>(最後の逃げ場)</th><th>5MA×200MA<br>下抜け日</th><th>経過<br>日数</th><th>期日目安<br>(高値+6ヶ月)</th>
         <th>高値比</th><th>最安値日</th><th>最安時<br>高値比</th><th>最安値比<br>(現在)</th>
         <th>信用倍率 10週推移（古→新）</th>
         <th>過去10年の癖<br>(回数/中央値日数/中央値DD)</th>
@@ -344,8 +435,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
-    ・<b>経過日数</b> = 12ヶ月高値からの暦日数。制度信用（6ヶ月期日）の決済サイクルに対する現在位置。<br>
-    ・<b>期日目安</b> = 高値日+183日。この日以降、高値圏で信用買いした玉の期日決済が一巡する。<br>
+    ・<b>基準高値</b> = 5MAが200MAを下抜ける直前の最後のスイング高値（ジグザグ5%で確定）。
+    「最後の逃げ場」であり、ここより後に信用で買った人が本当に捕まっている。<br>
+    ・<b>経過日数</b> = 基準高値からの暦日数。制度信用（6ヶ月期日）の決済サイクルに対する現在位置。<br>
+    ・<b>期日目安</b> = 基準高値日+183日。この日以降、高値圏で信用買いした玉の期日決済が一巡する。<br>
+    ・5MAが200MAを再上抜け（GC）した銘柄は「下落区間終了」として表から消える（10営業日未満の上抜けはダマシとして継続扱い）。<br>
     ・<b>最安値比</b> = 下落開始後の最安値からの上昇率。プラスが大きい=既に底から反発が進行。<br>
     ・<b>信用倍率</b> = 買い残÷売り残（週次・<a href="margin.html" style="color:#60a5fa">銘柄チェッカー</a>と同データ）。
     下落中に倍率が下がっていく=投げ・期日決済で買い残が減り需給が軽くなっている。<br>
@@ -412,6 +506,7 @@ def generate_html(rows, weeks):
             f'<td>{r["mcap"]:,}</td>'
             f'<td>{r["price"]:,.0f}</td>'
             f'<td>{r["peak_date"]}</td>'
+            f'<td class="dim">{r.get("dc_date", "-")}</td>'
             f'<td><span class="chip {zcls}">{r["cal_days"]}日</span></td>'
             f'<td>{kj_s}</td>'
             f'<td class="neg">{r["dd"]:+.1f}%</td>'
