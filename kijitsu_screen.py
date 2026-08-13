@@ -49,9 +49,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MARGIN_HISTORY = os.path.join(SCRIPT_DIR, "margin_all_history.json")
 MCAP_CACHE = os.path.join(SCRIPT_DIR, "margin_mcap_cache.json")
 KUSE_CACHE = os.path.join(SCRIPT_DIR, "kijitsu_kuse_cache.json")
+FUNDAMENTALS = os.path.join(SCRIPT_DIR, "margin_fundamentals.json")  # 週次業績（margin_weekly.py）
 REPORT_HTML = "kijitsu.html"
 
-MIN_MCAP_OKU = 500     # 時価総額の下限（億円）
+MIN_MCAP_OKU = 1000    # 時価総額の下限（億円）
 DD_THRESHOLD = -15.0   # スクリーニング: 基準高値からの下落率
 EP_THRESHOLD = 0.15    # 過去エピソード抽出の下落閾値（バックテストと同じ）
 KIJITSU_DAYS = 183     # 制度信用期日の目安（6ヶ月）
@@ -85,6 +86,22 @@ def load_universe():
     if os.path.exists(MCAP_CACHE):
         caps = json.load(open(MCAP_CACHE, encoding="utf-8"))
     codes = sorted(c for c in names if (caps.get(c) or 0) >= MIN_MCAP_OKU)
+
+    # 赤字フィルタ: 直近四半期の営業利益が赤字の銘柄を除外（margin_fundamentals.jsonより）
+    # 営業利益がNoneの銘柄（銀行・投資会社等、かぶたんに営業利益概念がない）は
+    # 除外せず残す（判定不能を落とすと大型銘柄が消えすぎるため）
+    dropped = 0
+    if os.path.exists(FUNDAMENTALS):
+        fund = json.load(open(FUNDAMENTALS, encoding="utf-8")).get("stocks", {})
+        kept = []
+        for c in codes:
+            q = fund.get(c, {}).get("quarters")
+            if q and q[0][2] is not None and q[0][2] < 0:
+                dropped += 1
+                continue  # 直近四半期の営業赤字
+            kept.append(c)
+        codes = kept
+        log(f"  営業赤字フィルタ: {dropped}銘柄を除外")
     return codes, names, caps, weeks
 
 
@@ -438,7 +455,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>信用期日スクリーナー — 高値から半年の需給サイクル</h1>
-  <p class="subtitle">最終更新: {updated} | 対象: 時価総額{min_mcap}億円以上・下落区間内（5MA&lt;200MA）で基準高値から{dd_th}%以上下落中（{n_hits}銘柄） | 週次信用残: {margin_week}時点</p>
+  <p class="subtitle">最終更新: {updated} | 対象: 時価総額{min_mcap}億円以上・直近四半期の営業黒字・下落区間内（5MA&lt;200MA）で基準高値から{dd_th}%以上下落中（{n_hits}銘柄） | 週次信用残: {margin_week}時点</p>
   <div class="evidence">
     <b>考え方と検証（2026-08-13、1,334銘柄・10年・5,680エピソード）:</b>
     高値から暴落すると信用買いの投げが重しになりズルズル下がるが、高値から6ヶ月で制度信用の期日が到来して需給が軽くなる、という説を検証。<br>
@@ -485,8 +502,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>過去10年の深い下落の癖</b> = 高値から-30%超まで沈んだエピソードの回数・高値→最安値の中央値日数・中央値の深さ。
     ソフトバンクGのように大型下落を繰り返す銘柄は「半年前後で底」の癖が読める。
     浅い下落（-15〜30%）は数週間で片付くことが多く癖として別物のため、深い下落だけを表示（カッコ内は-15%超の全エピソード数）。<br>
-    ・スクリーニングの発想はSho_RAGウェビナー「銘柄選別方法」④（高値から半年経過→需給改善期待）。
-    需給が最重要（制度信用倍率が高いままの銘柄は除外対象）という原則も同ウェビナーより。
+    ・<b>営業赤字フィルタ</b> = 直近四半期の営業利益が赤字の銘柄は除外（<a href="margin.html" style="color:#60a5fa">銘柄チェッカー</a>の週次業績データより）。
+    業績の裏付けなく下がっている銘柄は需給が改善しても戻りが弱いため。
+    営業利益の概念がない銀行・投資会社等は判定不能のため残している。
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>
