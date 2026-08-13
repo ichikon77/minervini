@@ -194,11 +194,31 @@ def get_financials(ticker):
         return None
 
 # ─────────────────────────────────────────
-# 銘柄名取得
+# 銘柄名取得（margin_all_history.jsonの日本語名を優先、なければyfinance英語名）
 # ─────────────────────────────────────────
 _name_cache = {}
+_jp_names = None
+
+def _load_jp_names():
+    """JPX由来の日本語銘柄名辞書 {4桁コード: 日本語名}（margin_screen.pyが蓄積）"""
+    global _jp_names
+    if _jp_names is None:
+        _jp_names = {}
+        try:
+            path = os.path.join(SCRIPT_DIR, "margin_all_history.json")
+            with open(path, encoding="utf-8") as f:
+                _jp_names = json.load(f).get("names", {})
+        except Exception:
+            pass
+    return _jp_names
+
 def get_company_name(ticker):
     if ticker in _name_cache:
+        return _name_cache[ticker]
+    code = ticker.replace(".T", "").strip()
+    jp = _load_jp_names().get(code)
+    if jp:
+        _name_cache[ticker] = jp[:8]
         return _name_cache[ticker]
     try:
         info = yf.Ticker(ticker).info

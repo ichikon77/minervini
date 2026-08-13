@@ -169,9 +169,13 @@ def get_fundamental(ticker):
             # 0.1より大きければすでに%単位（例: 0.94 = 0.94%）→ そのまま
             if dividend_yield <= 0.1:
                 dividend_yield = dividend_yield * 100
-        # 銘柄名: shortNameを優先、なければlongName、先頭6文字
-        name = info.get("shortName", "") or info.get("longName", "") or ""
-        name = name[:6]
+        # 銘柄名: JPX日本語名を優先、なければshortName/longName
+        code = ticker.replace(".T", "").strip()
+        name = _load_jp_names().get(code, "")
+        if name:
+            name = name[:12]
+        else:
+            name = (info.get("shortName", "") or info.get("longName", "") or "")[:6]
         # 時価総額（円）
         market_cap = info.get("marketCap", None)
         return dividend_yield, pbr, name, market_cap
@@ -316,11 +320,31 @@ def update_history(results, history):
     return results
 
 # ─────────────────────────────────────────
-# 銘柄名取得（yfinance shortName）
+# 銘柄名取得（margin_all_history.jsonの日本語名を優先、なければyfinance英語名）
 # ─────────────────────────────────────────
 _name_cache = {}
+_jp_names = None
+
+def _load_jp_names():
+    """JPX由来の日本語銘柄名辞書 {4桁コード: 日本語名}（margin_screen.pyが蓄積）"""
+    global _jp_names
+    if _jp_names is None:
+        _jp_names = {}
+        try:
+            path = os.path.join(SCRIPT_DIR, "margin_all_history.json")
+            with open(path, encoding="utf-8") as f:
+                _jp_names = json.load(f).get("names", {})
+        except Exception:
+            pass
+    return _jp_names
+
 def get_company_name(ticker):
     if ticker in _name_cache:
+        return _name_cache[ticker]
+    code = ticker.replace(".T", "").strip()
+    jp = _load_jp_names().get(code)
+    if jp:
+        _name_cache[ticker] = jp[:12]
         return _name_cache[ticker]
     try:
         info = yf.Ticker(ticker).info
