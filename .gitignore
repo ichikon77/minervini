@@ -40,3 +40,6 @@ _jpx_margin_tmp.pdf
 _jpx_margin_all_tmp.pdf
 buffett_price_cache.json
 insider_plan_cache.json
+margin_mcap_cache.json
+# kijitsu癖キャッシュは初回リビルドが重い(10年x1334銘柄)ためpushして共有
+!kijitsu_kuse_cache.json

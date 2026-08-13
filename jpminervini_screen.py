@@ -932,6 +932,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
     <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
+    <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>Japan Minervini Screening <span class="badge">{count} passed</span></h1>
