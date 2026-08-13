@@ -20,6 +20,7 @@ import subprocess
 import datetime
 
 import yfinance as yf
+import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPORT_HTML = "flow.html"
@@ -111,6 +112,14 @@ ROTATION_QUADRANTS = [
      [("XLE", "エネルギー"), ("DX-Y.NYB", "ドル指数(安全通貨)")]),
 ]
 
+# 対角線割り算（セクターローテーション初動判別）: 円グラフで真逆の象限同士を割ると差が最大化して初動が見えやすい
+# ①金融相場(XLK/XLF/XLRE) ⇔ ③逆金融相場(XLE) / ②業績相場(XLI/XLB/XLY) ⇔ ④逆業績相場(XLU/XLP/XLV)
+# XLCは円グラフ上④だが構成銘柄がAlphabet/Meta等ハイテク寄りのため例外枠として単独表示
+DIAG_Q1 = [("XLK", "情報技術"), ("XLF", "金融"), ("XLRE", "不動産")]
+DIAG_Q2 = [("XLI", "資本財"), ("XLB", "素材"), ("XLY", "一般消費財")]
+DIAG_Q4 = [("XLU", "公益"), ("XLP", "生活必需品"), ("XLV", "ヘルスケア")]
+DIAG_TICKERS = [t for t, _ in DIAG_Q1 + DIAG_Q2 + DIAG_Q4] + ["XLE", "XLC"]
+
 # 日本の特別枠バスケット（専用ETFがないテーマは個別株の等ウェイト平均で自前計算）
 # (表示名, [構成銘柄], 表示ticker)
 # 運輸・物流(1628)は特徴の違う4テーマ（航空/海運/鉄道/物流）に分解して表示
@@ -196,7 +205,88 @@ def fetch_returns():
             vals = [m[c] for m in member_rets if m[c] is not None]
             rec[c] = round(sum(vals) / len(vals), 2) if vals else None
         rows.append(rec)
-    return rows
+
+    diag = build_diag_rows(data)
+    return rows, diag
+
+
+# -----------------------------------------
+# 対角線割り算（ローテーション初動判別）
+# -----------------------------------------
+def _closes(data, tickers):
+    """dataから各tickerの終値Seriesリスト（欠損は除外）"""
+    out = []
+    for t in tickers:
+        try:
+            s = data[t]["Close"].dropna()
+            if len(s) >= 250:
+                out.append(s)
+        except Exception:
+            continue
+    return out
+
+
+def _ratio_series(num_closes, den_closes):
+    """等ウェイト合成同士の比率Series。共通日付で揃え、初日=1に正規化して平均"""
+    df = pd.concat(num_closes + den_closes, axis=1).dropna()
+    if len(df) < 250:
+        return None
+    n = len(num_closes)
+    num_idx = df.iloc[:, :n].div(df.iloc[0, :n]).mean(axis=1)
+    den_idx = df.iloc[:, n:].div(df.iloc[0, n:]).mean(axis=1)
+    return num_idx / den_idx
+
+
+def _ma200_status(ratio):
+    """(状態テキスト, 直近15営業日にクロスありか) を返す"""
+    if ratio is None or len(ratio) < 210:
+        return None, False
+    ma = ratio.rolling(200).mean()
+    diff = (ratio - ma).dropna()
+    above = diff.iloc[-1] > 0
+    recent = diff.iloc[-15:]
+    crossed = (recent > 0).nunique() > 1  # 直近15営業日で符号が変わった
+    return above, crossed
+
+
+def build_diag_rows(data):
+    """対角ペアの比率リターン+200日線判定のリストを返す"""
+    q1 = _closes(data, [t for t, _ in DIAG_Q1])
+    q2 = _closes(data, [t for t, _ in DIAG_Q2])
+    q4 = _closes(data, [t for t, _ in DIAG_Q4])
+    xle = _closes(data, ["XLE"])
+    xlc = _closes(data, ["XLC"])
+
+    # (ラベル, 分子closes, 分母closes, 補足, ヘッドラインか)
+    specs = [
+        ("① 金融相場合成 ÷ ③ XLE", q1, xle,
+         "XLK+XLF+XLRE ÷ XLE。プラス=金融相場寄り / マイナス=逆金融相場寄り", True),
+        ("　├ 情報技術 ÷ XLE", _closes(data, ["XLK"]), xle, "XLK/XLE", False),
+        ("　├ 金融 ÷ XLE", _closes(data, ["XLF"]), xle, "XLF/XLE", False),
+        ("　└ 不動産 ÷ XLE", _closes(data, ["XLRE"]), xle, "XLRE/XLE", False),
+        ("② 業績相場合成 ÷ ④ 逆業績合成", q2, q4,
+         "XLI+XLB+XLY ÷ XLU+XLP+XLV。プラス=業績相場寄り / マイナス=逆業績相場寄り", True),
+        ("　├ 資本財 ÷ ④合成", _closes(data, ["XLI"]), q4, "XLI/(XLU+XLP+XLV)", False),
+        ("　├ 素材 ÷ ④合成", _closes(data, ["XLB"]), q4, "XLB/(XLU+XLP+XLV)", False),
+        ("　└ 一般消費財 ÷ ④合成", _closes(data, ["XLY"]), q4, "XLY/(XLU+XLP+XLV)", False),
+        ("② 業績相場合成 ÷ ④ XLC（例外枠）", q2, xlc,
+         "XLCはGAFAM系ハイテク寄りのため④合成と別枠で単独比較", False),
+    ]
+
+    out = []
+    for label, num, den, desc, headline in specs:
+        if not num or not den:
+            continue
+        ratio = _ratio_series(num, den)
+        if ratio is None:
+            continue
+        rec = {"label": label, "desc": desc, "headline": headline}
+        rec.update(_calc_returns(ratio))
+        above, crossed = _ma200_status(ratio)
+        rec["ma_above"] = above
+        rec["ma_crossed"] = crossed
+        out.append(rec)
+    return out
 
 
 # -----------------------------------------
@@ -458,7 +548,43 @@ def build_rotation_html(by_ticker):
     ・対称の象限（①⇔③、②⇔④）は反対の動きになりやすい。点灯象限と対称象限の色が両方緑/両方赤なら過渡期のサイン。</p>"""
 
 
-def generate_html(rows):
+def build_diag_html(diag):
+    """対角線割り算セクション: 円グラフで真逆の象限同士の比率で初動を判別"""
+    if not diag:
+        return ""
+    header = "".join(f"<th>{c}</th>" for c in COLS)
+    body = []
+    for r in diag:
+        tds = "".join(cell_rel(r.get(c)) for c in COLS)
+        if r["ma_above"] is None:
+            ma = "<td>-</td>"
+        else:
+            state = ("<span style='color:#4ade80; font-weight:700'>上</span>" if r["ma_above"]
+                     else "<span style='color:#f87171; font-weight:700'>下</span>")
+            cross = (' <span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 8px; '
+                     'border-radius:8px; font-size:0.7rem; font-weight:700">クロス!</span>') if r["ma_crossed"] else ""
+            ma = f"<td style='text-align:center'>{state}{cross}</td>"
+        weight = "font-weight:700; color:#f8fafc" if r["headline"] else "font-weight:400; color:#cbd5e1"
+        body.append(f'      <tr><td style="{weight}">{r["label"]}</td>{tds}{ma}</tr>')
+        body.append(f'      <tr><td colspan="9" style="color:#64748b; font-size:0.72rem; '
+                    f'text-align:left; padding:0 12px 6px">└ {r["desc"]}</td></tr>')
+    return (
+        '  <h2>対角線割り算 — ローテーション初動の判別（真逆の象限同士の比率）</h2>\n'
+        '  <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">\n'
+        '    隣同士のセクター比較は差が小さいが、円グラフで対角線上（真逆）の象限同士を割ると差が最大化して初動が見えやすい。\n'
+        '    <b>プラス（緑）=左側の象限へ資金移動 / マイナス（赤）=右側の象限へ資金移動</b>。\n'
+        '    200日線は比率チャートの長期トレンド（上=左側優位のトレンド、下=右側優位）。直近15営業日でクロスした場合はバッジ表示=大きな転換の初動候補。</p>\n'
+        '  <div class="table-wrap">\n  <table>\n'
+        f'    <thead><tr><th>比率（分子 ÷ 分母）</th>{header}<th>200日線</th></tr></thead>\n'
+        '    <tbody>\n' + "\n".join(body) + '\n    </tbody>\n  </table>\n  </div>\n'
+        '  <p style="font-size:0.76rem; color:#64748b; margin:6px 0 0; line-height:1.8;">\n'
+        '    ・上の「セクターローテーション4局面」はvs S&amp;P500の相対力（各セクターが指数に勝っているか）、\n'
+        '    こちらは対角象限同士の直接対決（どちらの象限に資金が向かっているか）。両方が同じ方向を指せば信頼度が高い。<br>\n'
+        '    ・実例: 2022年1月にXLE÷XLKが200日線とゴールデンクロス → 情報技術→エネルギーへの大転換の初動だった\n'
+        '    （ここでは分子分母が逆なのでデッドクロスとして現れる）。</p>')
+
+
+def generate_html(rows, diag=None):
     theme_order = [t for t, _, _ in THEMES]  # 定義順
     by_ticker = {r["ticker"]: r for r in rows}
     header = "".join(f"<th>{c}</th>" for c in COLS)
@@ -486,6 +612,9 @@ def generate_html(rows):
 
     # セクターローテーション4局面グリッド
     sections.append(build_rotation_html(by_ticker))
+
+    # 対角線割り算（ローテーション初動判別）
+    sections.append(build_diag_html(diag))
 
     # 表示切り替えボタン（テーマ2表に効く。デフォルト=対指数相対）
     sections.append(
@@ -576,7 +705,7 @@ def main():
     log("グローバル資金フロー チェック開始")
 
     try:
-        rows = fetch_returns()
+        rows, diag = fetch_returns()
     except Exception as e:
         log(f"エラー: データの取得に失敗しました: {e}")
         sys.exit(1)
@@ -585,9 +714,9 @@ def main():
         log(f"エラー: 取得テーマが少なすぎます（{len(rows)}件）")
         sys.exit(1)
 
-    log(f"取得: {len(rows)}テーマ（基準日 {rows[0]['last_date']}）")
+    log(f"取得: {len(rows)}テーマ + 対角比率{len(diag)}本（基準日 {rows[0]['last_date']}）")
 
-    generate_html(rows)
+    generate_html(rows, diag)
 
     if "--nopush" in sys.argv:
         log("--nopush 指定のため git push はスキップ")
