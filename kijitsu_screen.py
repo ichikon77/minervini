@@ -591,6 +591,13 @@ def generate_html(rows, weeks):
         f.write(html)
     log(f"HTML出力: {path}")
 
+    # TradingView用リスト（Minerviniと同形式・表と同じ順=経過日数の長い順）
+    tv_path = os.path.join(SCRIPT_DIR, "txt", "Japan Kijitsu.txt")
+    os.makedirs(os.path.dirname(tv_path), exist_ok=True)
+    with open(tv_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(r["code"] + "\t," for r in rows) + "\n")
+    log(f"TradingViewリスト出力: {tv_path}（{len(rows)}銘柄）")
+
 
 # -----------------------------------------
 # push
