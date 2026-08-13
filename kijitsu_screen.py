@@ -142,17 +142,7 @@ def build_kuse_cache(codes):
             if len(close) < 500:
                 continue
             eps = extract_episodes(close)
-            if not eps:
-                out["stocks"][c] = {"n": 0}
-                continue
-            days = sorted(e["cal_days"] for e in eps)
-            dds = sorted(e["dd"] for e in eps)
-            out["stocks"][c] = {
-                "n": len(eps),
-                "med_days": days[len(days) // 2],
-                "med_dd": dds[len(dds) // 2],
-                "deep_n": sum(1 for e in eps if e["dd"] <= -30),
-            }
+            out["stocks"][c] = _kuse_stats(eps)
         progress("癖統計", min(ci + CHUNK, len(codes)), len(codes), t0)
     json.dump(out, open(KUSE_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
     log(f"癖キャッシュ保存: {len(out['stocks'])}銘柄")
@@ -175,12 +165,49 @@ def load_kuse_cache(codes):
 # -----------------------------------------
 # 基準高値の検出（5MA×200MAの下落区間 + ジグザグ）
 # -----------------------------------------
+def _last_swing_high(close, before):
+    """before以前の最後のスイング高値 (日付, 価格) をジグザグZZ_THで返す。
+    未確定の山（上昇トレンド中にbeforeへ到達）も候補として採用"""
+    s = close[close.index <= before]
+    if len(s) < 5:
+        return None
+    last_high = None
+    ext_p = s.iloc[0]
+    ext_d = s.index[0]
+    trend = None
+    for d, p in s.items():
+        if trend in (None, "up"):
+            if p > ext_p:
+                ext_p = p
+                ext_d = d
+            elif (ext_p - p) / ext_p >= ZZ_TH:
+                last_high = (ext_d, float(ext_p))
+                trend = "down"
+                ext_p = p
+                ext_d = d
+        if trend == "down":
+            if p < ext_p:
+                ext_p = p
+                ext_d = d
+            elif (p - ext_p) / ext_p >= ZZ_TH:
+                trend = "up"
+                ext_p = p
+                ext_d = d
+    if trend in (None, "up") and (last_high is None or ext_d > last_high[0]):
+        last_high = (ext_d, float(ext_p))
+    return last_high
+
+
 def find_downtrend_anchor(close):
     """現在「大きな下落区間」内にある場合、(DC日, 基準高値日, 基準高値) を返す。
     区間外（5MA>200MA）ならNone。
 
     下落区間 = 5MAが200MAを下抜け(DC)〜再上抜け(GC)。
-    GC後WHIPSAW_DAYS営業日未満で再DCした場合はダマシとして同一区間の継続。
+    GC後WHIPSAW_DAYS営業日未満で再DCした場合は原則ダマシとして同一区間の継続。
+    ただし短い上抜けでも、その間に株価が「前区間の高値以上」まで戻していた場合は
+    逃げ場が実際に発生したので、ダマシではなく区間リセットとして扱う
+    （例: コーエーテクモ2025年11月 — GCは2〜5営業日だが11/12に8月高値を更新。
+      8月に買った人も逃げられたので、基準高値は11月の戻り高値になるべき）。
     基準高値 = DC直前の最後のスイング高値（ジグザグZZ_THで確定したピボット高値）"""
     ma5 = close.rolling(5).mean()
     ma200 = close.rolling(200).mean()
@@ -203,42 +230,29 @@ def find_downtrend_anchor(close):
             dc_i = i
             if up_len >= WHIPSAW_DAYS or j < 0:
                 break  # 本物の上昇期間の後のDC = 区間の始まり
-            i = j  # ダマシGCだった → さらに前のDCへ遡る
+            # 短い上抜け（ダマシ候補）でも、前のDC〜今のDCの間に価格が
+            # 「前の区間の基準高値」以上まで戻していれば逃げ場が発生している
+            # → ダマシではなく区間リセット
+            # 比較対象は前区間の基準高値（前DC直前のスイング高値）であって
+            # 全期間の大天井ではない（大天井と比べると戻りが常に届かずダマシ扱いになる）
+            k = j
+            while k > 0 and not (sign.iloc[k] == 0 and sign.iloc[k - 1] == 1):
+                k -= 1
+            prev_dc_date = diff.index[k]
+            dc_now = diff.index[dc_i]
+            prev_anchor = _last_swing_high(close, prev_dc_date)
+            between_high = close[(close.index >= prev_dc_date) & (close.index <= dc_now)].max()
+            if prev_anchor is not None and between_high >= prev_anchor[1]:
+                break  # 前区間の基準高値まで戻った=捕まった人に逃げ場があった → 区間リセット
+            i = k  # 本当のダマシ → さらに前のDCへ遡る
         else:
             i -= 1
     if dc_i is None:
         return None
     dc_date = diff.index[dc_i]
 
-    # ジグザグ: DC以前の最後のスイング高値
-    s = close[close.index <= dc_date]
-    last_high = None
-    ext_p = s.iloc[0]
-    ext_d = s.index[0]
-    trend = None
-    for d, p in s.items():
-        if trend in (None, "up"):
-            if p > ext_p:
-                ext_p = p
-                ext_d = d
-            elif (ext_p - p) / ext_p >= ZZ_TH:
-                last_high = (ext_d, ext_p)
-                trend = "down"
-                ext_p = p
-                ext_d = d
-        if trend == "down":
-            if p < ext_p:
-                ext_p = p
-                ext_d = d
-            elif (p - ext_p) / ext_p >= ZZ_TH:
-                trend = "up"
-                ext_p = p
-                ext_d = d
-    # DC時点で上昇トレンド中（=直近の山が未確定）の場合、DC自体が5%下落の証拠なので
-    # 未確定の山も基準高値候補として採用する
-    if trend in (None, "up") and (last_high is None or ext_p > 0):
-        if last_high is None or ext_d > last_high[0]:
-            last_high = (ext_d, ext_p)
+    # 基準高値 = DC以前の最後のスイング高値
+    last_high = _last_swing_high(close, dc_date)
     if last_high is None:
         return None
     return dc_date, last_high[0], float(last_high[1])
