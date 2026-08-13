@@ -125,6 +125,31 @@ def extract_episodes(close, th=EP_THRESHOLD):
     return eps
 
 
+DEEP_DD = -30.0  # 「深い下落」の定義: 高値からこの%以上沈んだエピソード
+
+
+def _kuse_stats(eps):
+    """エピソードリスト → 癖統計。全体の回数に加え、深い下落（DD-30%超）だけの
+    中央値日数・中央値DDを別枠で持つ（ユーザーが見たいのは深い下落の癖のため）"""
+    if not eps:
+        return {"n": 0}
+    days = sorted(e["cal_days"] for e in eps)
+    dds = sorted(e["dd"] for e in eps)
+    rec = {
+        "n": len(eps),
+        "med_days": days[len(days) // 2],
+        "med_dd": dds[len(dds) // 2],
+    }
+    deep = [e for e in eps if e["dd"] <= DEEP_DD]
+    rec["deep_n"] = len(deep)
+    if deep:
+        ddays = sorted(e["cal_days"] for e in deep)
+        ddds = sorted(e["dd"] for e in deep)
+        rec["deep_med_days"] = ddays[len(ddays) // 2]
+        rec["deep_med_dd"] = ddds[len(ddds) // 2]
+    return rec
+
+
 def build_kuse_cache(codes):
     """過去10年のエピソード統計 {code: {n, med_days, med_dd, deep_n}} を構築"""
     log("癖キャッシュをリビルド中（10年ダウンロード）...")
@@ -440,7 +465,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <th>基準高値日<br>(最後の逃げ場)</th><th>5MA×200MA<br>下抜け日</th><th>経過<br>日数</th><th>期日目安<br>(高値+6ヶ月)</th>
         <th>高値比</th><th>最安値日</th><th>最安時<br>高値比</th><th>最安値比<br>(現在)</th>
         <th>信用倍率 10週推移（古→新）</th>
-        <th>過去10年の癖<br>(回数/中央値日数/中央値DD)</th>
+        <th>過去10年の深い下落(-30%超)の癖<br>(回数/中央値日数/中央値DD)</th>
       </tr>
     </thead>
     <tbody>
@@ -457,8 +482,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>最安値比</b> = 下落開始後の最安値からの上昇率。プラスが大きい=既に底から反発が進行。<br>
     ・<b>信用倍率</b> = 買い残÷売り残（週次・<a href="margin.html" style="color:#60a5fa">銘柄チェッカー</a>と同データ）。
     下落中に倍率が下がっていく=投げ・期日決済で買い残が減り需給が軽くなっている。<br>
-    ・<b>過去10年の癖</b> = 同様の下落（高値-15%超）エピソードの回数・高値→最安値の中央値日数・中央値の深さ。
-    ソフトバンクGのように大型下落を繰り返す銘柄は「半年前後で底」の癖が読める。カッコ内は-30%超の深い下落の回数。<br>
+    ・<b>過去10年の深い下落の癖</b> = 高値から-30%超まで沈んだエピソードの回数・高値→最安値の中央値日数・中央値の深さ。
+    ソフトバンクGのように大型下落を繰り返す銘柄は「半年前後で底」の癖が読める。
+    浅い下落（-15〜30%）は数週間で片付くことが多く癖として別物のため、深い下落だけを表示（カッコ内は-15%超の全エピソード数）。<br>
     ・スクリーニングの発想はSho_RAGウェビナー「銘柄選別方法」④（高値から半年経過→需給改善期待）。
     需給が最重要（制度信用倍率が高いままの銘柄は除外対象）という原則も同ウェビナーより。
   </p>
@@ -505,9 +531,12 @@ def generate_html(rows, weeks):
     for r in rows:
         zcls, zlabel = zone_class(r["cal_days"])
         kuse = r["kuse"]
-        if kuse.get("n"):
-            kuse_s = (f'{kuse["n"]}回 / {kuse.get("med_days", "-")}日 / {kuse.get("med_dd", "-")}%'
-                      f' <span class="dim">(深い下落{kuse.get("deep_n", 0)}回)</span>')
+        if kuse.get("deep_n"):
+            # 深い下落（-30%超）の癖をメインに表示
+            kuse_s = (f'<b>{kuse["deep_n"]}回</b> / {kuse.get("deep_med_days", "-")}日 / {kuse.get("deep_med_dd", "-")}%'
+                      f' <span class="dim">(全下落{kuse.get("n", 0)}回)</span>')
+        elif kuse.get("n"):
+            kuse_s = f'<span class="dim">深い下落なし (全下落{kuse["n"]}回 / {kuse.get("med_days", "-")}日 / {kuse.get("med_dd", "-")}%)</span>'
         else:
             kuse_s = '<span class="dim">-</span>'
         kj = r["kijitsu_in"]
