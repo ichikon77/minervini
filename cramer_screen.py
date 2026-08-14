@@ -51,11 +51,23 @@ BULL_WORDS = ["買うべき", "買いや", "買い増す", "買いたい", "買�
 BEAR_WORDS = ["売りや", "売るべき", "売った方", "あかんで", "あかんのや", "持ちたくない",
               "手を出さない", "手を出したくない", "避けるべき", "好みじゃない", "好きじゃない",
               "好きではない", "傷ついてほしくない", "興味ない", "興味がない", "推せない",
-              "買わない", "ダメや", "駄目や", "下がると思う", "リスクが高すぎ"]
-NEUT_WORDS = ["待つべき", "待たないとあかん", "様子見", "ホールド", "持ち続け", "半分売",
+              "買わない", "ダメや", "駄目や", "下がると思う", "リスクが高すぎ",
+              "最悪のチャート", "最悪の銘柄", "ひどいチャート", "酷いチャート", "チャートが崩れ",
+              "推奨できない", "推奨しない", "勧められない", "勧めない", "オススメできない",
+              "おすすめできない", "近づかない", "近寄らない", "触らない", "パスや", "パスやで",
+              "見送るべき", "降りるべき", "逃げるべき", "危険や", "問題が多すぎ", "終わっとる"]
+NEUT_WORDS = ["待つべき", "待たないとあかん", "待たんとあかん", "待たなあかん", "待ちや",
+              "様子見", "ホールド", "持ち続け", "半分売",
               "悪くない", "五分五分", "どちらとも", "分からん", "わからん", "難しい",
               "のほうが好き", "の方が好き", "のほうがいい", "の方がいい",
-              "のほうがええ", "の方がええ", "派なんや", "投機枠", "余地はある"]
+              "のほうがええ", "の方がええ", "派なんや", "投機枠", "余地はある",
+              "良い価格で買える", "もっと良い価格", "もっと安く買える", "押し目を待"]
+
+# 仮定・条件節のパターン: この直後に続く極性語は「発言者の推奨」ではないため無効化
+# 例:「買いたいのであれば」「買うのなら」→ bullとして数えない
+COND_PATTERNS = [r'買いたいの(?:であれば|なら)', r'買うの(?:であれば|なら)', r'買いたければ',
+                 r'売りたいの(?:であれば|なら)', r'売るの(?:であれば|なら)', r'売りたければ',
+                 r'持ちたいの(?:であれば|なら)', r'持つの(?:であれば|なら)']
 
 
 def log(msg):
@@ -129,25 +141,30 @@ def parse_article(num, url, html):
 
 def classify(comment):
     """最後に出現した極性語で3段階判定。無ければ ?
-    中立語を先にマッチし、その範囲と重なる強弱語は無視する
-    （例:「Intelのほうが好きやで」→中立の「のほうが好き」が優先、内包される「好きやで」は数えない）"""
-    neut_spans = []
+    - 中立語を先にマッチし、その範囲と重なる強弱語は無視
+      （例:「Intelのほうが好きやで」→「のほうが好き」が「好きやで」に勝つ）
+    - 仮定・条件節（「買いたいのであれば」等）と重なる強弱語も無視
+      （発言者の推奨ではなく聞き手の仮定のため）"""
+    dead_spans = []   # 極性語として数えない範囲（中立語+条件節）
     hits = []
     for w in NEUT_WORDS:
         for m in re.finditer(re.escape(w), comment):
-            neut_spans.append((m.start(), m.end()))
+            dead_spans.append((m.start(), m.end()))
             hits.append((m.start(), "neutral"))
+    for pat in COND_PATTERNS:
+        for m in re.finditer(pat, comment):
+            dead_spans.append((m.start(), m.end()))
 
-    def overlaps_neutral(s, e):
-        return any(not (e <= ns or s >= ne) for ns, ne in neut_spans)
+    def in_dead(s, e):
+        return any(not (e <= ds or s >= de) for ds, de in dead_spans)
 
     for w in BULL_WORDS:
         for m in re.finditer(re.escape(w), comment):
-            if not overlaps_neutral(m.start(), m.end()):
+            if not in_dead(m.start(), m.end()):
                 hits.append((m.start(), "bull"))
     for w in BEAR_WORDS:
         for m in re.finditer(re.escape(w), comment):
-            if not overlaps_neutral(m.start(), m.end()):
+            if not in_dead(m.start(), m.end()):
                 hits.append((m.start(), "bear"))
     if not hits:
         return "?"
