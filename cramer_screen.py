@@ -278,7 +278,7 @@ def collect_entries(hist):
 
 
 def compute_returns(entries):
-    """各エントリに 2週間〜6ヶ月後の騰落%を付与"""
+    """各エントリに 2週間〜6ヶ月後の騰落%（絶対 rets / 対S&P500相対 rel）を付与"""
     tickers = sorted({e["ticker"] for e in entries})
     log(f"価格取得: {len(tickers)}ティッカー")
     closes = {}
@@ -297,42 +297,61 @@ def compute_returns(entries):
         time.sleep(1)
     log(f"  取得成功: {len(closes)}ティッカー")
 
+    # ベンチマーク（S&P500）
+    spx = yf.download("^GSPC", start="2024-12-01", auto_adjust=True,
+                      progress=False)["Close"].squeeze().dropna()
+
+    def period_ret(s, b, days):
+        """b(放送日)からdays暦日後の騰落%。未到来はNone"""
+        i0 = s.index.searchsorted(b)
+        if i0 >= len(s):
+            return None
+        base = float(s.iloc[i0])
+        target = b + pd.Timedelta(days=days)
+        if target > s.index[-1]:
+            return None
+        j = s.index.searchsorted(target)
+        if j >= len(s):
+            return None
+        return (float(s.iloc[j]) / base - 1) * 100
+
     for e in entries:
         s = closes.get(e["ticker"])
         e["rets"] = {}
+        e["rel"] = {}
         if s is None:
             continue
         b = pd.Timestamp(e["broadcast"])
         i0 = s.index.searchsorted(b)
         if i0 >= len(s):
             continue
-        base = float(s.iloc[i0])
-        e["base_price"] = round(base, 2)
+        e["base_price"] = round(float(s.iloc[i0]), 2)
         for label, days in PERIODS:
-            target = b + pd.Timedelta(days=days)
-            if target > s.index[-1]:
-                e["rets"][label] = None  # まだ到来していない
-                continue
-            j = s.index.searchsorted(target)
-            if j >= len(s):
-                e["rets"][label] = None
+            v = period_ret(s, b, days)
+            e["rets"][label] = round(v, 1) if v is not None else None
+            vb = period_ret(spx, b, days)
+            if v is not None and vb is not None:
+                # 対S&P500の相対リターン: (1+v)/(1+vb)-1
+                e["rel"][label] = round(((1 + v / 100) / (1 + vb / 100) - 1) * 100, 1)
             else:
-                e["rets"][label] = round((float(s.iloc[j]) / base - 1) * 100, 1)
+                e["rel"][label] = None
     return entries
 
 
 # -----------------------------------------
 # 集計（的中率）
 # -----------------------------------------
-def summarize(entries, since=None):
-    """{stance: {period: (的中率%, 平均リターン%, N)}}"""
+def summarize(entries, since=None, key="rets"):
+    """{stance: {period: (的中率%, 平均リターン%, N)}}
+    key="rets"=絶対リターン / key="rel"=対S&P500相対リターン
+    相対の的中: 強気=S&P500に勝った / 弱気=S&P500に負けた"""
     out = {}
     for stance in ("bull", "neutral", "bear"):
         grp = [e for e in entries if e["stance"] == stance
                and (since is None or e["broadcast"] >= since)]
         per = {}
         for label, _ in PERIODS:
-            vals = [e["rets"].get(label) for e in grp if e.get("rets", {}).get(label) is not None]
+            vals = [e.get(key, {}).get(label) for e in grp if e.get(key, {}).get(label) is not None]
             if not vals:
                 per[label] = None
                 continue
@@ -431,7 +450,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <h2>的中率まとめ — クレイマーの言うことは当たるのか</h2>
 {summary}
-  <p class="dim" style="margin-top:6px">的中の定義: 強気=その後上昇 / 弱気=その後下落。平均は単純平均リターン。N=検証可能な発言数（発言が新しすぎて期間未到来のものは除く）。中立・判定不能の発言は集計対象外（下の一覧には表示）。</p>
+  <p class="dim" style="margin-top:6px">的中の定義: <b>絶対</b>行 = 強気=その後上昇 / 弱気=その後下落。
+  <b>vs S&amp;P500</b>行 = 強気=S&amp;P500に勝った / 弱気=S&amp;P500に負けた（地合いを除いた真の目利き）。
+  カッコ内は平均リターン（相対行は対S&amp;P500の超過分）。N=検証可能な発言数（期間未到来は除く）。中立・判定不能の発言は集計対象外（下の一覧には表示）。</p>
 
   <h2>発言と答え合わせ（放送日の新しい順）</h2>
   <div class="table-wrap">
@@ -472,22 +493,27 @@ def summary_table(entries):
     header = "".join(f"<th>{label}</th>" for label, _ in PERIODS)
     one_year_ago = (datetime.date.today() - datetime.timedelta(days=365)).isoformat()
     for title, since in [("全期間（2025年1月〜）", None), ("直近1年", one_year_ago)]:
-        stats = summarize(entries, since)
         body = []
-        for stance in ("bull", "bear"):
-            label, color = STANCE_LABEL[stance]
-            tds = []
-            for plabel, _ in PERIODS:
-                v = stats[stance].get(plabel)
-                if v is None:
-                    tds.append("<td>-</td>")
-                else:
-                    rate, avg, n = v
-                    avg_cls = "pos" if avg > 0 else ("neg" if avg < 0 else "")
-                    tds.append(f'<td><b>{rate}%</b> <span class="{avg_cls}">({avg:+.1f}%)</span>'
-                               f' <span class="dim">N={n}</span></td>')
-            body.append(f'      <tr><td style="color:{color}; font-weight:700">{label}</td>'
-                        + "".join(tds) + "</tr>")
+        for key, key_label in [("rets", "絶対"), ("rel", "vs S&P500")]:
+            stats = summarize(entries, since, key=key)
+            for stance in ("bull", "bear"):
+                label, color = STANCE_LABEL[stance]
+                tds = []
+                for plabel, _ in PERIODS:
+                    v = stats[stance].get(plabel)
+                    if v is None:
+                        tds.append("<td>-</td>")
+                    else:
+                        rate, avg, n = v
+                        avg_cls = "pos" if avg > 0 else ("neg" if avg < 0 else "")
+                        tds.append(f'<td><b>{rate}%</b> <span class="{avg_cls}">({avg:+.1f}%)</span>'
+                                   f' <span class="dim">N={n}</span></td>')
+                body.append(f'      <tr><td style="color:{color}; font-weight:700">{label}'
+                            f' <span class="dim" style="font-weight:400">{key_label}</span></td>'
+                            + "".join(tds) + "</tr>")
+            if key == "rets":
+                body.append('      <tr><td colspan="6" style="border-bottom:2px solid #334155; '
+                            'padding:0"></td></tr>')
         rows.append(
             f'  <h3 style="font-size:0.88rem; color:#94a3b8; margin:10px 0 6px">{title}</h3>\n'
             f'  <div class="table-wrap" style="max-height:none">\n  <table>\n'
