@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>クレイマー Lightning Round 検証 - 2026-08-15</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.05rem; color: #cbd5e1; margin: 24px 0 10px; border-left: 4px solid #db2777; padding-left: 10px; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  table { border-collapse: collapse; font-size: 0.84rem; }
+  thead th {
+    background: #1e293b; color: #94a3b8; padding: 8px 12px;
+    text-align: right; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  thead th:first-child { text-align: left; }
+  td {
+    padding: 7px 12px; border-bottom: 1px solid #1e293b;
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  td:first-child { text-align: left; }
+  tr:hover td { background: #16213a; }
+  .pos { color: #4ade80; }
+  .neg { color: #f87171; }
+  .dim { color: #64748b; font-size: 0.76rem; }
+  .comment { color: #94a3b8; font-size: 0.78rem; text-align: left; white-space: normal; max-width: 520px; }
+  .table-wrap { overflow: auto; max-height: 72vh; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.9; max-width: 1150px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+</style>
+<script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
+    <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
+    <a href="buffett.html" style="border-color:#db2777">バフェット</a>
+    <a href="cramer.html" class="active" style="border-color:#db2777">クレイマー</a>
+    <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
+  </nav>
+  <h1>ジム・クレイマー Lightning Round 検証</h1>
+  <p class="subtitle">最終更新: 2026-08-15 00:58 | 発言27件（2025年1月放送分〜） | 出所: <a href="https://usa-option.com/category/stock/" style="color:#60a5fa">usa-option.com（マカベェさん訳）</a> | 騰落はyfinance終値ベース</p>
+
+  <h2>的中率まとめ — クレイマーの言うことは当たるのか</h2>
+  <h3 style="font-size:0.88rem; color:#94a3b8; margin:10px 0 6px">全期間（2025年1月〜）</h3>
+  <div class="table-wrap" style="max-height:none">
+  <table>
+    <thead><tr><th>判定</th><th>2週間</th><th>1ヶ月</th><th>2ヶ月</th><th>3ヶ月</th><th>6ヶ月</th></tr></thead>
+    <tbody>
+      <tr><td style="color:#4ade80; font-weight:700">強気 🟢</td><td><b>0%</b> <span class="neg">(-8.2%)</span> <span class="dim">N=5</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td style="color:#f87171; font-weight:700">弱気 🔴</td><td><b>33%</b> <span class="pos">(+10.7%)</span> <span class="dim">N=6</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td><b>50%</b> <span class="">(-0.0%)</span> <span class="dim">N=4</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3 style="font-size:0.88rem; color:#94a3b8; margin:10px 0 6px">直近1年</h3>
+  <div class="table-wrap" style="max-height:none">
+  <table>
+    <thead><tr><th>判定</th><th>2週間</th><th>1ヶ月</th><th>2ヶ月</th><th>3ヶ月</th><th>6ヶ月</th></tr></thead>
+    <tbody>
+      <tr><td style="color:#4ade80; font-weight:700">強気 🟢</td><td><b>0%</b> <span class="neg">(-8.2%)</span> <span class="dim">N=5</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td style="color:#f87171; font-weight:700">弱気 🔴</td><td><b>33%</b> <span class="pos">(+10.7%)</span> <span class="dim">N=6</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td><b>50%</b> <span class="">(-0.0%)</span> <span class="dim">N=4</span></td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="dim" style="margin-top:6px">的中の定義: 強気=その後上昇 / 弱気=その後下落 / 中立=参考（上昇率で表示）。平均は単純平均リターン。N=検証可能な発言数（発言が新しすぎて期間未到来のものは除く）。</p>
+
+  <h2>発言と答え合わせ（放送日の新しい順）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>放送日</th><th>銘柄</th><th>判定</th><th style="text-align:left">コメント（マカベェさん訳）</th>
+        <th>2週間</th><th>1ヶ月</th><th>2ヶ月</th><th>3ヶ月</th><th>6ヶ月</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>2026-07-27</td><td><b>CBRS</b> <span class="dim">Cerebras Systems Inc</span></td><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td class="comment">確かに、これほど大きく下がっていて、PERもそれほど高くなくなったということはあるが、ただ、わいはIntelのほうが好きやで。Cerebrasよりも見通しが良いと思っとるで。</td><td class="pos">+22.0%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-27</td><td><b>FHN</b> <span class="dim">First Horizon Corp</span></td><td style="color:#4ade80; font-weight:700">強気 🟢</td><td class="comment">素晴らしい銘柄やで。とても割安やし、買うべきやと思うで。</td><td class="neg">-1.0%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-27</td><td><b>NKE</b> <span class="dim">Nike Inc</span></td><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td class="comment">今の状態はまあ悪くはないと思うで。株価も下がりきった感があるしな。でも、競争は激化しとるし、わいはまあ悪くない銘柄は持ちたくはないんや。</td><td class="neg">-0.1%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-27</td><td><b>KMPR</b> <span class="dim">Kemper Corp</span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">あかんで。配当利回り4％というだけでは、わいは持ちたくないんや。わいには成長が必要や。この会社には成長がないで。</td><td class="neg">-10.4%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-22</td><td><b>FIG</b> <span class="dim">Figma Inc</span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">非常に競争の激しいビジネスや。わいは手を出したくないで。</td><td class="pos">+31.1%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-22</td><td><b>SEDG</b> <span class="dim">Solaredge Technologies</span></td><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td class="comment">今、太陽光発電関連株はあまりうまくいってないんや。業績という裏付けがないかぎり、金利が高い状況では、太陽光発電関連で利益を上げるのは本当に難しいんや。</td><td class="neg">-29.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-22</td><td><b>IONQ</b> <span class="dim">IonQ Inc</span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">問題は金利や。金利が上昇すると、こうした株を保有するのは難しくなるで。だからわいは手を出さないことにするで。</td><td class="pos">+15.1%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-22</td><td><b>INDB</b> <span class="dim">Independent Bank Corp</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">いいと思うで。優良な地方銀行やし、わいは今、地方銀行株を強く支持しとるで。</td><td class="pos">+0.5%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-22</td><td><b>CEG</b> <span class="dim">Constellation Energy C</span></td><td style="color:#4ade80; font-weight:700">強気 🟢</td><td class="comment">わいはこうした昔ながらの電力関連株が好きやで。こうした株はすっかり勢いを失い、大きく下落してきたから、今こそ、買いを検討すべきやと思うで。これほど下がった水準なら、魅力的な投資対象やと思うで。</td><td class="neg">-3.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-21</td><td><b>KEEL</b> <span class="dim">Keel Infrastructure Co</span></td><td style="color:#4ade80; font-weight:700">強気 🟢</td><td class="comment">この銘柄を挙げてくれてうれしいで。これはわいが強く推してもいいと思えるタイプの銘柄や。リスクの高いインフラ企業やが、何か良いことが起こる可能性はあると思うで。</td><td class="neg">-11.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-21</td><td><b>TFC</b> <span class="dim">Truist Financial Corp</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">Truistは好きやが、わいはKeyCorpの方がすきやで。誰かがKeyCorpについて否定的なことを言ったときも株価はそれほど下がらなかったんや。</td><td class="pos">+2.5%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-21</td><td><b>ACHR</b> <span class="dim">Archer Aviation Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">株価が大きく下がっとる。少額のポジションなら持ってもいいかもしれん。少額ならリスクを取ってもいいかもしれん。投機的な株を一つ持つことをわいは認めとるからな。</td><td class="pos">+0.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-21</td><td><b>OLLI</b> <span class="dim">Ollies Bargain Outlet </span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">決算で期待を下回り続けとるんや。だから厳しいで。この分野を支配しているのはTJXや。それ以外には手を出さないほうがええで。</td><td class="pos">+16.8%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>FISV</b> <span class="dim">Fiserv Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">この会社はだれかと合併する必要があると思うで。フィンテック業界では大規模な業界再編が必要や。この分野には企業があまりにも多すぎるで。</td><td class="pos">+5.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>LYFT</b> <span class="dim">Lyft Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">CEOはよくやっとると思うで。株価は上がったり下がったりを繰り返しとるが、今の水準は買い始めるには良い水準やで。</td><td class="pos">+6.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>CLSK</b> <span class="dim">Cleanspark Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">要するにBitcoin関連株なんやが、それなら、Bitcoinそのものを買った方がええで。そのほうがずっと簡単や。</td><td class="pos">+1.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>ZIM</b> <span class="dim">Zim Integrated Shippin</span></td><td style="color:#fbbf24; font-weight:700">中立 🟡</td><td class="comment">わいはそこまで強気ではありませんが、持ち続けるというあなたの考えに同意するで。</td><td class="pos">+7.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>FSLR</b> <span class="dim">First Solar Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">この株は本当に徹底的に売り込まれたよな。今なら非常に安い価格で買えることにはなるが、テクニカル分析に頼るような言い方はしたくないんやが、これはわいがこれまで見た中でも最悪のチャートの一つやで。</td><td class="pos">+13.4%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>CAKE</b> <span class="dim">Cheesecake Factory Inc</span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">みんな、Cheesecake Factoryには、誰にでも合う非常に幅広い料理をそろえた素晴らしいメニューがあることを理解してないんや。それが人々を混乱させとる。Cheesecake Factoryに行かない人は、名前だけを見て、「うわ、そんな株は持ちたくない」と言ってしまうんや。株価は52週高値にあるが、メニューは豊富で、体重を大きく増やしたくない人向けの</td><td class="pos">+21.8%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-20</td><td><b>ASTS</b> <span class="dim">AST SpaceMobile Inc</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">そもそも、この会社は莫大な損失を出しとる。今の市場では、そういうタイプの株はもう好まれていないんや。40ドルまで下がってから買うかどうかを決めてもええかもしれんで。</td><td class="pos">+10.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>MCHP</b> <span class="dim">Microchip Technology I</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">これは半導体株で、今は半導体株がすべて下落しとる。信用取引をしている投資家が一掃されるまで、あと数日待つことをお勧めするで。そうすれば底値が見つかるやろう。わいにはまだ底が見えてないで。</td><td class="neg">-8.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>VRT</b> <span class="dim">Vertiv Holdings Co</span></td><td style="color:#4ade80; font-weight:700">強気 🟢</td><td class="comment">待たんとあかんで。現在、Vertivの株は投機筋の手にあるんや。彼らはいずれ追証によってポジションを手放さざるを得なくなるやろう。買いたいのであれば、もっと良い価格で買えるようになるで。その水準までもうそれほど遠くないやろうけどな。</td><td class="neg">-22.6%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>AAOI</b> <span class="dim">Applied Optoelectronic</span></td><td style="color:#f87171; font-weight:700">弱気 🔴</td><td class="comment">今ではないで。投機の波が過ぎ去るまで待つ必要があるんや。わいは投機そのものに反対しているわけではないで。ポートフォリオの最大10％までは投機的な銘柄に充ててもいいと、わいが言っとるのは皆さんもご存じやろ？ただし、適切なタイミングを見極めて投資せんとあかんのや。</td><td class="neg">-10.1%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>WCC</b> <span class="dim">Wesco International In</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">Quantaはかなり下落しとる。わいは、そちらのほうが優れた会社やと思うで。</td><td class="pos">+4.9%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>COKE</b> <span class="dim">Coca-Cola Consolidated</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">良い会社やが、本家のCoca-Cola、ティッカーシンボルがKOの方を見てほしいで。そちらのほうが良い株やと思うで。</td><td class="pos">+4.2%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>CLX</b> <span class="dim">Clorox Co</span></td><td style="color:#4ade80; font-weight:700">強気 🟢</td><td class="comment">今日、実に久しぶりにCloroxについての肯定的なアナリストレポートを読んだで。それを読んでわいは、配当利回りは5％か、これは買いたい、と思ったんや。</td><td class="neg">-2.0%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>2026-07-16</td><td><b>NBIS</b> <span class="dim">Nebius Group NV</span></td><td style="color:#64748b; font-weight:700">判定不能</td><td class="comment">今、Nebiusは市場の狂乱の中心にあるで。会社自体がおかしいわけではないんや。非常に良い会社やで。でも、この株の下落はまだ終わっていないかもしれん。</td><td class="pos">+9.7%</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">
+    ・Lightning Round = 視聴者の電話質問にクレイマーが即答するコーナー（Mad Money内）。準備なしの即答なので「本音の初期反応」が出やすい。<br>
+    ・3段階判定はコメント内の言い回しから自動判定（最後に出た結論語を採用）。逆接や比較（「〜のほうが好き」）は中立になりやすい。
+    判定不能は「?」で表示。<b>原文コメントを併記しているので、判定が怪しいものは自分の目で確認する</b>。<br>
+    ・騰落は放送日の翌取引日終値を起点に、各期間後（暦日）の直近終値で計算。期間がまだ到来していない発言は「-」。<br>
+    ・訳文は<a href="https://usa-option.com/category/stock/" style="color:#60a5fa">アメリカ発ーマカベェの米株取引</a>より。感謝。
+  </p>
+  <p class="updated">最終更新: 2026-08-15 00:58</p>
+</body>
+</html>

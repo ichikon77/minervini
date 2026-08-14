@@ -18,6 +18,7 @@
 !spriron_history.json
 !karauri_history.json
 !gaikoku_history.json
+!cramer_history.json
 
 # ログ
 *.txt
