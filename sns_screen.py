@@ -39,8 +39,14 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "sns_history.json")
 REPORT_HTML = "sns.html"
 
-# トラッキング対象ワード（ユーザー指定: 追証・追い証・強制決済・ロスカット）
-WORDS = ["追証", "追い証", "強制決済", "ロスカット"]
+# トラッキング対象ワード（ユーザー指定）
+# 表記ゆれはOR検索で1枠に統合（APIは「A OR B」構文に対応、重複ツイートは1件として数える）
+# WORDS = [(表示名/履歴キー, 検索クエリ)]
+WORDS = [
+    ("追証（追い証）", "追証 OR 追い証"),
+    ("強制決済", "強制決済"),
+    ("ロスカット", "ロスカット"),
+]
 
 API = ("https://search.yahoo.co.jp/realtime/api/v1/transition"
        "?p={word}&interval=86400&span=2592000&rkf=3")
@@ -253,7 +259,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 def generate_html(hist, nikkei):
     dates = sorted(hist.keys(), reverse=True)
-    word_headers = "\n".join(f"        <th>{w}</th>" for w in WORDS)
+    word_headers = "\n".join(f"        <th>{label}</th>" for label, _ in WORDS)
 
     rows = []
     spike_days = []  # (date, word, ratio) スパイク記録
@@ -268,7 +274,7 @@ def generate_html(hist, nikkei):
         else:
             chg_s = "-"
         cells = []
-        for w in WORDS:
+        for w, _ in WORDS:
             v = rec.get(w)
             if v is None:
                 cells.append("<td>-</td>")
@@ -307,7 +313,7 @@ def generate_html(hist, nikkei):
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-        words="・".join(WORDS),
+        words="・".join(label for label, _ in WORDS),
         light=SPIKE_LIGHT, heavy=SPIKE_HEAVY,
         spike_summary=spike_summary,
         word_headers=word_headers,
@@ -358,9 +364,9 @@ def main():
 
     hist = load_history()
     added = 0
-    for w in WORDS:
+    for w, query in WORDS:
         try:
-            counts = fetch_word_counts(w)
+            counts = fetch_word_counts(query)
         except Exception as e:
             log(f"  {w}: 取得失敗 {e}")
             continue
