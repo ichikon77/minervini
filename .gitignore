@@ -19,6 +19,7 @@
 !karauri_history.json
 !gaikoku_history.json
 !cramer_history.json
+!sns_history.json
 
 # ログ
 *.txt

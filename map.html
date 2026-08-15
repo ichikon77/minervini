@@ -46,6 +46,7 @@
     <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
     <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
     <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="sns.html" style="border-color:#d97706">SNS恐怖温度計</a>
     <a href="flow.html" style="border-color:#059669">資金フロー</a>
     <a href="daikin.html" style="border-color:#059669">売買代金</a>
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
@@ -58,11 +59,11 @@
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
-  <h1>デッキの見方 — 24ページのつながり</h1>
+  <h1>デッキの見方 — 26ページのつながり</h1>
   <p class="subtitle">イベント → マクロ・バリュエーション → 需給 → 温度計 → 資金の行き先 → 銘柄検討。ボックスをクリックで各ページへ。</p>
 
   <div class="diagram-wrap">
-  <svg width="1080" height="1440" viewBox="0 0 1080 1440" xmlns="http://www.w3.org/2000/svg">
+  <svg width="1080" height="1530" viewBox="0 0 1080 1530" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
         <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
@@ -196,16 +197,25 @@
       <text x="890" y="756" text-anchor="middle" fill="#94a3b8" font-size="11">35未満の下落 = 実需売り主体を疑う</text>
     </a>
 
-    <!-- ③ 温度計 2段目: VIX温度計 -->
-    <a href="vix.html">
-      <rect x="215" y="794" width="650" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
-      <text x="540" y="820" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">VIX温度計（米国発の恐怖の答え合わせ）</text>
-      <text x="540" y="840" text-anchor="middle" fill="#94a3b8" font-size="11">VIX MACD(12-26-9, SMAシグナル) GC=下落期間 / DC=上昇期間の説を検証</text>
-      <text x="540" y="858" text-anchor="middle" fill="#94a3b8" font-size="11">期間の終わり: GC→SPX StochRSI押し目完成(K≦30) / DC→天井完成(K≧80)。日経はDC後64%・GC後72%で説に従う</text>
-      <text x="540" y="876" text-anchor="middle" fill="#94a3b8" font-size="11">CFTC投機筋ショート -15万枚超=踏み上げ警戒 / -9万枚超=要注意（GCのだまし検知）</text>
+    <!-- ③ 温度計 2段目: SNS恐怖温度計（信用評価率の下）+ VIX温度計 -->
+    <a href="sns.html">
+      <rect x="40" y="794" width="300" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="190" y="820" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">SNS恐怖温度計 🇯🇵</text>
+      <text x="190" y="840" text-anchor="middle" fill="#94a3b8" font-size="11">X投稿数「追証/ロスカット」等の日次推移</text>
+      <text x="190" y="858" text-anchor="middle" fill="#94a3b8" font-size="11">暴落日にスパイク（7/17追証1,537件=平時の10倍）</text>
+      <text x="190" y="876" text-anchor="middle" fill="#94a3b8" font-size="11">中央値3倍で薄赤 / 6倍でパニック（逆張り候補）</text>
     </a>
-    <line x1="540" y1="770" x2="540" y2="792" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
-    <text x="552" y="786" fill="#94a3b8" font-size="10">日本の温度 + 米国の温度</text>
+    <a href="vix.html">
+      <rect x="390" y="794" width="650" height="96" rx="10" fill="#1e293b" stroke="#d97706" stroke-width="1.5"/>
+      <text x="715" y="820" text-anchor="middle" fill="#fde68a" font-size="15" font-weight="bold">VIX温度計（米国発の恐怖の答え合わせ）</text>
+      <text x="715" y="840" text-anchor="middle" fill="#94a3b8" font-size="11">VIX MACD(12-26-9, SMAシグナル) GC=下落期間 / DC=上昇期間の説を検証</text>
+      <text x="715" y="858" text-anchor="middle" fill="#94a3b8" font-size="11">期間の終わり: GC→SPX StochRSI押し目完成(K≦30) / DC→天井完成(K≧80)。日経はDC後64%・GC後72%で説に従う</text>
+      <text x="715" y="876" text-anchor="middle" fill="#94a3b8" font-size="11">CFTC投機筋ショート -15万枚超=踏み上げ警戒 / -9万枚超=要注意（GCのだまし検知）</text>
+    </a>
+    <line x1="190" y1="770" x2="190" y2="792" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="202" y="786" fill="#94a3b8" font-size="10">個人の含み損 → 個人の悲鳴</text>
+    <line x1="715" y1="770" x2="715" y2="792" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="727" y="786" fill="#94a3b8" font-size="10">日本の温度 + 米国の温度</text>
 
     <line x1="540" y1="890" x2="540" y2="964" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar)"/>
     <text x="552" y="932" fill="#94a3b8" font-size="11">需給と温度が「どこに」現れているかを特定</text>
@@ -266,16 +276,30 @@
       <text x="890" y="1333" text-anchor="middle" fill="#94a3b8" font-size="11">13Fの差分から新規買い/売却を検出</text>
       <text x="890" y="1351" text-anchor="middle" fill="#94a3b8" font-size="11">勝率67%・平均5.1四半期・保有中の含み損益</text>
     </a>
-    <text x="540" y="1410" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="bold">個別銘柄のテクニカル分析はTrading Viewで</text>
+
+    <!-- ⑤ 銘柄検討 3段目: クレイマー検証 + 信用期日 -->
+    <a href="cramer.html">
+      <rect x="215" y="1382" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="365" y="1406" text-anchor="middle" fill="#fbcfe8" font-size="14" font-weight="bold">クレイマー検証 🇺🇸</text>
+      <text x="365" y="1425" text-anchor="middle" fill="#94a3b8" font-size="11">Lightning Round発言を3段階判定→的中率</text>
+      <text x="365" y="1443" text-anchor="middle" fill="#94a3b8" font-size="11">弱気は対SPXで6ヶ月66%的中 / 買いは話半分</text>
+    </a>
+    <a href="kijitsu.html">
+      <rect x="565" y="1382" width="300" height="76" rx="10" fill="#1e293b" stroke="#db2777" stroke-width="1.5"/>
+      <text x="715" y="1406" text-anchor="middle" fill="#fbcfe8" font-size="14" font-weight="bold">信用期日スクリーナー 🇯🇵</text>
+      <text x="715" y="1425" text-anchor="middle" fill="#94a3b8" font-size="11">基準高値から半年の需給サイクルを追う</text>
+      <text x="715" y="1443" text-anchor="middle" fill="#94a3b8" font-size="11">120-179日=最悪期 / 180日通過=改善ゾーン</text>
+    </a>
+    <text x="540" y="1502" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="bold">個別銘柄のテクニカル分析はTrading Viewで</text>
   </svg>
   </div>
 
   <p class="note">
     <b>1日の自動更新スケジュール:</b>
     朝7:55 イベント予定 → 8:05 米国株スクリーナー → 8:15 S&amp;P500理論株価 → 8:20 資金フロー →
-    8:25 FRB利上げ確率 → 8:30 米インフレと雇用 → 8:35 金利と為替 → 8:40 インサイダー売買 → 8:45 VIX温度計 → 8:50 バフェット → 8:55 銘柄別信用倍率 →
+    8:25 FRB利上げ確率 → 8:30 米インフレと雇用 → 8:35 金利と為替 → 8:40 インサイダー売買 → 8:45 VIX温度計 → 8:50 バフェット・クレイマー → 8:55 銘柄チェッカー →
     夕方17:30 裁定取引 → 18:10 日銀利上げ確率 → 18:20 売買代金 → 18:30 日本株Minervini →
-    18:40 信用評価率 → 18:50 投資主体別 → 19:00 高配当 → 19:10 騰落レシオ → 19:20 空売り比率 → 19:30 日経理論株価 → 20:00 海外投資家 → 23:00 自動バックアップ。
+    18:40 信用評価率 → 18:50 投資主体別 → 19:00 高配当 → 19:10 騰落レシオ → 19:20 空売り比率 → 19:30 日経理論株価 → 19:40 信用期日 → 19:50 SNS恐怖温度計 → 20:00 海外投資家 → 23:00 自動バックアップ。
   </p>
   <p class="note">
     <b>層のつながり（金利の因果ライン）:</b><br>
