@@ -12,7 +12,7 @@
        「最後に出現した極性語」を採用（日本語は結論が文末に来るため）
      - 判定不能は「?」として表示（隠さない）
   2. cramer_history.json に蓄積（2025年放送分以降、記事番号1185〜）
-  3. 放送日から 2週間/1ヶ月/2ヶ月/3ヶ月/6ヶ月後の騰落をyfinanceで計算
+  3. 放送日から 1週間/2週間/1ヶ月/2ヶ月/3ヶ月/6ヶ月後の騰落をyfinanceで計算
   4. 冒頭に集計表: 全期間/直近1年 × 強気/中立/弱気 × 各期間の的中率
      （強気の的中=上昇、弱気の的中=下落）+ 平均リターン
 
@@ -41,7 +41,7 @@ FIRST_ARTICLE = 1185       # 2025-01-09投稿（放送2024-12-11）から。放�
 MIN_BROADCAST = "2025-01-01"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0"}
 
-PERIODS = [("2週間", 14), ("1ヶ月", 30), ("2ヶ月", 61), ("3ヶ月", 91), ("6ヶ月", 183)]
+PERIODS = [("1週間", 7), ("2週間", 14), ("1ヶ月", 30), ("2ヶ月", 61), ("3ヶ月", 91), ("6ヶ月", 183)]
 
 # 3段階判定キーワード（最後に出現した極性語で判定）
 BULL_WORDS = ["買うべき", "買いや", "買い増す", "買いたい", "買っても", "素晴らしい",
@@ -491,7 +491,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <thead>
       <tr>
         <th>放送日</th><th>銘柄</th><th>判定</th><th style="text-align:left">コメント（マカベェさん訳）</th>
-        <th>2週間</th><th>1ヶ月</th><th>2ヶ月</th><th>3ヶ月</th><th>6ヶ月</th>
+        <th>1週間</th><th>2週間</th><th>1ヶ月</th><th>2ヶ月</th><th>3ヶ月</th><th>6ヶ月</th>
       </tr>
     </thead>
     <tbody>
@@ -543,7 +543,7 @@ def summary_table(entries):
                             f' <span class="dim" style="font-weight:400">{key_label}</span></td>'
                             + "".join(tds) + "</tr>")
             if key == "rets":
-                body.append('      <tr><td colspan="6" style="border-bottom:2px solid #334155; '
+                body.append('      <tr><td colspan="7" style="border-bottom:2px solid #334155; '
                             'padding:0"></td></tr>')
         rows.append(
             f'  <h3 style="font-size:0.88rem; color:#94a3b8; margin:10px 0 6px">{title}</h3>\n'
