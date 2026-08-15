@@ -45,3 +45,7 @@ insider_plan_cache.json
 margin_mcap_cache.json
 # kijitsu癖キャッシュは初回リビルドが重い(10年x1334銘柄)ためpushして共有
 !kijitsu_kuse_cache.json
+# kijitsu US版も同じ理由でpushして共有（癖キャッシュ+Short Interestキャッシュ+銘柄名キャッシュ）
+!kijitsu_us_kuse_cache.json
+!kijitsu_us_si_cache.json
+!kijitsu_us_name_cache.json
