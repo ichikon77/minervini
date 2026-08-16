@@ -303,7 +303,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <div class="tables-wrap">
     <div class="table-col">
-      <h2>円安相関 Top{top_n}（対日経平均・超過相関(6ヶ月)が高い順）</h2>
+      <h2>円安相関 Top{top_n}（対日経平均・超過相関(1年)が高い順）</h2>
       <div class="table-wrap">
       <table>
         <thead><tr>
@@ -318,7 +318,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
     <div class="table-col">
-      <h2>円高相関 Top{top_n}（対日経平均・超過相関(6ヶ月)が低い/負の順）</h2>
+      <h2>円高相関 Top{top_n}（対日経平均・超過相関(1年)が低い/負の順）</h2>
       <div class="table-wrap">
       <table>
         <thead><tr>
@@ -334,8 +334,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
   <p class="note">
-    ・<b>ランキングのソート基準</b> = 対日経平均・超過相関の6ヶ月値を優先（足元の為替感応度を最重視。市場全体の為替感応度を除いた、その銘柄固有の感応度でランキング）。
-    超過相関(6ヶ月)が無い銘柄は超過相関(1年)→(3年)→単純相関(6ヶ月)の順で代替。単純相関は参考として併記。<br>
+    ・<b>ランキングのソート基準</b> = 対日経平均・超過相関の1年値を優先（市場全体の為替感応度を除いた、その銘柄固有の感応度でランキング）。
+    超過相関(1年)が無い銘柄は超過相関(6ヶ月)→(3年)→単純相関(1年)の順で代替。6ヶ月列は足元の変化を見る参考、単純相関も参考として併記。<br>
     ・<b>データ不足銘柄</b> = 新規上場等で6ヶ月/1年/3年分の日次データが揃わない銘柄はその期間の相関が算出できないため「-」表示または対象外。<br>
     ・為替相関は事業構造だけでなく市場全体のリスクオン/オフ気分とも絡むため、単純な「円安メリット株リスト」として使うより、
     決算資料等で実際の想定為替レート・海外売上比率も併せて確認することを推奨。
@@ -394,10 +394,11 @@ def build_row(rank, r, rank_maps):
 
 
 def generate_html(results, nikkei_corr_6m, nikkei_corr_1y, nikkei_corr_3y):
-    # ソート基準: 超過相関(対日経平均)の6ヶ月値を優先（足元の為替感応度を最重視）。
-    # 無ければ超過相関(1年)→(3年)→単純相関(6ヶ月)の順で代替。
+    # ソート基準: 超過相関(対日経平均)の1年値を優先（市場全体の為替感応度を除いた
+    # 銘柄固有の感応度でランキング。6ヶ月はノイズが大きいため列表示のみで採用せず）。
+    # 無ければ超過相関(6ヶ月)→(3年)→単純相関(1年)の順で代替。
     def sort_key(r):
-        for key in ("excess_corr_6m", "excess_corr_1y", "excess_corr_3y", "corr_6m"):
+        for key in ("excess_corr_1y", "excess_corr_6m", "excess_corr_3y", "corr_1y"):
             if r[key] is not None:
                 return r[key]
         return 0
