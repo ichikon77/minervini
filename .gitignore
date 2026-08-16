@@ -49,3 +49,5 @@ margin_mcap_cache.json
 !kijitsu_us_kuse_cache.json
 !kijitsu_us_si_cache.json
 !kijitsu_us_name_cache.json
+# minervini v2の銘柄名キャッシュも同じ理由でpushして共有
+!minervini_name_cache.json
