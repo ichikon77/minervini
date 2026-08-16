@@ -894,9 +894,9 @@ def generate_html(results, output_path, removed_tickers=None):
   /* Ticker 列: left=0 */
   th.sticky-ticker, td.sticky-ticker {{ left: 0; min-width: 110px; }}
   /* 銘柄名列: Ticker 幅ぶん右にずらす */
-  th.sticky-name, td.sticky-name     {{ left: 110px; min-width: 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: #94a3b8; font-size: 0.82rem; }}
+  th.sticky-name, td.sticky-name     {{ left: 110px; min-width: 110px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; color: #94a3b8; font-size: 0.78rem; }}
   /* RS 列: Ticker+銘柄名 幅ぶん右にずらす + 右境界線で区切り */
-  th.sticky-rs, td.sticky-rs         {{ left: 260px; min-width: 52px; border-right: 2px solid #334155; }}
+  th.sticky-rs, td.sticky-rs         {{ left: 220px; min-width: 52px; border-right: 2px solid #334155; }}
   tbody tr:hover {{ background: #1e293b; }}
   tbody td {{ padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }}
   .ticker {{ font-weight: bold; color: #60a5fa; font-size: 0.95rem; }}
