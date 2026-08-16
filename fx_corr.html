@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>円安/円高相関ランキング - 2026-08-16</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a; color: #e2e8f0; padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.1rem; margin: 24px 0 10px; color: #f1f5f9; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a {
+    color: #60a5fa; text-decoration: none; background: #1e293b;
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #334155;
+  }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .evidence {
+    background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; line-height: 1.8;
+    max-width: 1150px; margin-bottom: 16px;
+  }
+  .evidence b { color: #93c5fd; }
+  .tables-wrap { display: flex; flex-direction: column; gap: 28px; }
+  .table-col { max-width: 1150px; }
+  .table-wrap { overflow: auto; max-height: 620px; }
+  table { border-collapse: collapse; font-size: 0.82rem; width: 100%; }
+  thead th {
+    background: #1e293b; color: #94a3b8; padding: 7px 10px;
+    text-align: right; font-weight: 600; white-space: nowrap;
+    position: sticky; top: 0; z-index: 2;
+  }
+  thead th:nth-child(-n+2) { text-align: left; }
+  td {
+    padding: 6px 10px; border-bottom: 1px solid #1e293b;
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  td:nth-child(-n+2) { text-align: left; }
+  tr:hover td { background: #16213a; }
+  .rank { color: #64748b; font-size: 0.76rem; }
+  .yenweak td { }
+  .yenweak .corr { color: #f87171; font-weight: 600; }
+  .yenstrong .corr { color: #60a5fa; font-weight: 600; }
+  .dim { color: #64748b; font-size: 0.74rem; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 20px; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.9; max-width: 1150px; }
+</style>
+<script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="sns.html" style="border-color:#d97706">SNS恐怖温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
+    <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
+    <a href="buffett.html" style="border-color:#db2777">バフェット</a>
+    <a href="cramer.html" style="border-color:#db2777">クレイマー</a>
+    <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
+    <a href="kijitsu_us.html" style="border-color:#db2777">信用期日(US)</a>
+    <a href="fx_corr.html" class="active" style="border-color:#db2777">円安/円高相関</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
+  </nav>
+  <h1>円安/円高相関ランキング — USD/JPYとの日次リターン相関</h1>
+  <p class="subtitle">最終更新: 2026-08-16 11:07 | 対象: 時価総額1000億円以上・直近四半期の営業黒字（56銘柄で算出） | 相関期間: 1年・3年 | 参考: 日経平均自体のUSD/JPY相関 1年-0.10・3年-</p>
+  <div class="evidence">
+    <b>考え方:</b> 各銘柄の日次リターンとUSD/JPYの日次リターンの相関係数を算出。
+    <b>相関が高い(+に近い)=USD/JPYが上がる(円安)と株価も上がりやすい銘柄</b>（輸出企業・海外売上比率が高い銘柄に多い傾向）、
+    <b>相関が低い/負=円安で株価が下がりやすい・円高で株価が上がりやすい銘柄</b>（内需・輸入コスト型に多い傾向）。<br>
+    ・<b>単純相関</b>=個別銘柄の日次リターンそのものと為替の相関。日経平均自体もUSD/JPYと正の相関（表の上に表示）を持つため、
+    単純相関が高いだけでは「市場全体が円安に反応しているだけ」を拾ってしまう可能性がある。<br>
+    ・<b>対日経平均・超過相関</b>=個別銘柄のリターンから日経平均のリターンを引いた「超過リターン」と為替の相関。
+    市場全体の動きを除いた、<b>その銘柄固有の為替感応度</b>に近い指標。単純相関と超過相関が両方高い銘柄ほど、
+    「市場平均以上に為替に敏感」という傾向が強いと解釈できる。<br>
+    ・1年相関=直近の市場構造を反映、3年相関=より安定した傾向。両方が同じ方向を向いている銘柄ほど傾向が安定している目安。<br>
+    ・個別銘柄の日次リターンは決算・地合い等のノイズが大きいため、相関係数自体は0.2〜0.4程度に収まることが多く、
+    0.6を超えるような強い相関はまれ。値の大小そのものよりランキングの相対比較として見る。<br>
+    ・これは統計的な相関関係であり因果関係ではない。為替感応度は事業構造の変化（ヘッジ比率・海外生産移管等）で変わるため、
+    単独の売買根拠ではなく他の情報と重ねる1要素として使う。<br>
+    ・営業赤字フィルタ = 直近四半期の営業利益が赤字の銘柄は除外（<a href="margin.html" style="color:#60a5fa">銘柄チェッカー</a>の週次業績データより）。
+  </div>
+  <div class="tables-wrap">
+    <div class="table-col">
+      <h2>円安相関 Top50（対日経平均・超過相関(1年)が高い順）</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>コード</th><th>銘柄</th><th>時価総額<br>(億円)</th><th>現値</th>
+          <th>単純相関<br>(1年)</th><th>単純相関<br>(3年)</th>
+          <th>超過相関<br>(1年)</th><th>超過相関<br>(3年)</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="rank">1</td><td>1605 ＩＮＰＥＸ</td><td>43,955</td><td>3,782</td><td class="corr">+0.16</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.19</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">2</td><td>1820 西松建設</td><td>2,172</td><td>5,501</td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.16</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">3</td><td>1663 Ｋ＆Ｏエナジーグループ</td><td>1,024</td><td>1,917</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.16</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">4</td><td>1662 石油資源開発</td><td>4,659</td><td>1,820</td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.16</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">5</td><td>2004 昭和産業</td><td>1,172</td><td>3,605</td><td class="corr">+0.14</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.16</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">6</td><td>1808 長谷工コーポレーション</td><td>7,413</td><td>2,799</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.15</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">7</td><td>1719 安藤・間</td><td>2,965</td><td>1,890</td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.15</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">8</td><td>1925 大和ハウス工業</td><td>28,546</td><td>4,609</td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.15</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">9</td><td>1928 積水ハウス</td><td>22,325</td><td>3,444</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.14</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">10</td><td>1414 ショーボンドホールディングス</td><td>2,547</td><td>1,268</td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.14</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">11</td><td>1951 エクシオグループ</td><td>5,346</td><td>2,632</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.13</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">12</td><td>1959 クラフティア</td><td>5,939</td><td>8,396</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">13</td><td>1934 ユアテック</td><td>1,703</td><td>2,479</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">14</td><td>2002 日清製粉グループ本社</td><td>5,678</td><td>2,030</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">15</td><td>1377 サカタのタネ</td><td>1,845</td><td>4,365</td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">16</td><td>1878 大東建託</td><td>10,534</td><td>3,237</td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">17</td><td>2001 ニップン</td><td>2,372</td><td>2,869</td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">18</td><td>1766 東建コーポレーション</td><td>1,482</td><td>13,350</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">19</td><td>1801 大成建設</td><td>21,273</td><td>13,050</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">20</td><td>1860 戸田建設</td><td>4,402</td><td>1,487</td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">21</td><td>1926 ライト工業</td><td>1,539</td><td>3,750</td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">22</td><td>1333 Ｕｍｉｏｓ</td><td>1,956</td><td>1,294</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">23</td><td>1721 コムシスホールディングス</td><td>6,087</td><td>5,303</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">24</td><td>1879 新日本建設</td><td>1,341</td><td>2,293</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">25</td><td>1833 奥村組</td><td>2,057</td><td>5,730</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">26</td><td>1835 東鉄工業</td><td>1,386</td><td>4,025</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">27</td><td>1802 大林組</td><td>20,973</td><td>3,051</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">28</td><td>1950 日本電設工業</td><td>2,279</td><td>3,905</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">29</td><td>1803 清水建設</td><td>16,406</td><td>2,416</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">30</td><td>1417 ミライト・ワン</td><td>3,059</td><td>3,479</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">31</td><td>1968 太平電業</td><td>1,506</td><td>2,386</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">32</td><td>1941 中電工</td><td>2,674</td><td>5,050</td><td class="corr">-0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">33</td><td>1812 鹿島建設</td><td>22,757</td><td>4,937</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">34</td><td>1762 高松コンストラクショングループ</td><td>1,393</td><td>4,000</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">35</td><td>1979 大氣社</td><td>2,570</td><td>4,080</td><td class="corr">-0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">36</td><td>1332 ニッスイ</td><td>3,973</td><td>1,310</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">37</td><td>1942 関電工</td><td>10,986</td><td>5,520</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">38</td><td>1885 東亜建設工業</td><td>1,611</td><td>2,083</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">39</td><td>1861 熊谷組</td><td>2,214</td><td>1,303</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">40</td><td>1893 五洋建設</td><td>3,889</td><td>1,438</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">41</td><td>1720 東急建設</td><td>1,214</td><td>1,142</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">42</td><td>1871 ピーエス・コンストラクション</td><td>1,082</td><td>2,312</td><td class="corr">-0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">43</td><td>1944 きんでん</td><td>11,369</td><td>6,912</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">44</td><td>1939 四電工</td><td>1,006</td><td>2,125</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">45</td><td>1963 日揮ホールディングス</td><td>5,677</td><td>2,345</td><td class="corr">-0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">46</td><td>1911 住友林業</td><td>8,266</td><td>1,348</td><td class="corr">-0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">47</td><td>1969 高砂熱学工業</td><td>5,677</td><td>4,338</td><td class="corr">-0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">48</td><td>1952 新日本空調</td><td>1,428</td><td>3,140</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">49</td><td>1961 三機工業</td><td>3,729</td><td>2,441</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">50</td><td>1946 トーエネック</td><td>1,965</td><td>2,102</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <div class="table-col">
+      <h2>円高相関 Top50（対日経平均・超過相関(1年)が低い/負の順）</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>コード</th><th>銘柄</th><th>時価総額<br>(億円)</th><th>現値</th>
+          <th>単純相関<br>(1年)</th><th>単純相関<br>(3年)</th>
+          <th>超過相関<br>(1年)</th><th>超過相関<br>(3年)</th>
+        </tr></thead>
+        <tbody>
+          <tr><td class="rank">1</td><td>1515 日鉄鉱業</td><td>2,607</td><td>3,365</td><td class="corr">-0.24</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.23</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">2</td><td>1982 日比谷総合設備</td><td>1,230</td><td>2,980</td><td class="corr">-0.14</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">3</td><td>1980 ダイダン</td><td>3,584</td><td>2,770</td><td class="corr">-0.11</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.06</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">4</td><td>1965 テクノ菱和</td><td>1,236</td><td>6,030</td><td class="corr">-0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.04</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">5</td><td>1723 日本電技</td><td>1,348</td><td>2,115</td><td class="corr">-0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">6</td><td>1407 ウエストホールディングス</td><td>1,037</td><td>2,614</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.02</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">7</td><td>1946 トーエネック</td><td>1,965</td><td>2,102</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">8</td><td>1961 三機工業</td><td>3,729</td><td>2,441</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">9</td><td>1952 新日本空調</td><td>1,428</td><td>3,140</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">10</td><td>1969 高砂熱学工業</td><td>5,677</td><td>4,338</td><td class="corr">-0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">11</td><td>1911 住友林業</td><td>8,266</td><td>1,348</td><td class="corr">-0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">12</td><td>1963 日揮ホールディングス</td><td>5,677</td><td>2,345</td><td class="corr">-0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">13</td><td>1939 四電工</td><td>1,006</td><td>2,125</td><td class="corr">-0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">14</td><td>1944 きんでん</td><td>11,369</td><td>6,912</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">15</td><td>1871 ピーエス・コンストラクション</td><td>1,082</td><td>2,312</td><td class="corr">-0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">16</td><td>1720 東急建設</td><td>1,214</td><td>1,142</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">17</td><td>1893 五洋建設</td><td>3,889</td><td>1,438</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">18</td><td>1861 熊谷組</td><td>2,214</td><td>1,303</td><td class="corr">-0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.05</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">19</td><td>1885 東亜建設工業</td><td>1,611</td><td>2,083</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">20</td><td>1942 関電工</td><td>10,986</td><td>5,520</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">21</td><td>1332 ニッスイ</td><td>3,973</td><td>1,310</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">22</td><td>1979 大氣社</td><td>2,570</td><td>4,080</td><td class="corr">-0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">23</td><td>1762 高松コンストラクショングループ</td><td>1,393</td><td>4,000</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">24</td><td>1812 鹿島建設</td><td>22,757</td><td>4,937</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">25</td><td>1941 中電工</td><td>2,674</td><td>5,050</td><td class="corr">-0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">26</td><td>1968 太平電業</td><td>1,506</td><td>2,386</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">27</td><td>1417 ミライト・ワン</td><td>3,059</td><td>3,479</td><td class="corr">-0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">28</td><td>1803 清水建設</td><td>16,406</td><td>2,416</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">29</td><td>1950 日本電設工業</td><td>2,279</td><td>3,905</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">30</td><td>1802 大林組</td><td>20,973</td><td>3,051</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">31</td><td>1835 東鉄工業</td><td>1,386</td><td>4,025</td><td class="corr">+0.01</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">32</td><td>1833 奥村組</td><td>2,057</td><td>5,730</td><td class="corr">-0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">33</td><td>1879 新日本建設</td><td>1,341</td><td>2,293</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">34</td><td>1721 コムシスホールディングス</td><td>6,087</td><td>5,303</td><td class="corr">+0.00</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">35</td><td>1333 Ｕｍｉｏｓ</td><td>1,956</td><td>1,294</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">36</td><td>1926 ライト工業</td><td>1,539</td><td>3,750</td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">37</td><td>1860 戸田建設</td><td>4,402</td><td>1,487</td><td class="corr">+0.02</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">38</td><td>1801 大成建設</td><td>21,273</td><td>13,050</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">39</td><td>1766 東建コーポレーション</td><td>1,482</td><td>13,350</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">40</td><td>2001 ニップン</td><td>2,372</td><td>2,869</td><td class="corr">+0.06</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.11</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">41</td><td>1878 大東建託</td><td>10,534</td><td>3,237</td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">42</td><td>1377 サカタのタネ</td><td>1,845</td><td>4,365</td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">43</td><td>2002 日清製粉グループ本社</td><td>5,678</td><td>2,030</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">44</td><td>1934 ユアテック</td><td>1,703</td><td>2,479</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">45</td><td>1959 クラフティア</td><td>5,939</td><td>8,396</td><td class="corr">+0.03</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.12</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">46</td><td>1951 エクシオグループ</td><td>5,346</td><td>2,632</td><td class="corr">+0.04</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.13</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">47</td><td>1414 ショーボンドホールディングス</td><td>2,547</td><td>1,268</td><td class="corr">+0.08</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.14</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">48</td><td>1928 積水ハウス</td><td>22,325</td><td>3,444</td><td class="corr">+0.09</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.14</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">49</td><td>1925 大和ハウス工業</td><td>28,546</td><td>4,609</td><td class="corr">+0.10</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.15</td><td class="corr"><span class="dim">-</span></td></tr>
+          <tr><td class="rank">50</td><td>1719 安藤・間</td><td>2,965</td><td>1,890</td><td class="corr">+0.07</td><td class="corr"><span class="dim">-</span></td><td class="corr">+0.15</td><td class="corr"><span class="dim">-</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    ・<b>ランキングのソート基準</b> = 対日経平均・超過相関の1年値を優先（市場全体の為替感応度を除いた、その銘柄固有の為替感応度でランキング）。
+    超過相関(1年)が無い銘柄は超過相関(3年)、それも無ければ単純相関(1年)で代替。単純相関は参考として併記。<br>
+    ・<b>データ不足銘柄</b> = 新規上場等で1年/3年分の日次データが揃わない銘柄は相関が算出できないため対象外。<br>
+    ・為替相関は事業構造だけでなく市場全体のリスクオン/オフ気分とも絡むため、単純な「円安メリット株リスト」として使うより、
+    決算資料等で実際の想定為替レート・海外売上比率も併せて確認することを推奨。
+  </p>
+  <p class="updated">最終更新: 2026-08-16 11:07</p>
+</body>
+</html>
