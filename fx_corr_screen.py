@@ -395,6 +395,8 @@ def generate_html(results, nikkei_corr_1y, nikkei_corr_3y):
 # push
 # -----------------------------------------
 def push_to_github():
+    from git_lock_helper import wait_for_git_lock
+    wait_for_git_lock(SCRIPT_DIR)  # 他スクリプトとのgit競合・放置ロック対策
     log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML, "fx_corr_screen.py", "fx_corr_run.bat"],

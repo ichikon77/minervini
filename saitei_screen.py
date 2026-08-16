@@ -354,6 +354,8 @@ def generate_html(hist):
 # GitHub Pages 自動 push（他スクリーナーと同方式）
 # -----------------------------------------
 def push_to_github(report_filename):
+    from git_lock_helper import wait_for_git_lock
+    wait_for_git_lock(SCRIPT_DIR)  # 他スクリプトとのgit競合・放置ロック対策
     log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", report_filename,

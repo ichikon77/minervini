@@ -429,6 +429,8 @@ def generate_html(results, output_path, removed_tickers=None):
 # GitHub Pages自動push
 # ─────────────────────────────────────────
 def push_to_github():
+    from git_lock_helper import wait_for_git_lock
+    wait_for_git_lock(SCRIPT_DIR)  # 他スクリプトとのgit競合・放置ロック対策
     print("[5/5] GitHub Pagesに公開中...")
     today = datetime.today().strftime("%Y-%m-%d")
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", "index.html", "minervini_report.html"], check=True)

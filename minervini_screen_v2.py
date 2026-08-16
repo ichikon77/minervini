@@ -105,19 +105,31 @@ def fetch_names(codes):
         codes_to_fetch = codes
 
     print("  銘柄名を取得中（" + str(len(codes_to_fetch)) + "銘柄、差分のみ）...")
+    ok = 0
     for i, c in enumerate(codes_to_fetch):
         try:
             info = yf.Ticker(c).info
             name = info.get("shortName") or info.get("longName")
             if name:
                 cache["names"][c] = name
+                ok += 1
         except Exception:
             continue
         if (i + 1) % 50 == 0:
             print("    " + str(i + 1) + "/" + str(len(codes_to_fetch)))
-    cache["_updated"] = datetime.today().date().isoformat()
-    json.dump(cache, open(NAME_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
-    print("  銘柄名キャッシュ: " + str(len(cache["names"])) + "銘柄")
+    # yfinanceレート制限で大量失敗したときに空/欠損だらけのキャッシュで
+    # 上書きしない（2026-08-16のmargin_mcap_cache崩壊と同じ教訓の横展開）。
+    # 成功率50%未満なら_updatedを更新せず保存もしない（次回実行時に再取得させる）
+    success_rate = ok / len(codes_to_fetch) if codes_to_fetch else 1.0
+    print("  銘柄名取得: 成功 " + str(ok) + "/" + str(len(codes_to_fetch))
+          + " (" + str(round(success_rate * 100)) + "%)")
+    if success_rate >= 0.5:
+        cache["_updated"] = datetime.today().date().isoformat()
+        json.dump(cache, open(NAME_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
+        print("  銘柄名キャッシュ: " + str(len(cache["names"])) + "銘柄")
+    else:
+        print("  警告: 取得成功率が50%未満（yfinanceレート制限の可能性）。"
+              "キャッシュ保存をスキップします")
     return cache["names"]
 
 # -----------------------------------------
@@ -1037,6 +1049,8 @@ def generate_tradingview_list(results, output_path):
 # GitHub Pages 自動 push
 # -----------------------------------------
 def push_to_github(report_filename):
+    from git_lock_helper import wait_for_git_lock
+    wait_for_git_lock(SCRIPT_DIR)  # 他スクリプトとのgit競合・放置ロック対策
     print("[5/5] GitHub Pages に公開中...")
     today = datetime.today().strftime("%Y-%m-%d")
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", report_filename, "minervini_name_cache.json"], check=True)
