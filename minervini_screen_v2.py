@@ -36,6 +36,8 @@ SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
 HISTORY_FILE  = os.path.join(SCRIPT_DIR, "minervini_history.json")
 PREV_FILE     = os.path.join(SCRIPT_DIR, "minervini_prev_v2.json")   # v2専用（v1と分離）
 VCP_SCORE_FILE= os.path.join(SCRIPT_DIR, "minervini_vcp_scores.json") # VCPスコア前日比較用
+NAME_CACHE_FILE  = os.path.join(SCRIPT_DIR, "minervini_name_cache.json")  # ティッカー→銘柄名キャッシュ
+NAME_MAX_AGE_DAYS = 30  # 社名はほぼ変わらないので長めの間隔でリビルド
 
 # -----------------------------------------
 # ユニバース取得
@@ -76,6 +78,47 @@ def get_universe():
     universe = list(set(sp500 + ndq100))
     print("  S&P500: " + str(len(sp500)) + " / NASDAQ100: " + str(len(ndq100)) + " / 合計: " + str(len(universe)))
     return universe
+
+# -----------------------------------------
+# 銘柄名（ティッカー→社名、日次で再取得しないよう差分キャッシュ）
+# -----------------------------------------
+def fetch_names(codes):
+    """yfinanceのTicker.info から shortName を取得しキャッシュ。
+    社名はほぼ変わらないため30日おきの更新で十分。
+    既存キャッシュにある銘柄は再取得しない（新規追加分だけ取得して差分更新）"""
+    cache = {"_updated": datetime.today().date().isoformat(), "names": {}}
+    if os.path.exists(NAME_CACHE_FILE):
+        try:
+            old = json.load(open(NAME_CACHE_FILE, encoding="utf-8"))
+            updated = datetime.strptime(old.get("_updated", "2000-01-01"), "%Y-%m-%d").date()
+            cache["names"] = old.get("names", {})
+            if (datetime.today().date() - updated).days <= NAME_MAX_AGE_DAYS:
+                missing = [c for c in codes if c not in cache["names"]]
+                if not missing:
+                    return cache["names"]
+                codes_to_fetch = missing
+            else:
+                codes_to_fetch = codes
+        except Exception:
+            codes_to_fetch = codes
+    else:
+        codes_to_fetch = codes
+
+    print("  銘柄名を取得中（" + str(len(codes_to_fetch)) + "銘柄、差分のみ）...")
+    for i, c in enumerate(codes_to_fetch):
+        try:
+            info = yf.Ticker(c).info
+            name = info.get("shortName") or info.get("longName")
+            if name:
+                cache["names"][c] = name
+        except Exception:
+            continue
+        if (i + 1) % 50 == 0:
+            print("    " + str(i + 1) + "/" + str(len(codes_to_fetch)))
+    cache["_updated"] = datetime.today().date().isoformat()
+    json.dump(cache, open(NAME_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False)
+    print("  銘柄名キャッシュ: " + str(len(cache["names"])) + "銘柄")
+    return cache["names"]
 
 # -----------------------------------------
 # データ取得
@@ -637,9 +680,10 @@ def update_history(results, history):
 # -----------------------------------------
 # スクリーニング実行
 # -----------------------------------------
-def run_screen(all_data, rs_ratings):
+def run_screen(all_data, rs_ratings, names=None):
     print("[4/5] スクリーニング実行中...")
     results = []
+    names = names or {}
 
     for ticker, df in all_data.items():
         rs = rs_ratings.get(ticker, 0)
@@ -647,7 +691,7 @@ def run_screen(all_data, rs_ratings):
             continue
         passed, details = check_trend_template(ticker, df)
         if passed:
-            record = {"ticker": ticker, "rs_rating": rs, **details}
+            record = {"ticker": ticker, "rs_rating": rs, "name": names.get(ticker, ""), **details}
             record.update(calculate_pullback_metrics(record))  # 押し目分析
             record.update(detect_vcp(df))                      # ★ VCP検出
             results.append(record)
@@ -736,9 +780,11 @@ def generate_html(results, output_path, removed_tickers=None):
         minervini_yn   = yn(r.get("minervini_breakout", False))
         pivot_bo       = bo_badge(r.get("pivot_breakout", False))
 
+        name_str = r.get("name", "") or "-"
         rows += (
             "\n        <tr" + row_cls + ">"
             + '<td class="ticker sticky-col sticky-ticker">' + r["ticker"] + new_badge + "</td>"
+            + '<td class="sticky-col sticky-name" title="' + name_str + '">' + name_str + "</td>"
             + '<td class="sticky-col sticky-rs" style="color:' + rs_color + ';font-weight:bold;">' + str(rs) + "</td>"
             + "<td>$" + "{:,.2f}".format(r["price"])  + "</td>"
             + "<td>$" + "{:,.2f}".format(r["ma50"])   + "</td>"
@@ -835,8 +881,10 @@ def generate_html(results, output_path, removed_tickers=None):
   .new-row:hover         td.sticky-col {{ background: #1e293b; }}
   /* Ticker 列: left=0 */
   th.sticky-ticker, td.sticky-ticker {{ left: 0; min-width: 110px; }}
-  /* RS 列: Ticker 幅ぶん右にずらす + 右境界線で区切り */
-  th.sticky-rs, td.sticky-rs         {{ left: 110px; min-width: 52px; border-right: 2px solid #334155; }}
+  /* 銘柄名列: Ticker 幅ぶん右にずらす */
+  th.sticky-name, td.sticky-name     {{ left: 110px; min-width: 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: #94a3b8; font-size: 0.82rem; }}
+  /* RS 列: Ticker+銘柄名 幅ぶん右にずらす + 右境界線で区切り */
+  th.sticky-rs, td.sticky-rs         {{ left: 260px; min-width: 52px; border-right: 2px solid #334155; }}
   tbody tr:hover {{ background: #1e293b; }}
   tbody td {{ padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }}
   .ticker {{ font-weight: bold; color: #60a5fa; font-size: 0.95rem; }}
@@ -917,6 +965,7 @@ def generate_html(results, output_path, removed_tickers=None):
     <thead>
       <tr>
         <th class="sticky-col sticky-ticker">Ticker</th>
+        <th class="sticky-col sticky-name">銘柄名</th>
         <th class="sticky-col sticky-rs">RS</th>
         <th>Price</th><th>MA50</th><th>MA150</th><th>MA200</th>
         <th>52W Low</th><th>52W High</th><th>vs Low</th><th>vs High</th>
@@ -990,7 +1039,7 @@ def generate_tradingview_list(results, output_path):
 def push_to_github(report_filename):
     print("[5/5] GitHub Pages に公開中...")
     today = datetime.today().strftime("%Y-%m-%d")
-    subprocess.run(["git", "-C", SCRIPT_DIR, "add", report_filename], check=True)
+    subprocess.run(["git", "-C", SCRIPT_DIR, "add", report_filename, "minervini_name_cache.json"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update v2 report " + today],
         capture_output=True,
@@ -1030,7 +1079,8 @@ def main():
 
     all_data   = download_data(tickers)
     rs_ratings = calc_rs_rating(all_data)
-    results    = run_screen(all_data, rs_ratings)
+    names      = fetch_names(tickers)
+    results    = run_screen(all_data, rs_ratings, names)
 
     history = load_history()
     results = update_history(results, history)

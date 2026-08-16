@@ -62,21 +62,47 @@ def progress(label, i, total, t0):
     log(f"  {label} {i}/{total} ({i/total*100:.0f}%) 経過{elapsed/60:.0f}分 残り約{eta/60:.0f}分")
 
 
-def fetch_market_caps(codes):
-    """fast_infoで時価総額（億円）を取得。失敗はNone"""
+def fetch_market_caps(codes, full_save=True):
+    """fast_infoで時価総額（億円）を取得。
+    2026-08-16の教訓（yfinanceレート制限で大半が取得失敗→Noneでキャッシュ全体を上書き→
+    時価総額フィルタを使う下流スクリプト(kijitsu/fx_corr等)のユニバースが56銘柄まで崩壊）を受けて:
+      1. 既存キャッシュを読み込んでマージ（--test等の部分実行でも全体を消さない）
+      2. 取得失敗(None)のときは既存の値を保持（レート制限時に正常値を潰さない）
+      3. 成功率が50%未満なら保存しない（レート制限中と判断して既存キャッシュを守る）
+    full_save=Falseの場合はファイル保存自体を行わない（テスト実行用）。"""
     caps = {}
+    if os.path.exists(MCAP_CACHE):
+        try:
+            caps = json.load(open(MCAP_CACHE, encoding="utf-8"))
+        except Exception:
+            caps = {}
+    ok = 0
     t0 = time.time()
     for i, code in enumerate(codes):
+        mc = None
         try:
             fi = yf.Ticker(code + ".T").fast_info
             mc = fi["marketCap"] if "marketCap" in fi else None
-            caps[code] = round(mc / 1e8) if mc else None
         except Exception:
-            caps[code] = None
+            mc = None
+        if mc:
+            caps[code] = round(mc / 1e8)
+            ok += 1
+        else:
+            # 取得失敗: 既存値があれば保持、無ければNone
+            caps.setdefault(code, None)
         if i % 100 == 0:
             progress("時価総額", i, len(codes), t0)
         time.sleep(0.15)
-    json.dump(caps, open(MCAP_CACHE, "w", encoding="utf-8"))
+
+    success_rate = ok / len(codes) if codes else 0
+    log(f"  時価総額取得: 成功{ok}/{len(codes)}銘柄 ({success_rate*100:.0f}%)")
+    if full_save:
+        if success_rate >= 0.5:
+            json.dump(caps, open(MCAP_CACHE, "w", encoding="utf-8"))
+        else:
+            log("  警告: 取得成功率が50%未満（yfinanceレート制限の可能性）。"
+                "キャッシュ保存をスキップし既存データを保護します")
     return caps
 
 
@@ -245,7 +271,7 @@ def main():
                   "9433", "9613", "4063", "6981")][:20]
 
     log("① 時価総額スクリーニング...")
-    caps = fetch_market_caps(codes)
+    caps = fetch_market_caps(codes, full_save=not test)
     fund_codes = [c for c in codes if (caps.get(c) or 0) >= FUND_MIN_OKU]
     rating_codes = [c for c in fund_codes if (caps.get(c) or 0) >= RATING_MIN_OKU]
     log(f"  業績・ベータ対象: {len(fund_codes)}銘柄（{FUND_MIN_OKU}億以上） / "

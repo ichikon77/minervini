@@ -169,8 +169,12 @@ def calc_correlations(codes, names, caps, fx_close, nikkei_close):
 
 
 def _corr_over_period(stock_ret, fx_ret, days):
-    s = stock_ret.iloc[-days:] if len(stock_ret) >= days else None
-    if s is None or len(s) < days * 0.8:  # データ不足（新規上場等）は算出しない
+    # daysは252営業日/年の米国基準。日本市場は年245日程度しかなく、
+    # period="3y"取得だと3年分でも約735日 < 756日になるため、
+    # 「完全にdays分あること」を要求せず8割以上あれば直近分で計算する
+    # （2026-08-16: 全銘柄で3年相関がNoneになるバグの修正）
+    s = stock_ret.iloc[-days:]
+    if len(s) < days * 0.8:  # データ不足（新規上場等）は算出しない
         return None
     f = fx_ret.reindex(s.index).dropna()
     common = s.index.intersection(f.index)

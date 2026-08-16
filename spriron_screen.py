@@ -304,6 +304,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="cramer.html" style="border-color:#db2777">クレイマー</a>
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kijitsu_us.html" style="border-color:#db2777">信用期日(US)</a>
+    <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>S&P500 理論株価（予想PER・予想EPS）</h1>
