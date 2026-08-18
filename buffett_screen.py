@@ -32,7 +32,9 @@ REPORT_HTML = "buffett.html"
 
 CIK = "1067983"
 UA = {"User-Agent": "kabuchiwa research kabuchiwa@example.com"}
-START_PERIOD = "2022-09-30"   # この期以降の13Fを使用（新規判定は2022Q4→2023Q1から）
+START_PERIOD = "2021-12-31"   # この期以降の13Fを使用（2021Q4を基準に2022Q1から差分判定。
+                              # 2026-08、買い増し/一部売却の見える化に合わせ2022-09-30から遡及拡大）
+CHANGE_MIN_PCT = 2.0          # 買い増し/一部売却として表示する最小株数変化率（%）。微小変化はノイズ扱い
 
 # 発行体名の先頭一致 → ティッカー（新規銘柄が出たらここに追記。ログで警告が出る）
 TICKER_MAP = {
@@ -54,7 +56,7 @@ TICKER_MAP = {
     "TAIWAN SEMICON": "TSM", "JEFFERIES": "JEF", "STONECO": "STNE", "NU HLDGS": "NU",
     "FLOOR & DECOR": "FND", "VERIZON": "VZ", "PROCTER": "PG", "JOHNSON": "JNJ",
     "LIBERTY LATIN": "LILA", "SPDR S&P": "SPY", "VANGUARD": "VOO",
-    "BANK AMER": "BAC", "VITESSE": "VTS", "FLOOR &AMP; DECOR": "FND",
+    "BANK AMER": "BAC", "BANK OF AMER": "BAC", "VITESSE": "VTS", "FLOOR &AMP; DECOR": "FND",
     "LOUISIANA PAC": "LPX", "SPDR S&AMP;P": "SPY", "SNOWFLAKE": "SNOW",
     "LIBERTY LIVE": "LLYVA", "NEW YORK TIMES": "NYT", "DELTA AIR": "DAL",
     "MACYS": "M", "MACY'S": "M",
@@ -77,19 +79,31 @@ def fetch(url, binary=False):
 def list_13f_filings():
     """[(periodOfReport, accession)] 古い順。13F-HR/Aは同期のHRを上書き"""
     data = json.loads(fetch(f"https://data.sec.gov/submissions/CIK{int(CIK):010d}.json"))
-    recent = data["filings"]["recent"]
     out = {}
-    for i in range(len(recent["form"])):
-        form = recent["form"][i]
-        if not form.startswith("13F-HR"):
-            continue
-        period = recent.get("reportDate", recent.get("periodOfReport", [""] * 999))[i]
-        acc = recent["accessionNumber"][i]
-        if period < START_PERIOD:
-            continue
-        # 同一periodの複数提出（HR + 機密解除のHR/A等）は全部集めてマージする
-        # ※HR/Aが「追加開示のみ」の場合があり、上書きすると既存銘柄が消えるため
-        out.setdefault(period, []).append(acc)
+
+    def scan(block):
+        forms = block.get("form", [])
+        periods = block.get("reportDate", block.get("periodOfReport", [""] * len(forms)))
+        accs = block.get("accessionNumber", [])
+        for i in range(len(forms)):
+            if not forms[i].startswith("13F-HR"):
+                continue
+            period = periods[i]
+            if period < START_PERIOD:
+                continue
+            # 同一periodの複数提出（HR + 機密解除のHR/A等）は全部集めてマージする
+            # ※HR/Aが「追加開示のみ」の場合があり、上書きすると既存銘柄が消えるため
+            out.setdefault(period, []).append(accs[i])
+
+    scan(data["filings"]["recent"])
+    # recentに入り切らない古い提出分（submissions APIは直近~1000件のみ。
+    # START_PERIODを過去に広げた場合に必要になることがある）
+    for f in data["filings"].get("files", []):
+        try:
+            older = json.loads(fetch("https://data.sec.gov/submissions/" + f["name"]))
+            scan(older if "form" in older else older.get("filings", {}).get("recent", {}))
+        except Exception as e:
+            log(f"  古い提出リスト取得スキップ: {e}")
     return sorted(out.items())
 
 
@@ -239,6 +253,35 @@ def quarters_between(q1, q2):
     return (y2 - y1) * 4 + (n2 - n1)
 
 
+def build_changes(snapshots, min_pct=CHANGE_MIN_PCT):
+    """連続する四半期間の既存保有の株数増減（買い増し/一部売却）を全期間分抽出する。
+    新規買い・完全売却はbuild_positionsが扱うため、ここでは「両期に存在する銘柄」のみ対象。
+    返り値: [{q, name, ticker, prev, cur, chg}] 新しい四半期→変化率の大きい順"""
+    quarters = sorted(snapshots)
+    events = []
+    for i in range(1, len(quarters)):
+        prev_snap = snapshots[quarters[i - 1]]
+        cur_snap = snapshots[quarters[i]]
+        q = to_quarter(quarters[i])
+        for cusip, rec in cur_snap.items():
+            if cusip not in prev_snap:
+                continue
+            s1 = prev_snap[cusip].get("shares") or 0
+            s2 = rec.get("shares") or 0
+            if not s1 or not s2 or s1 == s2:
+                continue
+            chg = (s2 / s1 - 1) * 100
+            if abs(chg) < min_pct:
+                continue
+            events.append({
+                "q": q, "name": rec["name"], "ticker": find_ticker(rec["name"]),
+                "prev": s1, "cur": s2, "chg": chg,
+            })
+    # 新しい四半期が先、同一四半期内は変化率の絶対値が大きい順
+    events.sort(key=lambda e: (e["q"], abs(e["chg"])), reverse=True)
+    return events
+
+
 # -----------------------------------------
 # HTML
 # -----------------------------------------
@@ -329,7 +372,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>バフェット新規買いトラッカー</h1>
-  <p class="subtitle">最終更新: {updated} | 出所: SEC 13F-HR（バークシャー・ハサウェイ CIK 1067983） | 2023Q1以降の「保有ゼロ→新規取得」を追跡</p>
+  <p class="subtitle">最終更新: {updated} | 出所: SEC 13F-HR（バークシャー・ハサウェイ CIK 1067983） | 「保有ゼロ→新規取得」+ 既存保有の買い増し/一部売却を追跡</p>
   <div class="cards">
 {cards}
   </div>
@@ -342,10 +385,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  <h2>既存保有の買い増し・一部売却（四半期ごと・新しい順）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>四半期</th><th>銘柄</th><th>ticker</th><th>種別</th><th>前期株数</th><th>今期株数</th><th>株数増減</th></tr></thead>
+    <tbody>
+{change_rows}
+    </tbody>
+  </table>
+  </div>
   <p class="note">
-    ・13F（四半期末45日後公表）の保有差分から「新規買い」（前期ゼロ→保有）と「完全売却」（保有→ゼロ）を検出。<br>
+    ・13F（四半期末45日後公表）の保有差分から「新規買い」（前期ゼロ→保有）と「完全売却」（保有→ゼロ）、
+    および<b>既存保有の買い増し/一部売却（株数の増減）</b>を検出。<br>
     ・<b>取得単価・売却単価は当該四半期の平均終値による推定</b>（13Fに実際の売買価格は載らないため）。
     保有中の損益は現在値との比較。バークシャーの実際の損益とは誤差がある。<br>
+    ・買い増し/一部売却の表は株数変化±{change_min_pct}%以上のみ表示（微小な変化は報告上のノイズの可能性があるため）。
+    Alphabet等クラス株が複数ある銘柄はCUSIP（クラス）ごとに別行。<br>
+    ・<b>株式分割があった場合、13Fの株数は見かけ上大きく増える</b>（例: 4分割なら+300%）。大きな「買い増し」を見たら分割の有無も確認を。<br>
     ・保有期間は四半期単位（13Fの解像度の限界）。期中に買って期中に売った銘柄（往復）は13Fに現れない。<br>
     ・<a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001067983&type=13F&dateb=&owner=include&count=40" style="color:#60a5fa">SEC EDGAR: Berkshire 13F一覧</a>
   </p>
@@ -355,7 +411,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def generate_html(positions):
+def generate_html(positions, changes):
     latest_q = None
     rows = []
     wins = losses = 0
@@ -413,11 +469,12 @@ def generate_html(positions):
     avg_hold = f"{sum(hold_qs) / len(hold_qs):.1f}四半期" if hold_qs else "-"
     avg_open = f"{sum(open_pls) / len(open_pls):+.1f}%" if open_pls else "-"
     n_open = sum(1 for p in positions if not p["exit_q"])
+    first_q = min((p["entry_q"] for p in positions), default="-")
 
     cards = (
         f'    <div class="card"><div class="label">新規買いの勝率（売却済み・推定）</div>'
         f'<div class="value">{win_rate}</div>'
-        f'<div class="sub">{wins}勝{losses}敗 / 売却済み{total_closed}銘柄<br>2023Q1以降の新規買いが対象</div></div>\n'
+        f'<div class="sub">{wins}勝{losses}敗 / 売却済み{total_closed}銘柄<br>{first_q}以降の新規買いが対象</div></div>\n'
         f'    <div class="card"><div class="label">平均保有期間（売却済み）</div>'
         f'<div class="value">{avg_hold}</div>'
         f'<div class="sub">13Fの解像度=四半期単位</div></div>\n'
@@ -426,16 +483,31 @@ def generate_html(positions):
         f'<div class="sub">平均含み損益 {avg_open}（取得=購入期平均値の推定）<br>'
         f'※AAPL/KO/AXP等の古参保有は対象外（全保有は13F原本参照）</div></div>')
 
+    # 買い増し・一部売却の表
+    change_rows = []
+    for e in changes:
+        kind = ('<span class="pos">買い増し</span>' if e["chg"] > 0
+                else '<span class="neg">一部売却</span>')
+        cls = "pos" if e["chg"] > 0 else "neg"
+        name = e["name"].title()[:28]
+        tk = e["ticker"] or "?"
+        change_rows.append(
+            f'      <tr><td>{e["q"]}</td><td>{name}</td><td>{tk}</td>'
+            f'<td>{kind}</td><td>{e["prev"]:,}</td><td>{e["cur"]:,}</td>'
+            f'<td><span class="{cls}">{e["chg"]:+.0f}%</span></td></tr>')
+
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         cards=cards,
         rows="\n".join(rows),
+        change_rows="\n".join(change_rows),
+        change_min_pct=int(CHANGE_MIN_PCT),
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
-    log(f"HTML出力: {path}（新規買い{len(positions)}件）")
+    log(f"HTML出力: {path}（新規買い{len(positions)}件 / 買い増し・一部売却{len(changes)}件）")
 
 
 # -----------------------------------------
@@ -520,11 +592,14 @@ def main():
         log("新しい13Fはありませんでした")
 
     positions = build_positions(snaps)
+    changes = build_changes(snaps)
     unknown = [p["name"] for p in positions if not p["ticker"]]
+    unknown += [e["name"] for e in changes if not e["ticker"]]
+    unknown = sorted(set(unknown))
     if unknown:
-        log(f"  警告: ティッカー未登録の新規銘柄あり → TICKER_MAPに追記を: {unknown}")
+        log(f"  警告: ティッカー未登録の銘柄あり → TICKER_MAPに追記を: {unknown}")
 
-    generate_html(positions)
+    generate_html(positions, changes)
 
     if "--nopush" in sys.argv:
         log("--nopush 指定のため git push はスキップ")
