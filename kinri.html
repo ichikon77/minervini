@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>金利と為替 - 2026-08-21</title>
+<title>金利と為替 - 2026-08-22</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -91,12 +91,12 @@
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
     <a href="cramer.html" style="border-color:#db2777">クレイマー</a>
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
-    <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
+    <a href="kijitsu_us.html" style="border-color:#db2777">信用期日(US)</a>
     <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>金利と為替（答え合わせダッシュボード）</h1>
-  <p class="subtitle">最終更新: 2026-08-21 21:23 | 出所: 財務省・Yahoo Finance | 金利=bps変化（1bp=0.01%）、ドル円=%変化</p>
+  <p class="subtitle">最終更新: 2026-08-22 08:35 | 出所: 財務省・Yahoo Finance | 金利=bps変化（1bp=0.01%）、ドル円=%変化</p>
   <div class="legend">
     <span><span class="sw" style="background:rgba(59,130,246,0.6)"></span>理論通り（同方向）</span>
     <span><span class="sw" style="background:rgba(251,191,36,0.55)"></span>逆行だが2Y主導（利上げ/利下げ織り込み型で説明可能）</span>
@@ -109,21 +109,21 @@
     <thead><tr><th>系列</th><th>説明</th><th>今日</th><th>3営業日</th><th>5営業日</th><th>15営業日</th><th>1ヶ月</th><th>3ヶ月</th><th>年初来</th></tr></thead>
     <tbody>
       <tr class="ghead"><td colspan="9">【金利】</td></tr>
-      <tr><td>US10Y</td><td class="desc">米10年金利</td><td class="now">4.696%</td><td>-1.0bps</td><td>+0.0bps</td><td style="background:rgba(239,68,68,0.10)">-4.9bps</td><td>-0.7bps</td><td style="background:rgba(34,197,94,0.10)">+20.3bps</td><td style="background:rgba(34,197,94,0.10)">+53.3bps</td></tr>
+      <tr><td>US10Y</td><td class="desc">米10年金利</td><td class="now">4.738%</td><td style="background:rgba(34,197,94,0.10)">+3.2bps</td><td style="background:rgba(34,197,94,0.10)">+4.2bps</td><td>-0.7bps</td><td style="background:rgba(34,197,94,0.10)">+3.5bps</td><td style="background:rgba(34,197,94,0.10)">+24.5bps</td><td style="background:rgba(34,197,94,0.10)">+57.5bps</td></tr>
       <tr><td>US02Y</td><td class="desc">米2年金利</td><td class="now">4.170%</td><td>+0.0bps</td><td>+0.0bps</td><td style="background:rgba(239,68,68,0.10)">-11.8bps</td><td style="background:rgba(34,197,94,0.10)">+13.5bps</td><td style="background:rgba(34,197,94,0.10)">+35.0bps</td><td style="background:rgba(34,197,94,0.10)">+71.2bps</td></tr>
       <tr><td>JP10Y</td><td class="desc">日10年金利</td><td class="now">2.854%</td><td style="background:rgba(239,68,68,0.10)">-8.0bps</td><td style="background:rgba(239,68,68,0.10)">-2.4bps</td><td style="background:rgba(34,197,94,0.10)">+5.3bps</td><td style="background:rgba(34,197,94,0.10)">+7.8bps</td><td style="background:rgba(34,197,94,0.10)">+14.1bps</td><td style="background:rgba(34,197,94,0.10)">+78.8bps</td></tr>
       <tr><td>JP02Y</td><td class="desc">日2年金利</td><td class="now">1.682%</td><td>-0.9bps</td><td style="background:rgba(34,197,94,0.10)">+2.5bps</td><td style="background:rgba(34,197,94,0.10)">+17.5bps</td><td style="background:rgba(34,197,94,0.10)">+18.3bps</td><td style="background:rgba(34,197,94,0.10)">+26.1bps</td><td style="background:rgba(34,197,94,0.10)">+51.5bps</td></tr>
-      <tr><td>日米10Y差</td><td class="desc">US10Y − JP10Y</td><td class="now">+184.2bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y-1.0 / JP10Y-8.0bps → JP10Y主導">+7.0bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y+0.0 / JP10Y-2.4bps → JP10Y主導">+2.4bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y-4.9 / JP10Y+5.3bps → JP10Y主導">-10.2bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y-0.7 / JP10Y+7.8bps → JP10Y主導">-8.5bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y+20.3 / JP10Y+14.1bps → US10Y主導">+6.2bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y+53.3 / JP10Y+78.8bps → JP10Y主導">-25.5bps</td></tr>
-      <tr><td>US10Y-US02Y</td><td class="desc">米イールドカーブ</td><td class="now">+52.6bps</td><td title="内訳 10Y-1.0 / 2Y+0.0bps → 10Y主導">-1.0bps</td><td title="内訳 10Y+0.0 / 2Y+0.0bps → 10Y主導">+0.0bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 10Y-4.9 / 2Y-11.8bps → 2Y主導">+6.9bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y-0.7 / 2Y+13.5bps → 2Y主導">-14.2bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+20.3 / 2Y+35.0bps → 2Y主導">-14.7bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+53.3 / 2Y+71.2bps → 2Y主導">-17.9bps</td></tr>
+      <tr><td>日米10Y差</td><td class="desc">US10Y − JP10Y</td><td class="now">+188.4bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y+3.2 / JP10Y-8.0bps → JP10Y主導">+11.2bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y+4.2 / JP10Y-2.4bps → US10Y主導">+6.6bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y-0.7 / JP10Y+5.3bps → JP10Y主導">-6.0bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y+3.5 / JP10Y+7.8bps → JP10Y主導">-4.3bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 US10Y+24.5 / JP10Y+14.1bps → US10Y主導">+10.4bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 US10Y+57.5 / JP10Y+78.8bps → JP10Y主導">-21.3bps</td></tr>
+      <tr><td>US10Y-US02Y</td><td class="desc">米イールドカーブ</td><td class="now">+56.8bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 10Y+3.2 / 2Y+0.0bps → 10Y主導">+3.2bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 10Y+4.2 / 2Y+0.0bps → 10Y主導">+4.2bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 10Y-0.7 / 2Y-11.8bps → 2Y主導">+11.1bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+3.5 / 2Y+13.5bps → 2Y主導">-10.0bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+24.5 / 2Y+35.0bps → 2Y主導">-10.5bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+57.5 / 2Y+71.2bps → 2Y主導">-13.7bps</td></tr>
       <tr><td>JP10Y-JP02Y</td><td class="desc">日イールドカーブ</td><td class="now">+117.2bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y-8.0 / 2Y-0.9bps → 10Y主導">-7.1bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y-2.4 / 2Y+2.5bps → 2Y主導">-4.9bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+5.3 / 2Y+17.5bps → 2Y主導">-12.2bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+7.8 / 2Y+18.3bps → 2Y主導">-10.5bps</td><td style="background:rgba(239,68,68,0.10)" title="内訳 10Y+14.1 / 2Y+26.1bps → 2Y主導">-12.0bps</td><td style="background:rgba(34,197,94,0.10)" title="内訳 10Y+78.8 / 2Y+51.5bps → 10Y主導">+27.3bps</td></tr>
       <tr class="ghead"><td colspan="9">【答え合わせ】</td></tr>
-      <tr><td>ドル円</td><td class="desc">理論1: 日米10Y差と同方向なら青</td><td class="now">158.69円</td><td class="j-ng" title="日米10Y差 +7.0bps / ドル円 -0.41% → 逆行（要注意）">-0.41%</td><td class="j-ng" title="日米10Y差 +2.4bps / ドル円 -0.46% → 逆行（要注意）">-0.46%</td><td class="j-ok" title="日米10Y差 -10.2bps / ドル円 -0.93% → 同方向（理論通り）">-0.93%</td><td class="j-ok" title="日米10Y差 -8.5bps / ドル円 -2.69% → 同方向（理論通り）">-2.69%</td><td class="j-none" title="日米10Y差 +6.2bps / ドル円 -0.16% → 微動のため判定なし">-0.16%</td><td class="j-ng" title="日米10Y差 -25.5bps / ドル円 +1.46% → 逆行（要注意）">+1.46%</td></tr>
-      <tr><td>米銀行株(KBE)</td><td class="desc">理論2: US10Y-US02Yと同方向なら青</td><td class="now">68.62$</td><td class="j-none" title="米カーブ -1.0bps / 米銀行株(KBE) -2.80%（内訳 10Y-1.0 / 2Y+0.0bps → 10Y主導） → 微動のため判定なし">-2.80%</td><td class="j-none" title="米カーブ +0.0bps / 米銀行株(KBE) -4.26%（内訳 10Y+0.0 / 2Y+0.0bps → 10Y主導） → 微動のため判定なし">-4.26%</td><td class="j-mid" title="米カーブ +6.9bps / 米銀行株(KBE) -1.48%（内訳 10Y-4.9 / 2Y-11.8bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">-1.48%</td><td class="j-none" title="米カーブ -14.2bps / 米銀行株(KBE) -0.22%（内訳 10Y-0.7 / 2Y+13.5bps → 2Y主導） → 微動のため判定なし">-0.22%</td><td class="j-mid" title="米カーブ -14.7bps / 米銀行株(KBE) +7.39%（内訳 10Y+20.3 / 2Y+35.0bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+7.39%</td><td class="j-mid" title="米カーブ -17.9bps / 米銀行株(KBE) +14.34%（内訳 10Y+53.3 / 2Y+71.2bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+14.34%</td></tr>
+      <tr><td>ドル円</td><td class="desc">理論1: 日米10Y差と同方向なら青</td><td class="now">158.94円</td><td class="j-none" title="日米10Y差 +11.2bps / ドル円 -0.25% → 微動のため判定なし">-0.25%</td><td class="j-ng" title="日米10Y差 +6.6bps / ドル円 -0.30% → 逆行（要注意）">-0.30%</td><td class="j-ok" title="日米10Y差 -6.0bps / ドル円 -0.78% → 同方向（理論通り）">-0.78%</td><td class="j-ok" title="日米10Y差 -4.3bps / ドル円 -2.54% → 同方向（理論通り）">-2.54%</td><td class="j-none" title="日米10Y差 +10.4bps / ドル円 -0.01% → 微動のため判定なし">-0.01%</td><td class="j-ng" title="日米10Y差 -21.3bps / ドル円 +1.62% → 逆行（要注意）">+1.62%</td></tr>
+      <tr><td>米銀行株(KBE)</td><td class="desc">理論2: US10Y-US02Yと同方向なら青</td><td class="now">68.74$</td><td class="j-ng" title="米カーブ +3.2bps / 米銀行株(KBE) -2.63%（内訳 10Y+3.2 / 2Y+0.0bps → 10Y主導） → 逆行（要注意）">-2.63%</td><td class="j-ng" title="米カーブ +4.2bps / 米銀行株(KBE) -4.09%（内訳 10Y+4.2 / 2Y+0.0bps → 10Y主導） → 逆行（要注意）">-4.09%</td><td class="j-mid" title="米カーブ +11.1bps / 米銀行株(KBE) -1.31%（内訳 10Y-0.7 / 2Y-11.8bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">-1.31%</td><td class="j-none" title="米カーブ -10.0bps / 米銀行株(KBE) -0.04%（内訳 10Y+3.5 / 2Y+13.5bps → 2Y主導） → 微動のため判定なし">-0.04%</td><td class="j-mid" title="米カーブ -10.5bps / 米銀行株(KBE) +7.58%（内訳 10Y+24.5 / 2Y+35.0bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+7.58%</td><td class="j-mid" title="米カーブ -13.7bps / 米銀行株(KBE) +14.54%（内訳 10Y+57.5 / 2Y+71.2bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+14.54%</td></tr>
       <tr><td>日本銀行株(1615)</td><td class="desc">理論3: JP10Y-JP02Yと同方向なら青</td><td class="now">738円</td><td class="j-ok" title="日カーブ -7.1bps / 日本銀行株(1615) -4.13%（内訳 10Y-8.0 / 2Y-0.9bps → 10Y主導） → 同方向（理論通り）">-4.13%</td><td class="j-ok" title="日カーブ -4.9bps / 日本銀行株(1615) -4.31%（内訳 10Y-2.4 / 2Y+2.5bps → 2Y主導） → 同方向（理論通り）">-4.31%</td><td class="j-mid" title="日カーブ -12.2bps / 日本銀行株(1615) +1.16%（内訳 10Y+5.3 / 2Y+17.5bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+1.16%</td><td class="j-ok" title="日カーブ -10.5bps / 日本銀行株(1615) -4.66%（内訳 10Y+7.8 / 2Y+18.3bps → 2Y主導） → 同方向（理論通り）">-4.66%</td><td class="j-mid" title="日カーブ -12.0bps / 日本銀行株(1615) +13.21%（内訳 10Y+14.1 / 2Y+26.1bps → 2Y主導） → 逆行だが2Y主導（利上げ/利下げの織り込み型）のため説明可能">+13.21%</td><td class="j-ok" title="日カーブ +27.3bps / 日本銀行株(1615) +43.82%（内訳 10Y+78.8 / 2Y+51.5bps → 10Y主導） → 同方向（理論通り）">+43.82%</td></tr>
     </tbody>
   </table>
   </div>
-  <div class="orikomi">今後6ヶ月の織り込み: FRB 9月+34%/10月+20%/12月+39%/1月+15%（計+108%） vs 日銀 9月+84%/10月+22%/12月+53%/1月+35%（計+194%） → 日本側の利上げ観測が強く、日米金利差は<b>縮小方向 → 円高バイアス</b></div>
+  <div class="orikomi">今後6ヶ月の織り込み: FRB 9月+43%/10月+21%/12月+42%/1月+20%（計+126%） vs 日銀 9月+84%/10月+22%/12月+53%/1月+35%（計+194%） → 日本側の利上げ観測が強く、日米金利差は<b>縮小方向 → 円高バイアス</b></div>
   <p class="note">
     ・<b>理論1</b>: 日米10年金利差が拡大→円安（ドル円上昇）、縮小→円高。ドル円の行は日米10Y差の変化と突き合わせて判定。<br>
     ・<b>理論2</b>: US10Y−US02Y（米イールドカーブ）拡大→米銀行株(KBE)上昇。米カーブの行はKBEと突き合わせ。<br>
@@ -149,7 +149,7 @@
     <thead><tr><th style="text-align:left">開始</th><th style="text-align:left">終了</th><th style="text-align:left">型</th>
     <th>期間</th><th>日経騰落</th><th>日経最大沈み</th><th>ドル円騰落</th></tr></thead>
     <tbody>
-      <tr style="background:rgba(30,64,175,0.15)"><td>2026/08/18</td><td>継続中</td><td><span style="background:rgba(239,68,68,0.25); color:#fca5a5; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">円高×株安</span></td><td>4日</td><td class="neg">-2.1%</td><td class="neg">-3.2%</td><td class="neg">-0.4%</td></tr>
+      <tr style="background:rgba(30,64,175,0.15)"><td>2026/08/18</td><td>継続中</td><td><span style="background:rgba(239,68,68,0.25); color:#fca5a5; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">円高×株安</span></td><td>3日</td><td class="neg">-1.8%</td><td class="neg">-3.2%</td><td class="neg">-0.7%</td></tr>
       <tr><td>2026/07/30</td><td>2026/08/18</td><td><span style="background:rgba(96,165,250,0.22); color:#93c5fd; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">円高×株高</span></td><td>13日</td><td class="pos">+9.0%</td><td class="neg">+0.0%</td><td class="neg">-2.4%</td></tr>
       <tr><td>2026/06/26</td><td>2026/07/30</td><td><span style="background:rgba(251,146,60,0.28); color:#fdba74; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">円安×株安</span></td><td>24日</td><td class="neg">-10.8%</td><td class="neg">-11.4%</td><td class="pos">+0.9%</td></tr>
       <tr><td>2026/06/09</td><td>2026/06/26</td><td><span style="background:rgba(34,197,94,0.22); color:#86efac; padding:1px 9px; border-radius:9px; font-size:0.76rem; font-weight:700">円安×株高</span></td><td>14日</td><td class="pos">+6.0%</td><td class="neg">-1.9%</td><td class="pos">+1.0%</td></tr>
@@ -458,16 +458,17 @@
 
   <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">円キャリー燃料計（CFTC投機筋の円ポジション）</h2>
   <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:10px;">
-    最新（08/11報告）: ネット <b style="font-size:1rem" class="neg">-42,085枚</b>
-    （ロング134,188 / ショート176,273） <span style="background:rgba(100,116,139,0.3); color:#cbd5e1; padding:1px 10px; border-radius:9px; font-weight:700">燃料普通</span> <span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 10px; border-radius:9px; font-weight:700">⚠ 巻き戻し進行中（ピーク比-74%）</span><br>
-    <span style="font-size:0.76rem; color:#64748b">3年レンジで下位49%タイル（0%に近いほど極端な円ショート） /
-    直近1年のピークショート -163,412枚 → 現在まで74%巻き戻し</span></p>
+    最新（08/18報告）: ネット <b style="font-size:1rem" class="neg">-52,893枚</b>
+    （ロング128,932 / ショート181,825） <span style="background:rgba(100,116,139,0.3); color:#cbd5e1; padding:1px 10px; border-radius:9px; font-weight:700">燃料普通</span> <span style="background:rgba(251,191,36,0.25); color:#fde68a; padding:1px 10px; border-radius:9px; font-weight:700">⚠ 巻き戻し進行中（ピーク比-68%）</span><br>
+    <span style="font-size:0.76rem; color:#64748b">3年レンジで下位45%タイル（0%に近いほど極端な円ショート） /
+    直近1年のピークショート -163,412枚 → 現在まで68%巻き戻し</span></p>
   <div style="display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;">
   <div>
   <p style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px;">直近12週（週次）</p>
   <table style="font-size:0.78rem; border-collapse:collapse;">
     <tr><td style="padding:2px 10px; color:#64748b">報告日</td><td style="padding:2px 10px; color:#64748b">ネット枚数</td>
     <td style="padding:2px 10px; color:#64748b"></td></tr>
+<tr><td style="padding:2px 10px">08/18</td><td style="padding:2px 10px; text-align:right" class="neg">-52,893</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:13px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr><td style="padding:2px 10px">08/11</td><td style="padding:2px 10px; text-align:right" class="neg">-42,085</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:10px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr><td style="padding:2px 10px">08/04</td><td style="padding:2px 10px; text-align:right" class="neg">-45,473</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:11px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr style="background:rgba(220,38,38,0.15)"><td style="padding:2px 10px">07/28</td><td style="padding:2px 10px; text-align:right" class="neg">-163,412</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:40px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
@@ -479,7 +480,6 @@
 <tr style="background:rgba(220,38,38,0.15)"><td style="padding:2px 10px">06/16</td><td style="padding:2px 10px; text-align:right" class="neg">-150,132</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:37px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr><td style="padding:2px 10px">06/09</td><td style="padding:2px 10px; text-align:right" class="neg">-145,818</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:36px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr><td style="padding:2px 10px">06/02</td><td style="padding:2px 10px; text-align:right" class="neg">-129,567</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:32px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
-<tr><td style="padding:2px 10px">05/26</td><td style="padding:2px 10px; text-align:right" class="neg">-114,667</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:28px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
   </table>
   </div>
   <div>
@@ -488,7 +488,7 @@
   <table style="font-size:0.78rem; border-collapse:collapse;">
     <tr><td style="padding:2px 10px; color:#64748b">年月</td><td style="padding:2px 10px; color:#64748b">ネット枚数</td>
     <td style="padding:2px 10px; color:#64748b"></td></tr>
-<tr><td style="padding:2px 10px">2026/08</td><td style="padding:2px 10px; text-align:right" class="neg">-42,085</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:10px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
+<tr><td style="padding:2px 10px">2026/08</td><td style="padding:2px 10px; text-align:right" class="neg">-52,893</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:13px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr style="background:rgba(220,38,38,0.15)"><td style="padding:2px 10px">2026/07</td><td style="padding:2px 10px; text-align:right" class="neg">-163,412</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:40px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr style="background:rgba(220,38,38,0.15)"><td style="padding:2px 10px">2026/06</td><td style="padding:2px 10px; text-align:right" class="neg">-155,092</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:38px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
 <tr><td style="padding:2px 10px">2026/05</td><td style="padding:2px 10px; text-align:right" class="neg">-114,667</td><td style="padding:2px 10px; text-align:left"><div style="display:inline-block; width:28px; height:9px; background:#f87171; border-radius:2px"></div></td></tr>
@@ -706,6 +706,6 @@
     ネットの<b>急減（ピーク比-25%以上）は巻き戻し開始のサイン</b>で、上のジグザグの「円安ピーク確定」より早く出ることがある先行指標。<br>
     ・シカゴ円先物のCOT（毎週金曜公表・火曜時点）。<a href="vix.html" style="color:#60a5fa">VIX温度計</a>のCFTCだまし判定と同じデータ源の円版。
   </p>
-  <p class="updated">最終更新: 2026-08-21 21:23</p>
+  <p class="updated">最終更新: 2026-08-22 08:35</p>
 </body>
 </html>
