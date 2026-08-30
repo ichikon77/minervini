@@ -42,23 +42,24 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPORT_HTML = "yorimae.html"
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "yorimae_history.json")  # 乖離の履歴と答え合わせ用
 
-# 主要ADR銘柄（ADRティッカー, 東証コード, 表示名）
+# 主要ADR銘柄（ADRティッカー, 東証コード, 表示名, 市場区分）
+# NYSE上場は板が厚くADR価格の信頼性が高い。OTCは流動性が薄く値が古い/飛ぶことがある
 ADR_LIST = [
-    ("TM", "7203.T", "トヨタ"),
-    ("SONY", "6758.T", "ソニーG"),
-    ("MUFG", "8306.T", "三菱UFJ"),
-    ("SMFG", "8316.T", "三井住友FG"),
-    ("MFG", "8411.T", "みずほFG"),
-    ("HMC", "7267.T", "ホンダ"),
-    ("TAK", "4502.T", "武田薬品"),
-    ("NMR", "8604.T", "野村HD"),
-    ("IX", "8591.T", "オリックス"),
-    ("NTDOY", "7974.T", "任天堂"),
-    ("SFTBY", "9984.T", "ソフトバンクG"),
-    ("HTHIY", "6501.T", "日立"),
-    ("TOELY", "8035.T", "東京エレクトロン"),
-    ("FRCOY", "9983.T", "ファーストリテ"),
-    ("KMTUY", "6301.T", "コマツ"),
+    ("TM", "7203.T", "トヨタ", "NYSE"),
+    ("SONY", "6758.T", "ソニーG", "NYSE"),
+    ("MUFG", "8306.T", "三菱UFJ", "NYSE"),
+    ("SMFG", "8316.T", "三井住友FG", "NYSE"),
+    ("MFG", "8411.T", "みずほFG", "NYSE"),
+    ("HMC", "7267.T", "ホンダ", "NYSE"),
+    ("TAK", "4502.T", "武田薬品", "NYSE"),
+    ("NMR", "8604.T", "野村HD", "NYSE"),
+    ("IX", "8591.T", "オリックス", "NYSE"),
+    ("NTDOY", "7974.T", "任天堂", "OTC"),
+    ("SFTBY", "9984.T", "ソフトバンクG", "OTC"),
+    ("HTHIY", "6501.T", "日立", "OTC"),
+    ("TOELY", "8035.T", "東京エレクトロン", "OTC"),
+    ("FRCOY", "9983.T", "ファーストリテ", "OTC"),
+    ("KMTUY", "6301.T", "コマツ", "OTC"),
 ]
 
 BETA_LOOKBACK = 250   # 理論ギャップの回帰に使う日数（約1年）
@@ -144,14 +145,20 @@ def save_history(hist):
     json.dump(hist, open(HISTORY_JSON, "w", encoding="utf-8"), ensure_ascii=False)
 
 
-def update_history(hist, today, rec):
-    """今朝の観測（ギャップ・理論・乖離）を営業日キーで記録。
+def update_history(hist, today, rec, adr_rows=None):
+    """今朝の観測（ギャップ・理論・乖離 + ADRギャップ）を営業日キーで記録。
     週末や既存日には上書きしない（7:15の初回観測を保存する趣旨）"""
     if today.weekday() >= 5:
         return
     key = today.isoformat()
     if key not in hist["days"]:
         hist["days"][key] = rec
+    # ADRギャップ（銘柄別）。同日再実行でも初回分を保持
+    if adr_rows and "adr" not in hist["days"][key]:
+        hist["days"][key]["adr"] = {
+            r["tyo"]: {"gap": round(r["gap"], 2), "prev": r["tyo_prev"], "mkt": r["mkt"]}
+            for r in adr_rows
+        }
 
 
 def backfill_answers(hist):
@@ -174,6 +181,65 @@ def backfill_answers(hist):
                 "low": round(float(row["Low"]), 1),
                 "close": round(float(row["Close"]), 1),
             })
+
+
+def backfill_adr_answers(hist):
+    """ADRギャップ記録に「その日の東京の寄り・引け」を銘柄別に埋める"""
+    # 未回答の(日付, 銘柄)があるか
+    need = any("adr" in v and any("o" not in s for s in v["adr"].values())
+               for v in hist["days"].values())
+    if not need:
+        return
+    tickers = [tyo for _, tyo, _, _ in ADR_LIST]
+    try:
+        data = yf.download(tickers, period="3mo", auto_adjust=True,
+                           progress=False, group_by="ticker", threads=True)
+    except Exception:
+        return
+    for k, v in hist["days"].items():
+        if "adr" not in v:
+            continue
+        d = pd.Timestamp(k)
+        for code, s in v["adr"].items():
+            if "o" in s:
+                continue
+            try:
+                df = data[code + ".T"]
+                idx = df.index.tz_localize(None).normalize()
+                pos = list(idx).index(d) if d in list(idx) else None
+                if pos is None:
+                    continue
+                s["o"] = round(float(df["Open"].iloc[pos]), 1)
+                s["c"] = round(float(df["Close"].iloc[pos]), 1)
+            except Exception:
+                continue
+
+
+def build_adr_stats(hist):
+    """ADRギャップの答え合わせ集計。
+    ①精度: |ADRギャップ - 実際の寄りギャップ| の平均誤差（NYSE/OTC別）
+    ②平均回帰: 固有ギャップ（ADRギャップ-その日の指数ギャップ）の大きさ別に日中リターン"""
+    prec = {"NYSE": [], "OTC": []}
+    buckets = {"固有ギャップ≤-1%": [], "±1%以内": [], "固有ギャップ≥+1%": []}
+    n_total = 0
+    for v in hist["days"].values():
+        idx_gap = v.get("gap")
+        for code, s in v.get("adr", {}).items():
+            if "o" not in s or not s.get("prev"):
+                continue
+            n_total += 1
+            open_gap = (s["o"] / s["prev"] - 1) * 100
+            intraday = (s["c"] / s["o"] - 1) * 100
+            prec.setdefault(s.get("mkt", "OTC"), []).append(abs(s["gap"] - open_gap))
+            if idx_gap is not None:
+                own = s["gap"] - idx_gap
+                if own <= -1:
+                    buckets["固有ギャップ≤-1%"].append(intraday)
+                elif own >= 1:
+                    buckets["固有ギャップ≥+1%"].append(intraday)
+                else:
+                    buckets["±1%以内"].append(intraday)
+    return n_total, prec, buckets
 
 
 def _answer_row(rec):
@@ -226,7 +292,7 @@ def calc_adr_gaps():
     log("ADRギャップを計算中...")
     fx_now = last_price("JPY=X")
     out = []
-    for adr, tyo, name in ADR_LIST:
+    for adr, tyo, name, mkt in ADR_LIST:
         try:
             a = daily_closes(adr, period="3mo")
             j = daily_closes(tyo, period="3mo")
@@ -245,7 +311,7 @@ def calc_adr_gaps():
             implied = adr_last * (fx_now or float(f.iloc[-1])) / ratio
             gap = (implied / tyo_prev - 1) * 100
             out.append({"name": name, "adr": adr, "tyo": tyo.replace(".T", ""),
-                        "tyo_prev": tyo_prev, "implied": implied, "gap": gap})
+                        "mkt": mkt, "tyo_prev": tyo_prev, "implied": implied, "gap": gap})
         except Exception as e:
             log(f"  {adr}: skip ({e})")
     out.sort(key=lambda r: -r["gap"])
@@ -366,6 +432,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {adr_rows}
     </tbody>
   </table>
+  </div>
+  <div class="evidence" style="margin-top:12px">
+    <b>ADRギャップの答え合わせ（蓄積中）:</b> 毎朝のADRギャップを記録し、その日の実際の寄り・日中リターンで検証する。
+    ①<b>予告の精度</b>=|ADRギャップ−実際の寄りギャップ|の平均誤差（NYSE上場は精度が高く、OTCは値が飛びやすい想定）。
+    ②<b>平均回帰</b>=固有ギャップ（ADRギャップ−指数ギャップ）が大きい銘柄はその日中に戻すのか。<br>
+{adr_stats_line}
   </div>
   <h2>乖離の答え合わせ（履歴）</h2>
   <div class="evidence">
@@ -499,6 +571,21 @@ def generate_html(data, hist=None):
     else:
         stats_line = f'    集計はデータが溜まってから表示（現在{total_n}日分）。'
 
+    # ADR答え合わせの集計
+    adr_n, prec, buckets = build_adr_stats(hist)
+    if adr_n >= 30:
+        parts = []
+        for mkt in ("NYSE", "OTC"):
+            errs = prec.get(mkt, [])
+            if errs:
+                parts.append(f'<b>{mkt}の予告精度</b>: 平均誤差{sum(errs)/len(errs):.2f}%（N={len(errs)}）')
+        for g, rows in buckets.items():
+            if rows:
+                parts.append(f'<b>{g}</b>: N={len(rows)} 日中平均{sum(rows)/len(rows):+.2f}%')
+        adr_stats_line = "    " + " ／ ".join(parts)
+    else:
+        adr_stats_line = f'    集計は30サンプルから表示（現在{adr_n}件・15銘柄×営業日で蓄積）。'
+
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -509,6 +596,7 @@ def generate_html(data, hist=None):
         beta_note=beta_note,
         history_rows="\n".join(history_rows),
         stats_line=stats_line,
+        adr_stats_line=adr_stats_line,
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
@@ -602,8 +690,9 @@ def main():
         "gap": None if gap_pct is None else round(gap_pct, 3),
         "theo": None if theo_gap is None else round(theo_gap, 3),
         "dev": None if dev is None else round(dev, 3),
-    })
+    }, adr_rows=adr)
     backfill_answers(hist)
+    backfill_adr_answers(hist)
     save_history(hist)
 
     generate_html({
