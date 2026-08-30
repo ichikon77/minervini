@@ -96,6 +96,20 @@ ELECTION_DATES = [
     ("2026-11-03", "🇺🇸 米中間選挙", "上院1/3・下院全議席改選。選挙年秋は荒れやすいアノマリー"),
 ]
 
+# 指数イベント（MSCI/FTSE/日経225の定期見直し。発表され次第追記）
+# 採用銘柄は「発表→実施日まで買われ、実施日以降は弱い」インデックス効果が知られる。
+# 実施日の大引けはパッシブのリバランスで売買代金が爆発する
+# 年間パターン: MSCI=2/5/8/11月(発表は第2週・実施は月末)、FTSE=3/9月(実施は第3金曜)、
+#              日経225=9月上旬発表・10月初実施、TOPIX=10月末
+INDEX_EVENTS = [
+    ("2026-09-04", "🇯🇵", "日経225 定期見直し 発表（目安）", "例年9月上旬発表。採用/除外銘柄に短期資金が集中"),
+    ("2026-09-18", "🌐", "FTSE 半期リバランス 実施", "9月第3金曜の引けで入替。大引け売買代金急増"),
+    ("2026-10-01", "🇯🇵", "日経225 定期入替 実施", "採用銘柄は実施日以降アンダーパフォームしやすい（インデックス効果の逆流）"),
+    ("2026-10-16", "🌐", "MSCI 非事業会社ルール 協議結果発表", "ビットコイン保有企業（Strategy・メタプラネット等）の指数除外可否に直結"),
+    ("2026-11-11", "🌐", "MSCI 半期レビュー 結果発表", "日本株の採用/除外リストに注目。発表翌日から実施日まで需給イベント"),
+    ("2026-11-30", "🌐", "MSCI 半期リバランス 実施", "引け後入替・12/1適用。大引けパッシブフロー集中"),
+]
+
 # リスト残数がこの日数を切ったらログで警告
 WARN_DAYS = 45
 
@@ -226,6 +240,11 @@ def build_events(today):
         if d >= today:
             ev.append((d, "", name, note, "", True))
 
+    for ds, flag, name, note in INDEX_EVENTS:
+        d = datetime.date.fromisoformat(ds)
+        if d >= today:
+            ev.append((d, flag, name, note, "", False))
+
     ev.sort(key=lambda x: x[0])
     return ev
 
@@ -235,7 +254,8 @@ def check_list_freshness(today):
     for name, dates in [("FOMC_DATES", FOMC_DATES), ("BOJ_DATES", BOJ_DATES),
                         ("EARNINGS", [e[0] for e in EARNINGS]),
                         ("KR_EARNINGS", [e[0] for e in KR_EARNINGS]),
-                        ("EMPLOYMENT_DATES", EMPLOYMENT_DATES), ("CPI_DATES", CPI_DATES)]:
+                        ("EMPLOYMENT_DATES", EMPLOYMENT_DATES), ("CPI_DATES", CPI_DATES),
+                        ("INDEX_EVENTS", [e[0] for e in INDEX_EVENTS])]:
         future = [d for d in dates if datetime.date.fromisoformat(d) >= today]
         if not future:
             log(f"  警告: {name} の未来日程が尽きました。追記が必要です")
@@ -304,6 +324,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <nav class="nav">
     <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
     <a href="calendar.html" class="active" style="border-color:#94a3b8">イベント予定</a>
+    <a href="yorimae.html" style="border-color:#94a3b8">寄り前</a>
     <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
     <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
     <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
@@ -333,7 +354,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>イベント予定</h1>
-  <p class="subtitle">最終更新: {updated} | FOMC・日銀会合・SQ・ビッグテック決算・米指標 | 近い順</p>
+  <p class="subtitle">最終更新: {updated} | FOMC・日銀会合・SQ・ビッグテック決算・米指標・指数イベント（MSCI/FTSE/日経225） | 近い順</p>
   <table>
     <thead><tr><th>日付</th><th style="text-align:right">あと</th><th>イベント</th><th>補足</th><th>関連デッキ</th></tr></thead>
     <tbody>

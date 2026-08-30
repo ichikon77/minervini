@@ -143,7 +143,7 @@ def calc_adr_gaps():
             # 平常時の換算比率: 直近20日の (ADR×為替)/東京終値 の中央値
             df = pd.DataFrame({"a": a, "f": f}).dropna()
             df["af"] = df["a"] * df["f"]
-            merged = pd.concat([df["af"], j], axis=1, keys=["af", "j"]).dropna()
+            merged = pd.concat([df["af"], j], axis=1, keys=["af", "j"], sort=True).dropna()
             if len(merged) < RATIO_WINDOW:
                 continue
             ratio = float((merged["af"] / merged["j"]).iloc[-RATIO_WINDOW:].median())
