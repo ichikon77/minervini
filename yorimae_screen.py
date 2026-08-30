@@ -29,6 +29,7 @@
 
 import os
 import sys
+import json
 import time
 import subprocess
 import datetime
@@ -39,6 +40,7 @@ import yfinance as yf
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPORT_HTML = "yorimae.html"
+HISTORY_JSON = os.path.join(SCRIPT_DIR, "yorimae_history.json")  # 乖離の履歴と答え合わせ用
 
 # 主要ADR銘柄（ADRティッカー, 東証コード, 表示名）
 ADR_LIST = [
@@ -124,6 +126,97 @@ def estimate_betas(n225, spx, fx):
     ss_tot = ((y - y.mean()) ** 2).sum()
     r2 = 1 - res[0] / ss_tot if len(res) and ss_tot > 0 else None
     return coef[1], coef[2], r2
+
+
+# -----------------------------------------
+# 乖離の履歴と答え合わせ
+# -----------------------------------------
+def load_history():
+    if os.path.exists(HISTORY_JSON):
+        try:
+            return json.load(open(HISTORY_JSON, encoding="utf-8"))
+        except Exception:
+            pass
+    return {"days": {}}
+
+
+def save_history(hist):
+    json.dump(hist, open(HISTORY_JSON, "w", encoding="utf-8"), ensure_ascii=False)
+
+
+def update_history(hist, today, rec):
+    """今朝の観測（ギャップ・理論・乖離）を営業日キーで記録。
+    週末や既存日には上書きしない（7:15の初回観測を保存する趣旨）"""
+    if today.weekday() >= 5:
+        return
+    key = today.isoformat()
+    if key not in hist["days"]:
+        hist["days"][key] = rec
+
+
+def backfill_answers(hist):
+    """過去の記録に「その日の実際の寄り・高安・引け」を埋めて答え合わせを可能にする"""
+    missing = [k for k, v in hist["days"].items() if "close" not in v]
+    if not missing:
+        return
+    try:
+        ohlc = yf.Ticker("^N225").history(period="3mo")
+        ohlc.index = ohlc.index.tz_localize(None).normalize()
+    except Exception:
+        return
+    for k in missing:
+        d = pd.Timestamp(k)
+        if d in ohlc.index:
+            row = ohlc.loc[d]
+            hist["days"][k].update({
+                "open": round(float(row["Open"]), 1),
+                "high": round(float(row["High"]), 1),
+                "low": round(float(row["Low"]), 1),
+                "close": round(float(row["Close"]), 1),
+            })
+
+
+def _answer_row(rec):
+    """記録1件から答え合わせ指標を計算。(実寄りギャップ%, 日中リターン%, ギャップ埋めbool or None)"""
+    if "close" not in rec or not rec.get("prev_close"):
+        return None, None, None
+    prev = rec["prev_close"]
+    open_gap = (rec["open"] / prev - 1) * 100
+    intraday = (rec["close"] / rec["open"] - 1) * 100
+    if rec["open"] < prev:
+        filled = rec["high"] >= prev
+    elif rec["open"] > prev:
+        filled = rec["low"] <= prev
+    else:
+        filled = None
+    return open_gap, intraday, filled
+
+
+def build_history_stats(hist):
+    """乖離の符号別に日中リターンとギャップ埋め率を集計"""
+    groups = {"日本売り(乖離≤-0.5%)": [], "中立(±0.5%以内)": [], "日本買い(乖離≥+0.5%)": []}
+    for rec in hist["days"].values():
+        dev = rec.get("dev")
+        og, intraday, filled = _answer_row(rec)
+        if dev is None or intraday is None:
+            continue
+        if dev <= -DEVIATION_TH:
+            g = "日本売り(乖離≤-0.5%)"
+        elif dev >= DEVIATION_TH:
+            g = "日本買い(乖離≥+0.5%)"
+        else:
+            g = "中立(±0.5%以内)"
+        groups[g].append((intraday, filled))
+    out = []
+    for g, rows in groups.items():
+        if not rows:
+            out.append((g, 0, None, None))
+            continue
+        avg = sum(r[0] for r in rows) / len(rows)
+        fills = [r[1] for r in rows if r[1] is not None]
+        fill_rate = sum(fills) / len(fills) * 100 if fills else None
+        out.append((g, len(rows), avg, fill_rate))
+    return out
 
 
 # -----------------------------------------
@@ -274,6 +367,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
+  <h2>乖離の答え合わせ（履歴）</h2>
+  <div class="evidence">
+    <b>検証の趣旨:</b> 「日本固有要因（赤）」が出た朝は、その後どうなりやすいのか。
+    毎朝の乖離を記録し、その日の実際の寄り付き・日中リターン（寄り→引け）・ギャップ埋め（前日終値まで戻したか）で答え合わせする。
+    データが溜まれば「乖離が大きい日は逆張り/順張りどちらが効くか」をkasetsu（仮説検証）に昇格させる。<br>
+{stats_line}
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>日付</th><th>夜間ギャップ</th><th>理論</th><th>乖離</th><th>実際の寄り</th><th>日中(寄→引)</th><th>ギャップ埋め</th></tr></thead>
+    <tbody>
+{history_rows}
+    </tbody>
+  </table>
+  </div>
   <p class="note">
     ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<br>
     ・<b>理論ギャップ</b> = b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、ページ下部に係数表示）。
@@ -296,7 +404,8 @@ def fmt_pct(v, digits=2):
     return f'<span class="{cls}">{v:+.{digits}f}%</span>'
 
 
-def generate_html(data):
+def generate_html(data, hist=None):
+    hist = hist or {"days": {}}
     cards = []
 
     n225_prev = data["n225_prev"]
@@ -357,6 +466,39 @@ def generate_html(data):
     else:
         beta_note = '回帰係数: データ不足のため理論ギャップは非表示'
 
+    # 乖離履歴（新しい順に最大30日）
+    history_rows = []
+    for k in sorted(hist["days"], reverse=True)[:30]:
+        rec = hist["days"][k]
+        og, intraday, filled = _answer_row(rec)
+        dev = rec.get("dev")
+        dev_s = fmt_pct(dev) if dev is not None else "-"
+        fill_s = "-" if filled is None else ("○" if filled else "×")
+        history_rows.append(
+            f'      <tr><td>{k[5:]}</td>'
+            f'<td>{fmt_pct(rec.get("gap"))}</td>'
+            f'<td>{fmt_pct(rec.get("theo"))}</td>'
+            f'<td>{dev_s}</td>'
+            f'<td>{fmt_pct(og)}</td>'
+            f'<td>{fmt_pct(intraday)}</td>'
+            f'<td>{fill_s}</td></tr>')
+    if not history_rows:
+        history_rows.append('      <tr><td colspan="7" style="text-align:center; color:#64748b">蓄積中（毎朝の実行で1行ずつ増えます）</td></tr>')
+
+    stats = build_history_stats(hist)
+    total_n = sum(s[1] for s in stats)
+    if total_n >= 5:
+        parts = []
+        for g, n, avg, fill in stats:
+            if n:
+                fill_s = f'・ギャップ埋め率{fill:.0f}%' if fill is not None else ""
+                parts.append(f'<b>{g}</b>: N={n} 日中平均{avg:+.2f}%{fill_s}')
+            else:
+                parts.append(f'{g}: N=0')
+        stats_line = "    " + " ／ ".join(parts)
+    else:
+        stats_line = f'    集計はデータが溜まってから表示（現在{total_n}日分）。'
+
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -365,6 +507,8 @@ def generate_html(data):
         cards="".join(cards),
         adr_rows="\n".join(adr_rows),
         beta_note=beta_note,
+        history_rows="\n".join(history_rows),
+        stats_line=stats_line,
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
@@ -381,7 +525,8 @@ def push_to_github():
     log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
-                    "yorimae_screen.py", "yorimae_run.bat"], check=True)
+                    "yorimae_screen.py", "yorimae_run.bat",
+                    "yorimae_history.json", ".gitignore"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update yorimae report " + today],
         capture_output=True)
@@ -449,6 +594,18 @@ def main():
     # ADR
     adr = calc_adr_gaps()
 
+    # 乖離の履歴を更新（今朝の観測を記録 + 過去分の答え合わせを埋める）
+    hist = load_history()
+    dev = (gap_pct - theo_gap) if (gap_pct is not None and theo_gap is not None) else None
+    update_history(hist, datetime.date.today(), {
+        "prev_close": n225_prev, "fut": fut_last,
+        "gap": None if gap_pct is None else round(gap_pct, 3),
+        "theo": None if theo_gap is None else round(theo_gap, 3),
+        "dev": None if dev is None else round(dev, 3),
+    })
+    backfill_answers(hist)
+    save_history(hist)
+
     generate_html({
         "n225_prev": n225_prev, "n225_date": n225_date,
         "fut_last": fut_last, "fut_ticker": fut_ticker,
@@ -457,7 +614,7 @@ def main():
         "fx_now": fx_now, "fx_chg": fx_chg,
         "theo_gap": theo_gap, "betas": betas,
         "adr": adr,
-    })
+    }, hist)
 
     if "--nopush" in sys.argv:
         log("push スキップ")
