@@ -162,8 +162,11 @@ def update_history(hist, today, rec, adr_rows=None):
 
 
 def backfill_answers(hist):
-    """過去の記録に「その日の実際の寄り・高安・引け」を埋めて答え合わせを可能にする"""
-    missing = [k for k, v in hist["days"].items() if "close" not in v]
+    """過去の記録に「その日の実際の寄り・高安・引け」を埋めて答え合わせを可能にする。
+    当日は場中の未確定値を固定してしまわないようスキップ（翌朝の実行で埋まる）"""
+    today = pd.Timestamp(datetime.date.today())
+    missing = [k for k, v in hist["days"].items()
+               if "close" not in v and pd.Timestamp(k) < today]
     if not missing:
         return
     try:
@@ -181,13 +184,32 @@ def backfill_answers(hist):
                 "low": round(float(row["Low"]), 1),
                 "close": round(float(row["Close"]), 1),
             })
+        else:
+            # Yahooの^N225は日足だけ欠損する日がある（例: 2026-08-28）。
+            # 60分足には残っていることが多いので、そこからOHLCを復元する
+            try:
+                intr = yf.Ticker("^N225").history(
+                    start=d, end=d + pd.Timedelta(days=1), interval="60m")
+                if len(intr):
+                    hist["days"][k].update({
+                        "open": round(float(intr["Open"].iloc[0]), 1),
+                        "high": round(float(intr["High"].max()), 1),
+                        "low": round(float(intr["Low"].min()), 1),
+                        "close": round(float(intr["Close"].iloc[-1]), 1),
+                    })
+                    log(f"  {k}: 日足欠損→60分足からOHLC復元")
+            except Exception:
+                pass
 
 
 def backfill_adr_answers(hist):
-    """ADRギャップ記録に「その日の東京の寄り・引け」を銘柄別に埋める"""
+    """ADRギャップ記録に「その日の東京の寄り・引け」を銘柄別に埋める。
+    当日は場中の未確定値を固定してしまわないようスキップ"""
+    today = pd.Timestamp(datetime.date.today())
     # 未回答の(日付, 銘柄)があるか
-    need = any("adr" in v and any("o" not in s for s in v["adr"].values())
-               for v in hist["days"].values())
+    need = any("adr" in v and pd.Timestamp(k) < today
+               and any("o" not in s for s in v["adr"].values())
+               for k, v in hist["days"].items())
     if not need:
         return
     tickers = [tyo for _, tyo, _, _ in ADR_LIST]
@@ -200,6 +222,8 @@ def backfill_adr_answers(hist):
         if "adr" not in v:
             continue
         d = pd.Timestamp(k)
+        if d >= today:
+            continue
         for code, s in v["adr"].items():
             if "o" in s:
                 continue
