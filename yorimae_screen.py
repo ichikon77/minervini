@@ -410,8 +410,10 @@ def backtest_adr_follow():
                 "beta": beta, "corr": corr, "err": err,
                 "up_n": int(up.sum()),
                 "up_intra": float(intras[up].mean()) if int(up.sum()) else None,
+                "up_win": float((intras[up] > 0).mean() * 100) if int(up.sum()) else None,
                 "dn_n": int(dn.sum()),
                 "dn_intra": float(intras[dn].mean()) if int(dn.sum()) else None,
+                "dn_win": float((intras[dn] < 0).mean() * 100) if int(dn.sum()) else None,
             })
         except Exception as e:
             log(f"  BT {adr}: skip ({e})")
@@ -547,12 +549,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ここでは上と同じ<b>ADR円換算÷東京前日終値</b>の定義で過去約1年分を再構成して検証する（毎朝再計算）。<br>
     ①<b>寄りの追随</b>: 方向一致率=翌朝の寄りがADRと同方向に開いた率／感応度β=ADRギャップ1%につき寄りが何%動くか（1.0で完全追随）／相関。
     ②<b>日中の続き</b>: ADR↑の日（ギャップ≥+0.5%）とADR↓の日（≤−0.5%）の寄り→引け平均。
+    <b>勝率</b>=ADR↑の日に寄りで買って大引けまで持ったら日中プラスだった率、<b>続落率</b>=ADR↓の日に日中もマイナスだった率。
     <b>寄りで完全に織り込むなら日中は0近辺</b>（=寄り後に乗っても取れない）。プラスに偏れば日中も続伸、マイナスなら寄りで行き過ぎ→平均回帰。<br>
     ※米国休場明けなどADR終値が東京前日の引けより古い日は除外。相関の高い順。
   </div>
   <div class="table-wrap" style="max-width:1100px">
   <table>
-    <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>ADR↓日の日中</th></tr></thead>
+    <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>同勝率</th><th>ADR↓日の日中</th><th>同続落率</th></tr></thead>
     <tbody>
 {adr_bt_rows}
     </tbody>
@@ -711,6 +714,10 @@ def generate_html(data, hist=None):
         mb = f'{r["match_big"]:.0f}% (N={r["big_n"]})' if r["match_big"] is not None else "-"
         up_s = f'{fmt_pct(r["up_intra"])} (N={r["up_n"]})' if r["up_intra"] is not None else "-"
         dn_s = f'{fmt_pct(r["dn_intra"])} (N={r["dn_n"]})' if r["dn_intra"] is not None else "-"
+        up_w = (f'<span class="{"ok" if r["up_win"] >= 55 else ""}">{r["up_win"]:.0f}%</span>'
+                if r.get("up_win") is not None else "-")
+        dn_w = (f'<span class="{"warn" if r["dn_win"] >= 55 else ""}">{r["dn_win"]:.0f}%</span>'
+                if r.get("dn_win") is not None else "-")
         match_cls = "ok" if r["match"] >= 65 else ""
         adr_bt_rows.append(
             f'      <tr><td>{r["name"]}</td><td>{r["tyo"]} / {r["mkt"]}</td>'
@@ -720,9 +727,9 @@ def generate_html(data, hist=None):
             f'<td>{r["beta"]:.2f}</td>'
             f'<td>{r["corr"]:.2f}</td>'
             f'<td>{r["err"]:.2f}%</td>'
-            f'<td>{up_s}</td><td>{dn_s}</td></tr>')
+            f'<td>{up_s}</td><td>{up_w}</td><td>{dn_s}</td><td>{dn_w}</td></tr>')
     if not adr_bt_rows:
-        adr_bt_rows.append('      <tr><td colspan="10" style="text-align:center; color:#64748b">計算失敗（yfinance側の一時的な問題の可能性）</td></tr>')
+        adr_bt_rows.append('      <tr><td colspan="12" style="text-align:center; color:#64748b">計算失敗（yfinance側の一時的な問題の可能性）</td></tr>')
 
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
