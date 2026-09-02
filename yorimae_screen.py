@@ -344,6 +344,83 @@ def calc_adr_gaps():
 
 
 # -----------------------------------------
+# ADR追随の銘柄別バックテスト（過去約1年）
+# -----------------------------------------
+ADR_BT_DAYS = 250   # 集計対象の営業日数
+
+
+def backtest_adr_follow():
+    """銘柄ごとに過去約1年分のADRギャップを再構成し、翌日の東京の
+    寄りギャップ・日中リターンとの関係を集計する。
+
+    ADRギャップの定義は本番の表示と同じ「ADR円換算 ÷ 東京前日終値 − 1」。
+    ADRの日次騰落には「東京がその日すでに動いた分への追いつき」が混ざるため使わない。
+    この定義なら東京の動きは分母に織り込み済みで、米国セッションで
+    上乗せされた分（東京が未織り込みの情報）だけが残る。
+    米国休場などでADR終値が東京の引けより古い日はシグナルが陳腐化しているので除外。
+    """
+    log("ADR追随バックテストを計算中...")
+    fx = daily_closes("JPY=X", period="2y")
+    results = []
+    for adr, tyo, name, mkt in ADR_LIST:
+        try:
+            a = daily_closes(adr, period="2y")
+            h = yf.Ticker(tyo).history(period="2y")[["Open", "Close"]].dropna()
+            h.index = h.index.tz_localize(None).normalize()
+            if len(a) < 60 or len(h) < 60:
+                continue
+            af = (a * fx).dropna()                    # ADRの円換算値（米国日付）
+            ratio_all = (af / h["Close"]).dropna()    # 換算比率の系列（本番と同じ同日ラベル同士）
+            rows = []
+            dates = list(h.index)
+            for i in range(RATIO_WINDOW + 1, len(dates)):
+                t, tp = dates[i], dates[i - 1]
+                # 「昨晩の米国終値」= tより前の最新のADR日付
+                pos = af.index.searchsorted(t) - 1
+                if pos < 0:
+                    continue
+                u = af.index[pos]
+                if u < tp:      # 米国休場明け等: ADRが東京前日の引けより古い → 除外
+                    continue
+                r_hist = ratio_all[ratio_all.index <= tp]
+                if len(r_hist) < RATIO_WINDOW:
+                    continue
+                ratio = float(r_hist.iloc[-RATIO_WINDOW:].median())
+                gap = (float(af.loc[u]) / ratio / float(h["Close"].loc[tp]) - 1) * 100
+                og = (float(h["Open"].loc[t]) / float(h["Close"].loc[tp]) - 1) * 100
+                intra = (float(h["Close"].loc[t]) / float(h["Open"].loc[t]) - 1) * 100
+                rows.append((gap, og, intra))
+            rows = rows[-ADR_BT_DAYS:]
+            if len(rows) < 100:
+                continue
+            arr = np.array(rows)
+            gaps, ogs, intras = arr[:, 0], arr[:, 1], arr[:, 2]
+            match = float((np.sign(gaps) == np.sign(ogs)).mean() * 100)
+            big = np.abs(gaps) >= 1.0
+            match_big = (float((np.sign(gaps[big]) == np.sign(ogs[big])).mean() * 100)
+                         if int(big.sum()) >= 10 else None)
+            beta = float(np.polyfit(gaps, ogs, 1)[0])
+            corr = float(np.corrcoef(gaps, ogs)[0, 1])
+            err = float(np.abs(gaps - ogs).mean())
+            up = gaps >= 0.5
+            dn = gaps <= -0.5
+            results.append({
+                "name": name, "tyo": tyo.replace(".T", ""), "mkt": mkt, "n": len(rows),
+                "match": match, "match_big": match_big, "big_n": int(big.sum()),
+                "beta": beta, "corr": corr, "err": err,
+                "up_n": int(up.sum()),
+                "up_intra": float(intras[up].mean()) if int(up.sum()) else None,
+                "dn_n": int(dn.sum()),
+                "dn_intra": float(intras[dn].mean()) if int(dn.sum()) else None,
+            })
+        except Exception as e:
+            log(f"  BT {adr}: skip ({e})")
+    results.sort(key=lambda r: -r["corr"])
+    log(f"  バックテスト: {len(results)}銘柄")
+    return results
+
+
+# -----------------------------------------
 # HTML
 # -----------------------------------------
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -462,6 +539,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ①<b>予告の精度</b>=|ADRギャップ−実際の寄りギャップ|の平均誤差（NYSE上場は精度が高く、OTCは値が飛びやすい想定）。
     ②<b>平均回帰</b>=固有ギャップ（ADRギャップ−指数ギャップ）が大きい銘柄はその日中に戻すのか。<br>
 {adr_stats_line}
+  </div>
+  <h2>ADR追随の銘柄別検証（過去約1年バックテスト）</h2>
+  <div class="evidence">
+    <b>検証の趣旨:</b> 「東京で動いた分<b>以上に</b>ADRが動いた分（=ADRギャップ）」は、翌日の東京にどれだけ反映されるのか。
+    ADRの単純な日次騰落には「東京がその日すでに動いた分への追いつき」が混ざるため、
+    ここでは上と同じ<b>ADR円換算÷東京前日終値</b>の定義で過去約1年分を再構成して検証する（毎朝再計算）。<br>
+    ①<b>寄りの追随</b>: 方向一致率=翌朝の寄りがADRと同方向に開いた率／感応度β=ADRギャップ1%につき寄りが何%動くか（1.0で完全追随）／相関。
+    ②<b>日中の続き</b>: ADR↑の日（ギャップ≥+0.5%）とADR↓の日（≤−0.5%）の寄り→引け平均。
+    <b>寄りで完全に織り込むなら日中は0近辺</b>（=寄り後に乗っても取れない）。プラスに偏れば日中も続伸、マイナスなら寄りで行き過ぎ→平均回帰。<br>
+    ※米国休場明けなどADR終値が東京前日の引けより古い日は除外。相関の高い順。
+  </div>
+  <div class="table-wrap" style="max-width:1100px">
+  <table>
+    <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>ADR↓日の日中</th></tr></thead>
+    <tbody>
+{adr_bt_rows}
+    </tbody>
+  </table>
   </div>
   <h2>乖離の答え合わせ（履歴）</h2>
   <div class="evidence">
@@ -610,6 +705,25 @@ def generate_html(data, hist=None):
     else:
         adr_stats_line = f'    集計は30サンプルから表示（現在{adr_n}件・15銘柄×営業日で蓄積）。'
 
+    # ADR追随バックテスト（銘柄別）
+    adr_bt_rows = []
+    for r in data.get("adr_bt") or []:
+        mb = f'{r["match_big"]:.0f}% (N={r["big_n"]})' if r["match_big"] is not None else "-"
+        up_s = f'{fmt_pct(r["up_intra"])} (N={r["up_n"]})' if r["up_intra"] is not None else "-"
+        dn_s = f'{fmt_pct(r["dn_intra"])} (N={r["dn_n"]})' if r["dn_intra"] is not None else "-"
+        match_cls = "ok" if r["match"] >= 65 else ""
+        adr_bt_rows.append(
+            f'      <tr><td>{r["name"]}</td><td>{r["tyo"]} / {r["mkt"]}</td>'
+            f'<td>{r["n"]}</td>'
+            f'<td><span class="{match_cls}">{r["match"]:.0f}%</span></td>'
+            f'<td>{mb}</td>'
+            f'<td>{r["beta"]:.2f}</td>'
+            f'<td>{r["corr"]:.2f}</td>'
+            f'<td>{r["err"]:.2f}%</td>'
+            f'<td>{up_s}</td><td>{dn_s}</td></tr>')
+    if not adr_bt_rows:
+        adr_bt_rows.append('      <tr><td colspan="10" style="text-align:center; color:#64748b">計算失敗（yfinance側の一時的な問題の可能性）</td></tr>')
+
     html = HTML_TEMPLATE.format(
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -621,6 +735,7 @@ def generate_html(data, hist=None):
         history_rows="\n".join(history_rows),
         stats_line=stats_line,
         adr_stats_line=adr_stats_line,
+        adr_bt_rows="\n".join(adr_bt_rows),
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
@@ -705,6 +820,7 @@ def main():
 
     # ADR
     adr = calc_adr_gaps()
+    adr_bt = backtest_adr_follow()
 
     # 乖離の履歴を更新（今朝の観測を記録 + 過去分の答え合わせを埋める）
     hist = load_history()
@@ -726,7 +842,7 @@ def main():
         "spx_ret": spx_ret, "ndx_ret": ndx_ret,
         "fx_now": fx_now, "fx_chg": fx_chg,
         "theo_gap": theo_gap, "betas": betas,
-        "adr": adr,
+        "adr": adr, "adr_bt": adr_bt,
     }, hist)
 
     if "--nopush" in sys.argv:
