@@ -3,7 +3,10 @@
 S&P500 理論株価 自動記録 → HTML出力 → GitHub Pages公開
 
 データ源（3つ）:
-1. S&P500株価（日次）: https://nikkeiyosoku.com/spx/data/ のテーブル（日付/始値/高値/安値/終値）
+1. S&P500株価（日次）: yfinance ^GSPC
+   ※2026-09-02変更。旧データ源 nikkeiyosoku.com/spx/data/ はサイト改編で
+   NYダウのページに転用され（9/1にダウ終値52,766.88が混入する事故）、
+   S&P500時系列ページ自体が廃止されたため
 2. 予想PER（週次・金曜更新）: https://www.barrons.com/market-data/stocks/us/pe-yields
    「S&P 500 Index」行の Estimate^（Forward 12 months, Birinyi Associates）
 3. 予想EPS（週次）: https://stock-marketdata.com/eps-nasdaq.html
@@ -26,10 +29,9 @@ import subprocess
 import datetime
 
 import requests
+import yfinance as yf
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-PRICE_URL = "https://nikkeiyosoku.com/spx/data/"
 PER_URL = "https://www.barrons.com/market-data/stocks/us/pe-yields"
 EPS_URL = "https://stock-marketdata.com/eps-nasdaq.html"
 
@@ -108,19 +110,22 @@ def fetch_with_retry(url, tries=3, timeout=60, wait=30):
 # 1. S&P500株価（日次）
 # -----------------------------------------
 def fetch_prices():
-    """{日付ISO: 終値} 直近約1ヶ月分"""
-    html = fetch_with_retry(PRICE_URL)
+    """{日付ISO: 終値} 直近約2ヶ月分（yfinance ^GSPC）。
+    米国D日のセッションは日本時間D+1の朝5-6時に引けるため、
+    確定前（日本時間でD+1 6:15より前）の日付は記録しない
+    （場中に手動再実行しても未確定の終値が固定されないためのガード）"""
+    h = yf.Ticker("^GSPC").history(period="2mo")
+    if h is None or len(h) == 0:
+        raise ValueError("S&P500株価が取得できません（yfinance ^GSPC）")
+    h.index = h.index.tz_localize(None).normalize()
+    now = datetime.datetime.now()
     out = {}
-    # 行形式: <td>2026/07/17</td><td>7,447.52</td>...終値は5番目のセル
-    for m in re.finditer(
-            r'<td[^>]*>(\d{4}/\d{2}/\d{2})</td>\s*'
-            r'<td[^>]*>([\d,.]+)</td>\s*<td[^>]*>([\d,.]+)</td>\s*'
-            r'<td[^>]*>([\d,.]+)</td>\s*<td[^>]*>([\d,.]+)</td>', html):
-        d = m.group(1).replace('/', '-')
-        close = float(m.group(5).replace(',', ''))
-        out[d] = close
+    for d, close in h["Close"].items():
+        if now < d + datetime.timedelta(days=1, hours=6, minutes=15):
+            continue
+        out[d.strftime("%Y-%m-%d")] = round(float(close), 2)
     if not out:
-        raise ValueError("S&P500株価が取得できません（ページ構造変更の可能性）")
+        raise ValueError("S&P500株価が取得できません（確定済みデータなし）")
     return out
 
 
@@ -309,7 +314,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>S&P500 理論株価（予想PER・予想EPS）</h1>
-  <p class="subtitle">最終更新: {updated} | 株価: nikkeiyosoku.com / 予想PER: Barron's (Birinyi, 金曜更新) / 予想EPS: stock-marketdata.com</p>
+  <p class="subtitle">最終更新: {updated} | 株価: Yahoo Finance (^GSPC) / 予想PER: Barron's (Birinyi, 金曜更新) / 予想EPS: stock-marketdata.com</p>
   <div class="legend">
     <span class="chip" style="background:rgba(14,116,144,0.55); color:#a5f3fc">現値のすぐ下の理論株価</span>
     <span class="chip" style="background:rgba(190,60,60,0.4); color:#fecaca">現値のすぐ上の理論株価</span>
@@ -340,7 +345,7 @@ HTML_HEAD = """<!DOCTYPE html>
     ・理論株価 = 予想EPS × 各PER。現値を挟む2セルに色が付く（水色=すぐ下、薄赤=すぐ上）。<br>
     ・PER基準: 14.62=コロナショック底(2020/3/16)、16.37=ハイテク株底入れ(2022/10/10)、22.82=コロナ直前(2020/3/18)、24=かなり高い、26=過去最高水準。<br>
     ・予想PER(Barron's)と予想EPSは週1回（金曜）更新。平日は直近値を引き継ぐため、「PER:予想EPSから」と「予想PER」が一致するのは週次更新日のみ（黄色表示）。<br>
-    ・<a href="{price_url}" style="color:#60a5fa">S&P500株価</a> /
+    ・<a href="{price_url}" style="color:#60a5fa">S&P500株価 (Yahoo Finance ^GSPC)</a> /
     <a href="{per_url}" style="color:#60a5fa">Barron's P/E &amp; Yields</a> /
     <a href="{eps_url}" style="color:#60a5fa">stock-marketdata 予想EPS</a>
   </p>
@@ -423,7 +428,7 @@ def generate_html(hist):
         latest_date=dates[0].replace("-", "/") if dates else "-",
         theo_headers=theo_headers,
         rows="\n".join(rows),
-        price_url=PRICE_URL,
+        price_url="https://finance.yahoo.com/quote/%5EGSPC/",
         per_url=PER_URL,
         eps_url=EPS_URL,
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -482,12 +487,21 @@ def main():
     try:
         prices = fetch_prices()
         added = 0
-        for d, close in prices.items():
+        # 異常値ガード: 直近の既存値から15%超乖離する値は記録しない
+        # （データ源が壊れた場合の防波堤。2026-09-01のダウ混入事故の教訓）
+        known = [hist[k]["SP500"] for k in sorted(hist) if hist[k].get("SP500")]
+        ref = known[-1] if known else None
+        for d, close in sorted(prices.items()):
+            if ref and abs(close / ref - 1) > 0.15:
+                log(f"  異常値スキップ: {d} {close}（直近値 {ref} から15%超乖離）")
+                continue
             if d not in hist:
                 hist[d] = {"SP500": close}
                 added += 1
+                ref = close
             elif hist[d].get("SP500") is None:
                 hist[d]["SP500"] = close
+                ref = close
         log(f"株価: {len(prices)}日分取得（新規{added}日）")
     except Exception as e:
         errors.append(f"株価: {e}")
