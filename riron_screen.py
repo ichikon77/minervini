@@ -140,13 +140,38 @@ def fetch_daily():
     return out
 
 
-def fetch_ladder_price():
-    """2624の直近終値をyfinanceで取得（失敗したらNone: ラダー表はスキップ）"""
+def fetch_ladder_price(as_of=None):
+    """2624の終値をyfinanceで取得（失敗したらNone: ラダー表はスキップ）。
+    as_of(YYYY-MM-DD)を渡すと「その日以前の最新終値」を返す。
+    ラダーは 2624目安 = 2624現値 × (EPS×PER ÷ 日経現値) で計算するため、
+    2624と日経は必ず同じ日付の終値を組み合わせる必要がある。
+    （2026-09-02: 日経データ源が前日分のまま更新前だったのに2624だけ当日終値(-2.9%)を
+    使ったため、目安が全段約2%低く出た。翌日に正常化して「EPS↓なのに目安↑」に見えた）"""
     try:
         import yfinance as yf
-        h = yf.Ticker(LADDER_ETF).history(period="5d")["Close"]
-        if len(h):
-            return round(float(h.iloc[-1]), 1)
+        import pandas as pd
+        h = yf.Ticker(LADDER_ETF).history(period="10d")["Close"].dropna()
+        if not len(h):
+            return None
+        h.index = h.index.tz_localize(None).normalize()
+        if as_of:
+            d = pd.Timestamp(as_of)
+            if d in h.index:
+                return round(float(h.loc[d]), 1)
+            # Yahooは日本株の当日日足が夜間に一時的に欠けることがある → 60分足の最後で復元
+            try:
+                intr = yf.Ticker(LADDER_ETF).history(
+                    start=d, end=d + pd.Timedelta(days=1), interval="60m")["Close"].dropna()
+                if len(intr):
+                    log(f"  2624: {as_of}の日足欠損→60分足から終値復元")
+                    return round(float(intr.iloc[-1]), 1)
+            except Exception:
+                pass
+            h = h[h.index <= d]
+            if not len(h):
+                return None
+            log(f"  2624: {as_of}の終値が取れず{h.index[-1].date()}の終値で代用（目安が僅かにズレる）")
+        return round(float(h.iloc[-1]), 1)
     except Exception as e:
         log(f"  2624価格の取得失敗（ラダー表はスキップ）: {e}")
     return None
@@ -490,7 +515,7 @@ def generate_html(hist):
 
     # 2624買い下がりラダー表（最新日のEPS/日経現値から再計算）
     latest = hist[dates[0]]
-    ladder = build_ladder_html(latest["日経平均"], latest["EPS"], fetch_ladder_price())
+    ladder = build_ladder_html(latest["日経平均"], latest["EPS"], fetch_ladder_price(as_of=dates[0]))
 
     html = HTML_HEAD.format(
         latest_date=dates[0].replace("-", "/") if dates else "-",
