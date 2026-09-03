@@ -53,3 +53,6 @@ margin_mcap_cache.json
 !minervini_name_cache.json
 # 寄り前チェックの乖離履歴（答え合わせ検証用の蓄積データ）はバックアップのためpush
 !yorimae_history.json
+
+# 還流ウォッチの超長期入札キャッシュ（財務省33ヶ月分の巡回が重いためpushして共有）
+!kanryu_history.json
