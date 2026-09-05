@@ -10,6 +10,8 @@
 - 理論株価: EPS × PER(10.5〜21.0、0.5刻み22本)
 - 現在の日経平均に最も近い理論株価のセルをハイライト（いまのPER位置が分かる）
 - 最新が上。履歴は riron_history.json に蓄積
+- ドル円列（Yahoo JPY=X、riron_fx.json に蓄積）と3か月変化率: 為替→株価は即日、
+  為替→EPSは決算まで遅れるため、円安進行中はPERが見かけ上高く出る（2026-09-05追加）
 """
 
 import os
@@ -29,6 +31,16 @@ DATA_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/daily2.json"
 
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "riron_history.json")
 REPORT_HTML = "riron.html"
+
+# ドル円（為替とPERの時間差を見るための列。2026-09-05追加）
+#   円安はその日の株価に反映されるが、EPS（日経予想）は決算での業績修正まで動かない。
+#   → 円安進行中はPERが「見かけ上高く」、円高進行中は「見かけ上低く」出る。
+#   2026年の実例: 1〜5月にPER20超が48日続いたが、5月決算でEPSが+27%（2,920→3,699）に
+#   ジャンプしてPERは20.4→18.6へ。株価が先に走り、EPSが3か月遅れで追いついた。
+FX_JSON = os.path.join(SCRIPT_DIR, "riron_fx.json")
+FX_TICKER = "JPY=X"          # Yahoo Finance USD/JPY 日足終値
+FX_WINDOW = 63               # 3か月（営業日）変化率
+FX_HOT = 5.0                 # ±5%以上で色付け
 
 PBR_LEVELS = [0.87, 0.82]
 PER_LEVELS = [10.5 + 0.5 * i for i in range(22)]  # 10.5〜21.0
@@ -175,6 +187,50 @@ def fetch_ladder_price(as_of=None):
     except Exception as e:
         log(f"  2624価格の取得失敗（ラダー表はスキップ）: {e}")
     return None
+
+
+def load_fx(dates):
+    """ドル円の日足終値を取得し {日経の日付: レート} を返す（riron_fx.jsonに蓄積）。
+    ・初回は2009年から全期間、以降は直近20日だけ取り直してマージ（当日バーは実行時点の
+      進行中レートなので、翌日以降の再取得で確定値に置き換わる）
+    ・為替と株式で休場日が違うため、日経の各日付には「その日以前の最新レート」を対応させる
+    ・取得失敗時はキャッシュだけで組み立てる（列が空欄になるだけでページは出る）"""
+    cache = {}
+    if os.path.exists(FX_JSON):
+        try:
+            with open(FX_JSON, encoding="utf-8") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+    try:
+        import yfinance as yf
+        if cache:
+            start = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
+        else:
+            start = "2009-01-01"
+        h = yf.Ticker(FX_TICKER).history(start=start, auto_adjust=False)["Close"].dropna()
+        if len(h):
+            h.index = h.index.tz_localize(None).normalize()
+            for ts, v in h.items():
+                cache[ts.date().isoformat()] = round(float(v), 3)
+            with open(FX_JSON, "w", encoding="utf-8") as f:
+                json.dump(dict(sorted(cache.items())), f)
+            log(f"  ドル円: {len(h)}日分取得（キャッシュ計{len(cache)}日、最新 {max(cache)} = {cache[max(cache)]}）")
+        else:
+            log("  ドル円: 新規データなし（キャッシュ使用）")
+    except Exception as e:
+        log(f"  ドル円の取得失敗（キャッシュ{len(cache)}日で継続）: {e}")
+    if not cache:
+        return {}
+    fx_dates = sorted(cache)
+    out = {}
+    j = 0
+    for d in sorted(dates):
+        while j + 1 < len(fx_dates) and fx_dates[j + 1] <= d:
+            j += 1
+        if fx_dates[j] <= d:
+            out[d] = cache[fx_dates[j]]
+    return out
 
 
 def build_ladder_html(nikkei, eps, etf_price):
@@ -376,6 +432,8 @@ HTML_HEAD = """<!DOCTYPE html>
     <span class="chip" style="background:rgba(190,60,60,0.4); color:#fecaca">現値のすぐ上の理論株価</span>
     <span>この2セルの間に現在の日経平均がいる</span>
     <span class="chip" style="color:#7dd3fc">理論PBR = 過去の底値PBR水準（BPS×0.87 / ×0.82）</span>
+    <span class="chip" style="background:rgba(190,60,60,0.28); color:#fecaca">ドル円3M ≧+5% 円安進行＝EPS上方修正待ち→PERは見かけ上高い</span>
+    <span class="chip" style="background:rgba(14,116,144,0.3); color:#a5f3fc">ドル円3M ≦−5% 円高進行＝EPS下方修正待ち→PERは見かけ上低い</span>
   </div>
   <div class="table-wrap">
   <table>
@@ -384,7 +442,9 @@ HTML_HEAD = """<!DOCTYPE html>
         <th>日付</th>
         <th>日経平均</th>
         <th>前日差</th>
-        <th>PER</th>
+        <th class="sep" title="Yahoo Finance USD/JPY 日足終値">ドル円</th>
+        <th title="63営業日（約3か月）前からのドル円変化率。＋は円安進行、−は円高進行">ドル円3M</th>
+        <th class="sep">PER</th>
         <th>PBR</th>
         <th>EPS</th>
         <th>ROE</th>
@@ -417,6 +477,12 @@ HTML_HEAD = """<!DOCTYPE html>
     ・理論株価 = EPS × 各PER。現在の日経平均がどのPER水準にいるか、青いセルの位置で分かる。<br>
     ・理論PBR = BPS × 0.87 / 0.82（過去の暴落時に底となったPBR水準。ここまで下がると歴史的底値圏）。<br>
     ・ROE = PBR ÷ PER（暗黙ROE）。日経平均全体の「稼ぐ力」。2009年3%台→2010年代8%前後→2026年10%超と構造的に上昇。PBRの高さが正当化されるかはROE次第で、ROEが崩れる兆候が出たら高PBRは警戒。<br>
+    <br>
+    <b style="color:#94a3b8">【為替とPERの時間差】</b><br>
+    ・<b>ドル円は株価にはその日に反映されるが、EPSには次の決算まで反映されない</b>。EPS（日経予想）は各社が決算時に置いた前提レートで計算されているため、円安が進んだ分は次の決算（特に5月本決算）で上方修正としてまとめて出る。逆に円高が進むと、株価は先に下がりEPSは据え置きなので<b>PERが一時的に「割安に見える」罠</b>になる。<br>
+    ・<b>2026年の実例</b>: 1〜5月にPER20超が48日続いた（EPS 2,650〜2,900円、ドル円は前年比で約15円の円安）。5月本決算でEPSが4月末2,920円→5月末3,699円と<b>+27%ジャンプ</b>し、日経平均が59,000→66,000円に上がったのにPERは20.4→18.6へ低下。株価が先に走り、EPSが3か月遅れで追いついた形。ただし為替で説明できるのは1円≒利益0.4〜0.5%として+7〜8%程度で、残りは来期予想への切替・半導体/AI・値上げの実力分。<br>
+    ・<b>季節性</b>: 市場は年明けから来期利益で株価を付け始めるが日経の予想EPSが来期に切り替わるのは5月。このため2013〜2025年平均でPERは11〜4月が年平均より+0.2〜0.5高く、6〜8月は−0.5低い。<b>2月のPER20と7月のPER20は同じ意味ではない</b>。<br>
+    ・<b>読み方</b>: ドル円3Mが赤（円安進行）でPERが高いときは「EPSが追いつく前の見かけ高」の可能性を考える。青（円高進行）でPERが低いときは「EPS下方修正前の見かけ安」を疑う。PER20超が起きるルートは「株価の先回り（2013・2026年型）」と「EPS崩壊で分母縮小（2020年型）」の2つで、円高＋景気悪化なら後者で普通に起きる。<br>
     ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 日経平均PER</a>
   </p>
 {ladder}
@@ -452,8 +518,30 @@ def pbr_class(v):
     return ""
 
 
-def generate_html(hist):
+def fx_cells(d, dates_asc, idx, fx):
+    """ドル円と3か月変化率の2セル。fxが無い日は空欄"""
+    v = fx.get(d)
+    if v is None:
+        return '<td class="sep">-</td><td>-</td>'
+    chg_s = "-"
+    attr = ""
+    if idx >= FX_WINDOW:
+        base = fx.get(dates_asc[idx - FX_WINDOW])
+        if base:
+            chg = (v / base - 1) * 100
+            if chg >= FX_HOT:
+                attr = ' class="hot" title="円安進行: EPS上方修正待ち → PERは見かけ上高く出やすい"'
+            elif chg <= -FX_HOT:
+                attr = ' class="cheap" title="円高進行: EPS下方修正待ち → PERは見かけ上低く出やすい"'
+            chg_s = f"{chg:+.1f}%"
+    return f'<td class="sep">{v:.2f}</td><td{attr}>{chg_s}</td>'
+
+
+def generate_html(hist, fx=None):
+    fx = fx or {}
     dates = sorted(hist.keys(), reverse=True)  # 最新が上
+    dates_asc = dates[::-1]
+    pos = {d: i for i, d in enumerate(dates_asc)}
 
     sep_attr = ' class="sep"'
     per_headers = "\n".join(
@@ -493,7 +581,8 @@ def generate_html(hist):
         cells = [f'<td>{d.replace("-", "/")}</td>',
                  f'<td{nikkei_attr}>{nikkei:,.2f}</td>',
                  f'<td>{diff_s}</td>',
-                 f'<td{per_class(r["PER"])}>{r["PER"]:.2f}</td>',
+                 fx_cells(d, dates_asc, pos[d], fx),
+                 f'<td class="sep{per_class(r["PER"]).replace(" class=", " ").replace(chr(34), "")}">{r["PER"]:.2f}</td>',
                  f'<td{pbr_class(r["PBR"])}>{r["PBR"]:.2f}</td>',
                  f'<td>{eps:,.2f}</td>',
                  f'<td class="roe">{r["PBR"] / r["PER"] * 100:.1f}%</td>',
@@ -540,7 +629,7 @@ def push_to_github():
     log("GitHub Pages に公開中...")
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
-                    os.path.basename(HISTORY_JSON), ".gitignore",
+                    os.path.basename(HISTORY_JSON), os.path.basename(FX_JSON), ".gitignore",
                     "riron_screen.py", "riron_run.bat"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update riron report " + today],
@@ -599,7 +688,8 @@ def main():
     if not hist:
         return
 
-    generate_html(hist)
+    fx = load_fx(hist.keys())
+    generate_html(hist, fx)
 
     if "--nopush" in sys.argv:
         log("--nopush 指定のため git push はスキップ")
