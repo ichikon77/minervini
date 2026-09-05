@@ -112,6 +112,7 @@ INDEX_EVENTS = [
 
 # リスト残数がこの日数を切ったらログで警告
 WARN_DAYS = 45
+PAST_DAYS = 10   # 終わったイベントをこの日数だけグレーアウトで残す（「カレンダーに載っていたか」の確認用）
 
 
 def log(msg):
@@ -168,81 +169,82 @@ def us_triple_witching(start, months=14):
 # イベント一覧の構築
 # =========================================================
 def build_events(today):
-    """(date, 国旗, 名称, 補足, リンクhtml, 強調) のリスト（未来分のみ・日付順）"""
+    """(date, 国旗, 名称, 補足, リンクhtml, 強調) のリスト（過去PAST_DAYS日〜未来・日付順）"""
     ev = []
+    since = today - datetime.timedelta(days=PAST_DAYS)
 
     def link(href, label):
         return f'<a href="{href}">{label}</a>'
 
     for s in FOMC_DATES:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇺🇸", "FOMC（結果発表）",
                        "日本時間 翌日早朝", link("fedwatch.html", "FRB利上げ確率"), True))
 
     for s in BOJ_DATES:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇯🇵", "日銀金融政策決定会合（結果発表）",
                        "昼頃発表・総裁会見15:30", link("totan.html", "日銀利上げ確率"), True))
 
-    for d, kind, major in jp_sq_dates(today):
+    for d, kind, major in jp_sq_dates(since):
         ev.append((d, "🇯🇵", ("⚡ " if major else "") + kind,
                    "先物・オプション清算" if major else "オプション清算",
                    link("saitei.html", "裁定取引"), major))
 
-    for d in us_triple_witching(today):
+    for d in us_triple_witching(since):
         ev.append((d, "🇺🇸", "⚡ トリプルウィッチング",
                    "指数先物・指数OP・個別OP同時満期", "", True))
 
     for s, ticker, name in EARNINGS:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇺🇸", name, f"{ticker}・引け後発表（日本時間 翌朝）",
                        link("flow.html", "資金フロー"), False))
 
     for s, ticker, name in KR_EARNINGS:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇰🇷", name, f"{ticker}・日本の場中に発表。半導体市況の先行指標",
                        link("flow.html", "資金フロー"), False))
 
     for s in EMPLOYMENT_DATES:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇺🇸", "米雇用統計",
                        "日本時間 21:30/22:30", link("fedwatch.html", "FRB利上げ確率"), False))
 
     for s in CPI_DATES:
         d = datetime.date.fromisoformat(s)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇺🇸", "米CPI",
                        "日本時間 21:30/22:30", link("fedwatch.html", "FRB利上げ確率"), False))
 
     for start_s, end_s in MERCURY_RETRO:
         start = datetime.date.fromisoformat(start_s)
         end = datetime.date.fromisoformat(end_s)
-        if start >= today:
+        if start >= since:
             ev.append((start, "☿", "水星逆行 開始",
                        f"{end.month}/{end.day}まで", "", False))
-        if end >= today:
-            note = "進行中→" if start < today else ""
+        if end >= since:
+            note = "進行中→" if start < today <= end else ""
             ev.append((end, "☿", "水星逆行 終了", note + "順行に戻る", "", False))
 
     for ds, name in US_HOLIDAYS:
         d = datetime.date.fromisoformat(ds)
-        if d >= today:
+        if d >= since:
             ev.append((d, "🇺🇸", f"米国市場 休場（{name}）",
                        "NY市場クローズ。日本は通常取引だが薄商い", "", False))
 
     for ds, name, note in ELECTION_DATES:
         d = datetime.date.fromisoformat(ds)
-        if d >= today:
+        if d >= since:
             ev.append((d, "", name, note, "", True))
 
     for ds, flag, name, note in INDEX_EVENTS:
         d = datetime.date.fromisoformat(ds)
-        if d >= today:
+        if d >= since:
             ev.append((d, flag, name, note, "", False))
 
     ev.sort(key=lambda x: x[0])
@@ -307,6 +309,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   tr.ghead:hover td {{ background: #1e293b; }}
   tr.soon td {{ background: rgba(30,64,175,0.18); }}
   tr.today td {{ background: rgba(251,191,36,0.18); font-weight: 700; }}
+  tr.past td {{ color: #475569; }}
+  tr.past td.event, tr.past td.event.big {{ color: #475569; font-weight: 500; }}
+  tr.past td.detail {{ color: #334155; }}
+  tr.past td.deck a {{ color: #475569; }}
+  tr.past:hover td {{ background: #131c30; }}
   td.days {{ color: #94a3b8; text-align: right; }}
   td.days.near {{ color: #fbbf24; font-weight: 700; }}
   td.event {{ font-weight: 600; }}
@@ -363,6 +370,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   <p class="note">
+    ・終わったイベントは{past_days}日間グレーで残す（「あのイベントは予定に入っていたか」の振り返り用）。それ以降は消える。<br>
     ・SQ=毎月第2金曜（3/6/9/12月は⚡メジャーSQ=先物+オプション同時清算）。米⚡トリプルウィッチング=3/6/9/12月の第3金曜。いずれもルールから自動計算。<br>
     ・☿水星逆行はアノマリー参考（相場の乱れ・急変が多いとされる期間）。出所: Old Farmer's Almanac。<br>
     ・FOMC/日銀会合/決算/米指標の日程は公表分を手動管理（新日程の公表時に追記。残り{warn_days}日を切るとログに警告）。<br>
@@ -394,16 +402,22 @@ def generate_html(events, today):
 
     shown = 0
     for d, flag, name, detail, deck, big in events:
-        if shown >= 40:
+        delta = (d - today).days
+        past = delta < 0
+        if not past and shown >= 40:
             break
-        g = group_of(d)
+        g = f"過去{PAST_DAYS}日（終了）" if past else group_of(d)
         if g != current_group:
             rows.append(f'      <tr class="ghead"><td colspan="5">【{g}】</td></tr>')
             current_group = g
-        delta = (d - today).days
-        days_txt = "今日" if delta == 0 else f"{delta}日"
-        tr_cls = ' class="today"' if delta == 0 else (' class="soon"' if delta <= 3 else "")
-        days_cls = ' class="days near"' if delta <= 3 else ' class="days"'
+        if past:
+            days_txt = f"{-delta}日前"
+            tr_cls = ' class="past"'
+            days_cls = ' class="days"'
+        else:
+            days_txt = "今日" if delta == 0 else f"{delta}日"
+            tr_cls = ' class="today"' if delta == 0 else (' class="soon"' if delta <= 3 else "")
+            days_cls = ' class="days near"' if delta <= 3 else ' class="days"'
         ev_cls = ' class="event big"' if big else ' class="event"'
         wd = WEEKDAYS_JP[d.weekday()]
         rows.append(
@@ -412,13 +426,15 @@ def generate_html(events, today):
             f"<td{ev_cls}>{flag} {name}</td>"
             f'<td class="detail">{detail}</td>'
             f'<td class="deck">{deck}</td></tr>')
-        shown += 1
+        if not past:
+            shown += 1
 
     html = HTML_TEMPLATE.format(
         updated_date=today.isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         rows="\n".join(rows),
         warn_days=WARN_DAYS,
+        past_days=PAST_DAYS,
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
@@ -469,7 +485,9 @@ def main():
 
     check_list_freshness(today)
     events = build_events(today)
-    log(f"未来のイベント: {len(events)}件（直近: {events[0][0]} {events[0][2]}）" if events else "イベントなし")
+    future = [e for e in events if e[0] >= today]
+    log(f"イベント: 未来{len(future)}件・過去{PAST_DAYS}日{len(events) - len(future)}件"
+        + (f"（直近: {future[0][0]} {future[0][2]}）" if future else ""))
 
     generate_html(events, today)
 
