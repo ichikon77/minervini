@@ -162,17 +162,122 @@ def update_history(hist, today, rec, adr_rows=None):
         }
 
 
+def finalize_days(hist):
+    """過去日のOHLCを日足の確定値で上書きする（15:45の5分足ベースの終値は暫定。Yahooは翌日以降に値を改定することもある）"""
+    today = pd.Timestamp(datetime.date.today())
+    targets = [k for k, v in hist["days"].items() if "close" in v and not v.get("final") and pd.Timestamp(k) < today]
+    if not targets:
+        return
+    try:
+        d = yf.Ticker("^N225").history(period="3mo")
+        d = d.set_axis(d.index.tz_localize(None).normalize())
+    except Exception:
+        return
+    for k in targets:
+        ts = pd.Timestamp(k)
+        if ts not in d.index:
+            continue
+        row = d.loc[ts]
+        newc = round(float(row["Close"]), 1)
+        oldc = hist["days"][k]["close"]
+        if abs(newc / oldc - 1) > 0.015:
+            # 日中足ベースの終値と1.5%以上違う日足は疑わしい（Yahooの異常行）→ 採用せず次回に再確認
+            log(f"  {k}: 日足の終値 {newc:,.0f} が記録 {oldc:,.0f} と大きく違うため保留（Yahooの異常値の可能性）")
+            continue
+        if abs(newc - oldc) >= 0.5:
+            log(f"  {k}: 終値を日足の確定値に更新 {oldc:,.0f} → {newc:,.0f}")
+        hist["days"][k].update({"open": round(float(row["Open"]), 1), "high": round(float(row["High"]), 1),
+                                "low": round(float(row["Low"]), 1), "close": newc, "final": True})
+
+
+def reanchor_futures(hist):
+    """過去の②を「6:00直前の5分足バー」に揃える（旧方式は実行時刻の最新値を取っていて、遅延データで数百円ズレる日があった）。
+    5分足は約1ヶ月分しか取れないので、取れる範囲だけ直し fut_anchored=True を付ける"""
+    targets = [k for k, v in hist["days"].items() if v.get("fut") and not v.get("fut_anchored")]
+    if not targets:
+        return
+    try:
+        h = yf.Ticker("NIY=F").history(period="1mo", interval="5m")
+        if h.empty:
+            return
+        h = h.set_axis(h.index.tz_convert("Asia/Tokyo"))["Close"].dropna()
+    except Exception:
+        return
+    jst = datetime.timezone(datetime.timedelta(hours=9))
+    for k in targets:
+        d = datetime.date.fromisoformat(k)
+        anchor = datetime.datetime.combine(d, ANCHOR, tzinfo=jst)
+        x = h[(h.index < anchor) & (h.index > anchor - datetime.timedelta(days=3))]   # 月曜は土曜6:00のバー（金曜夜間の終値）
+        if x.empty:
+            continue
+        newf = float(x.iloc[-1])
+        r = hist["days"][k]
+        if abs(newf - r["fut"]) >= 5:
+            log(f"  {k}: ②夜間先物を6:00のバーに再固定 {r['fut']:,.0f} → {newf:,.0f}（{x.index[-1]:%m/%d %H:%M}）")
+        r["fut"] = newf
+        r["obs_time"] = "6:00"
+        if r.get("prev_close"):
+            r["gap"] = round((newf / r["prev_close"] - 1) * 100, 3)
+            if r.get("theo") is not None:
+                r["dev"] = round(r["gap"] - r["theo"], 3)
+        r["fut_anchored"] = True
+
+
+def recompute_theo(hist, betas):
+    """過去の⑧理論値を、その日の材料（前日までの米株日足・6:00のドル円）から作り直す。
+    旧方式は実行時刻の最新値を使っていて、米株日足が未更新の朝に前日と同じ理論値になる事故があった（8/28と8/31が同値）"""
+    if not betas:
+        return
+    targets = [k for k, v in hist["days"].items() if v.get("gap") is not None and not v.get("theo_recomputed")]
+    if not targets:
+        return
+    try:
+        spx = daily_closes("^GSPC", period="3mo")
+        ndx = daily_closes("^IXIC", period="3mo")
+        fxd = daily_closes("JPY=X", period="3mo")
+        fx5 = yf.Ticker("JPY=X").history(period="1mo", interval="5m")
+        fx5 = fx5.set_axis(fx5.index.tz_convert("Asia/Tokyo"))["Close"].dropna() if not fx5.empty else fx5
+    except Exception:
+        return
+    jst = datetime.timezone(datetime.timedelta(hours=9))
+    b1, b2 = betas[0], betas[1]
+    for k in targets:
+        d = datetime.date.fromisoformat(k)
+        r = hist["days"][k]
+        s_ = spx[spx.index.date < d]
+        n_ = ndx[ndx.index.date < d]
+        f_ = fxd[fxd.index.date < d]
+        if len(s_) < 2 or len(f_) < 1:
+            continue
+        anchor = datetime.datetime.combine(d, ANCHOR, tzinfo=jst)
+        x = fx5[(fx5.index < anchor) & (fx5.index > anchor - datetime.timedelta(days=3))] if len(fx5) else fx5
+        if x.empty:
+            continue
+        spx_ret = float((s_.iloc[-1] / s_.iloc[-2] - 1) * 100)
+        ndx_ret = float((n_.iloc[-1] / n_.iloc[-2] - 1) * 100) if len(n_) >= 2 else None
+        fx_now = float(x.iloc[-1])
+        fx_chg = (fx_now / float(f_.iloc[-1]) - 1) * 100
+        theo = round(b1 * spx_ret + b2 * fx_chg, 3)
+        if r.get("theo") is None or abs(theo - r["theo"]) >= 0.05:
+            log(f"  {k}: ⑧理論値を材料から再計算 {r.get('theo')} → {theo}（S&P500 {spx_ret:+.2f}% / ドル円 {fx_chg:+.2f}%）")
+        r.update({"theo": theo, "spx_ret": spx_ret, "ndx_ret": ndx_ret, "fx_now": fx_now, "fx_chg": fx_chg,
+                  "dev": round(r["gap"] - theo, 3), "theo_recomputed": True})
+
+
 def repair_stale_prev(hist):
-    """過去の記録で「前日終値が一つ前の記録と同じ値」= 日足欠損で古い終値を掴んだ日を検出し、
-    前の記録の実際の終値（backfill済みの close）で前日終値・ギャップ・乖離を作り直す。
-    （2026-08-31, 09-01 がこのパターン。以後は main 側のフォールバックで発生しないはずだが、保険として残す）"""
+    """各日の①前日終値を「前の記録の④終値」と突き合わせ、ズレていれば作り直す。
+    ケース1: 日足欠損で一つ前の終値を掴んだ（2026-08-31, 09-01）。ケース2: Yahooが終値を後日改定した。
+    どちらも ①→⑤⑨ が連鎖して変わるので、前日終値・ギャップ・乖離を再計算し repaired=True を付ける"""
     keys = sorted(hist["days"])
-    orig_prev = {k: hist["days"][k].get("prev_close") for k in keys}   # 修正前の値で判定（連鎖検出のため）
     for prev_k, k in zip(keys, keys[1:]):
         p, r = hist["days"][prev_k], hist["days"][k]
-        if r.get("repaired") or "close" not in p or not orig_prev[k] or not orig_prev[prev_k]:
+        if "close" not in p or not r.get("prev_close"):
             continue
-        if abs(orig_prev[k] - orig_prev[prev_k]) < 0.5 and abs(p["close"] - orig_prev[k]) >= 0.5:
+        # 前の記録が「直前の営業日」でなければ比較しない（祝日を挟む等）
+        gap_days = (datetime.date.fromisoformat(k) - datetime.date.fromisoformat(prev_k)).days
+        if gap_days > 4:
+            continue
+        if abs(p["close"] - r["prev_close"]) >= 0.5:
             old = r["prev_close"]
             r["prev_close"] = p["close"]
             if r.get("fut"):
@@ -180,7 +285,8 @@ def repair_stale_prev(hist):
                 if r.get("theo") is not None:
                     r["dev"] = round(r["gap"] - r["theo"], 3)
             r["repaired"] = True
-            log(f"  {k}: 前日終値が古い値({old:,.0f})だったため {p['close']:,.0f} に修正（ギャップ {r.get('gap')}% / 乖離 {r.get('dev')}%）")
+            r.pop("adr_repaired", None)     # ADR側の前日終値も作り直す
+            log(f"  {k}: ①前日終値を前日の確定終値に合わせて修正 {old:,.0f} → {p['close']:,.0f}（⑤ {r.get('gap')}% / ⑨ {r.get('dev')}%）")
 
 
 def backfill_answers(hist):
@@ -261,7 +367,7 @@ def backfill_adr_answers(hist):
                 pos = idx.index(d)
                 # 前日終値が古い値だった日（日足欠損）は、ADR側の「東京前日終値」も古い。
                 # 記録済みのギャップから円換算値を復元し、正しい前日終値で作り直す
-                if v.get("repaired") and not s.get("repaired") and pos >= 1 and s.get("prev"):
+                if v.get("repaired") and pos >= 1 and s.get("prev"):
                     true_prev = float(df["Close"].iloc[pos - 1])
                     if abs(true_prev - s["prev"]) >= 0.5:
                         implied = s["prev"] * (1 + s["gap"] / 100)
@@ -334,7 +440,7 @@ def classify_dev(dev):
 
 
 # 答え合わせ表の列番号（①〜⑬）。前提の4つの値から他の全列が式で決まる（MECE）
-#   前提:   ①前日終値 ②7:15の先物 ③当日始値 ④当日終値
+#   前提:   ①前日終値 ②夜間先物の終値(6:00) ③当日始値 ④当日終値
 #   問い1:  ⑤夜間先物ギャップ=②/①-1  ⑥実際の寄り付きギャップ=③/①-1  ⑦寄りまでの変化=⑥-⑤
 #   問い2:  ⑧理論値  ⑨乖離=⑤-⑧  ⑩判定（|⑨|≤0.5%で青、超で赤）
 #   問い3:  ⑪寄り時点の乖離=⑥-⑧  ⑫引け時点の乖離=(④/①-1)-⑧  ⑬判定=⑫÷⑨（残り率）
@@ -396,12 +502,12 @@ def build_qbox(hist):
     if n_all == 0:
         return '  <div class="qbox"><div class="q"><div class="qt">成績</div><div class="qs">蓄積中（翌朝から採点が始まります）</div></div></div>'
     caveat = "（サンプル少・傾向の目安）" if n_all < 20 else ""
-    q1 = (f'<div class="q"><div class="qt">問い1 7:15の夜間先物ギャップ⑤は、寄り付き⑥を当てたか</div>'
+    q1 = (f'<div class="q"><div class="qt">問い1 夜間先物ギャップ⑤（6:00時点）は、寄り付き⑥を当てたか</div>'
           f'<div class="qv">平均誤差 {sum(errs)/len(errs):.2f}%</div>'
           f'<div class="qs">N={n_all}。|⑦寄りまでの変化| の平均。'
           + (f'方向一致 {sum(same_dir)/len(same_dir)*100:.0f}%（|⑤|≥0.2%の{len(same_dir)}日）' if same_dir else "")
           + f'{caveat}</div></div>')
-    q2 = (f'<div class="q"><div class="qt">問い2-a 7:15時点で日本固有要因（赤）があった頻度</div>'
+    q2 = (f'<div class="q"><div class="qt">問い2-a 6:00時点で日本固有要因（赤）があった頻度</div>'
           f'<div class="qv">{n_red}/{n_all}日</div>'
           f'<div class="qs">日本固有要因：買い {n_buy}日・売り {n_sell}日・理論通り {n_all - n_red}日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div>')
     n_dec = sum(pat.values())
@@ -417,7 +523,7 @@ def build_qbox(hist):
         expand_s = f'　赤の朝のうち寄りで拡大 {n_open_expand}日。' if n_open_expand else ""
         q3 = (f'<div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div>'
               f'<div class="qv">赤→青 埋まった {pat["filled"]} ／ 赤→赤 残った {pat["remained"] + pat["reversed"]} ／ 青→赤 日中に発生 {pat["emerged"]} ／ 青→青 {pat["theory"]}</div>'
-              f'<div class="qs">⑩（7:15）→⑬（15:30）の組み合わせ。N={n_dec}。{expand_s}'
+              f'<div class="qs">⑩（6:00）→⑬（15:30）の組み合わせ。N={n_dec}。{expand_s}'
               f'<br>{verdict}{caveat}</div></div>')
     else:
         q3 = '<div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div><div class="qs">採点がまだ無い</div></div>'
@@ -703,15 +809,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: {updated}（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）{holiday_note}</p>
+  <p class="subtitle">最終更新: {updated} | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）{holiday_note}</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
-    <b class="num">⑤ 夜間先物ギャップ</b>（②7:15の先物 − ①前日終値）＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
+    <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ①前日終値）＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
     <b class="num">⑨ 乖離</b>（⑤ − ⑧理論値）＝ ⑤のうち<b>米株とドル円で説明できなかった分</b>。
     ⑧理論値は「米株とドル円だけ見たら本来こう動くはず」という計算値。
     ⑩判定: |⑨|が{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因：買い／売り（赤）</span>＝夜のうちに日本株に固有の買い（上振れ）/売り（下振れ）が入った。<br>
     <b class="num">ADRギャップ</b> ＝ 個別銘柄の寄り付き目安。プラス＝米国市場で東京終値より高く買われた。<br>
-    <span style="color:#94a3b8">翌朝、③当日始値・④当日終値が出たら採点 → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行（③以降は明朝埋まる）。</span>
+    <span style="color:#94a3b8">9:30の更新で③当日始値（⑥⑦⑪）、15:45の更新で④当日終値（⑫⑬）が埋まり、その日のうちに採点が終わる → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行。</span>
   </div>
 {cards}
   <h2>ADRギャップ（米国終値の円換算 vs 東京前日終値）— 個別銘柄の寄り付き目安</h2>
@@ -750,11 +856,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <h2>答え合わせ（履歴）— 前提の4つの値①〜④から、2つの問いを採点する</h2>
   <div class="evidence">
-    毎朝7:15に出した数字を、その日の実際の値動きで翌朝に採点する。列番号①〜⑬は上のカードと共通。<br>
-    <b class="num">前提</b> ①前日終値 ②7:15の先物 ③当日始値 ④当日終値 — この4つの値から下の全列が式で決まる。<br>
-    <b class="num">問い1</b> 夜間先物ギャップ⑤は、実際の寄り付き⑥をどれだけ当てたか（⑦＝7:15〜9:00の間に動いた分）。<br>
+    毎朝7:15に出した数字を、9:30（始値）と15:45（終値）の更新でその日のうちに採点する。列番号①〜⑬は上のカードと共通。<br>
+    <b class="num">前提</b> ①前日終値 ②夜間先物の終値（6:00） ③当日始値 ④当日終値 — この4つの値から下の全列が式で決まる。<br>
+    <b class="num">問い1</b> 夜間先物ギャップ⑤は、実際の寄り付き⑥をどれだけ当てたか（⑦＝6:00〜9:00の間に動いた分）。<br>
     <b class="num">問い2</b> ⑤のうち米株とドル円で説明できない分＝乖離は、引けまでに埋まったか。
-    まず7:15時点の乖離⑨（=⑤−⑧理論値）が±{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因（赤）</span>（⑩）。
+    まず6:00時点の乖離⑨（=⑤−⑧理論値）が±{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因（赤）</span>（⑩）。
     赤の朝は、その乖離を9:00時点⑪→15:30時点⑫まで追い、引けまでに埋まればノイズ（需給）、残れば本物の材料（⑬）。
     埋まる日が多ければ「赤の朝は寄りで飛びつかず戻りを待つ」、残る日が多ければ「赤は順張り」という実務ルールに昇格できる。
   </div>
@@ -762,15 +868,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="table-wrap" style="max-width:none">
   <table class="compact">
     <thead>
-      <tr><th></th><th class="grp sep" colspan="4">前提（円）</th><th class="grp sep" colspan="3">問い1 7:15の夜間先物ギャップは、寄り付きを当てたか</th><th class="grp sep" colspan="6">問い2 理論値との乖離は、引けまでに埋まったか（⑨7:15 → ⑪9:00 → ⑫15:30）</th></tr>
+      <tr><th></th><th class="grp sep" colspan="4">前提（円）</th><th class="grp sep" colspan="3">問い1 夜間先物ギャップ（6:00）は、寄り付きを当てたか</th><th class="grp sep" colspan="6">問い2 理論値との乖離は、引けまでに埋まったか（⑨6:00 → ⑪9:00 → ⑫15:30）</th></tr>
       <tr><th>日付</th>
-        <th class="sep">①前日終値</th><th>②7:15先物</th><th>③当日始値</th><th>④当日終値</th>
+        <th class="sep">①前日終値</th><th>②夜間先物終値<br><span style="font-weight:normal">（6:00）</span></th><th>③当日始値</th><th>④当日終値</th>
         <th class="sep">⑤夜間先物ギャップ<br><span style="font-weight:normal">（②−①）</span></th>
         <th>⑥実際の寄り付きギャップ<br><span style="font-weight:normal">（③−①）</span></th>
         <th>⑦寄りまでの変化<br><span style="font-weight:normal">（⑥−⑤）</span></th>
         <th class="sep">⑧理論値<br><span style="font-weight:normal">（米株・ドル円から）</span></th>
-        <th>⑨乖離（7:15時点）<br><span style="font-weight:normal">（⑤−⑧）</span></th>
-        <th>⑩判定（7:15時点）<br><span style="font-weight:normal">（|⑨|と{dev_th}%・暫定）</span></th>
+        <th>⑨乖離（6:00時点）<br><span style="font-weight:normal">（⑤−⑧）</span></th>
+        <th>⑩判定（6:00時点）<br><span style="font-weight:normal">（|⑨|と{dev_th}%・暫定）</span></th>
         <th class="sep">⑪乖離（9:00時点）<br><span style="font-weight:normal">（⑥−⑧）</span></th>
         <th>⑫乖離（15:30時点）<br><span style="font-weight:normal">（④−①−⑧）</span></th>
         <th>⑬判定（15:30時点）<br><span style="font-weight:normal">（|⑫|と{dev_th}%・⑩→⑬）</span></th></tr>
@@ -782,11 +888,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <p class="note" style="margin-top:8px">
     ・%の列はすべて「①前日終値に対する%」。②〜④は円。<br>
-    ・<b>②7:15の先物</b>＝CME日経先物の7:15時点の値。CME先物は日本時間6:00〜7:00の休憩を挟んでほぼ24時間取引のため、夜間の最終値とほぼ同じ（大証ナイトセッション終値と同水準）。<br>
-    ・<b>⑦寄りまでの変化</b>が大きい日は、7:15以降のニュースか寄り付きの板の偏り。<br>
+    ・<b>②夜間先物の終値</b>＝CME日経先物の6:00（日本時間）のバーの終値。CME先物は6:00〜7:00に休憩、大証ナイトセッションも6:00終了なので「夜間の終値」に相当。7:15の実行時刻ではなく6:00の値を取るため、PCの起動が遅れて8:50や10:00に走っても同じ値になる。<br>
+    ・<b>⑦寄りまでの変化</b>が大きい日は、6:00以降のニュース（7:00〜の先物再開・8:50の国内指標など）か寄り付きの板の偏り。<br>
     ・<b>⑧理論値</b>＝「米株とドル円だけを見たら本来こう動くはず」の値。b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰、ページ最下部に表示）。<br>
-    ・<b>問い2の⑨⑪⑫</b>は同じ「乖離＝理論値との差」を3つの時点で追う: ⑨7:15時点 → ⑪9:00時点（寄り） → ⑫15:30時点（引け）。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。<br>
-    ・<b>⑩と⑬</b>は同じ物差し: 乖離の絶対値が{dev_th}%以内なら<span class="ok">理論通り</span>、超えたら<span class="warn">日本固有要因：買い/売り</span>。⑩は⑨（7:15時点）に、⑬は⑫（15:30時点）に当てる。
+    ・<b>問い2の⑨⑪⑫</b>は同じ「乖離＝理論値との差」を3つの時点で追う: ⑨6:00時点（夜間終値） → ⑪9:00時点（寄り） → ⑫15:30時点（引け）。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。<br>
+    ・<b>⑩と⑬</b>は同じ物差し: 乖離の絶対値が{dev_th}%以内なら<span class="ok">理論通り</span>、超えたら<span class="warn">日本固有要因：買い/売り</span>。⑩は⑨（6:00時点）に、⑬は⑫（15:30時点）に当てる。
     組み合わせで <span class="ok">赤→青 埋まった</span>（夜の日本固有要因は引けまでに消えた＝ノイズ・需給）／<span class="warn">赤→赤 残った</span>（引けまで残った＝本物の材料。逆符号なら反転）／
     <span class="warn">青→赤 日中に発生</span>（夜は理論通りだったが日本の場中で何か起きた）／<span class="ok">青→青 理論通り</span>。⑪が⑨の1.2倍超なら「寄りで拡大」。<br>
     ・しきい値{dev_th}%は<b>暫定（仮説）</b>。⑫の分布が溜まったら見直す（例: 過去1年の|⑫|の中央値や標準偏差から決める）。<br>
@@ -794,7 +900,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
   </p>
   <p class="note">
-    ・<b>②7:15の先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<b>⑤夜間先物ギャップ</b>はこれと①前日終値の差。<br>
+    ・<b>②夜間先物の終値</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の6:00の値。<b>⑤夜間先物ギャップ</b>はこれと①前日終値の差。<br>
     ・<b>⑧理論値</b> = b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
     ドル円の起点はNY終値で近似しているため厳密な分解ではなく目安。<br>
     ・<b>ADR換算比率</b> = 直近{ratio_window}日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
@@ -839,15 +945,29 @@ def generate_html(data, hist=None):
     def val(html, cls=""):
         return f'<div class="value"><span class="{cls}">{html}</span></div>' if cls else f'<div class="value">{html}</div>'
 
+    tv = day_values(data["today_rec"]) if data.get("today_rec") else None   # 当日レコードの①〜⑬（未確定はNone）
+
+    def pv(key, fmt="pct"):
+        """当日レコードに値があれば表示、無ければ「9/7（−）」"""
+        x = tv.get(key) if tv else None
+        if x is None:
+            return pending_big
+        if fmt == "yen":
+            return val(f"{x:,.0f}円")
+        if fmt == "plain":
+            return val(f"{x:+.2f}%")
+        return val(fmt_pct(x))
+
     # ---- 前提（円）----
     row1 = [card("①", "前日終値", val(f"{n225_prev:,.0f}円"), f'{data["n225_date"]} 大引け')]
     if fut is not None:
-        row1.append(card("②", "7:15の先物（CME日経先物）", val(f"{fut:,.0f}円"),
-                         f'{data["fut_ticker"]}・夜間の最終値とほぼ同じ', big=True))
+        obs = data.get("obs_time") or "6:00"
+        row1.append(card("②", f"夜間先物の終値（CME日経先物・{obs}）", val(f"{fut:,.0f}円"),
+                         f'{data["fut_ticker"]}。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）', big=True))
     else:
-        row1.append(card("②", "7:15の先物（CME日経先物）", val("取得失敗"), "yfinance側の一時的な問題の可能性", big=True))
-    row1.append(card("③", "当日始値", pending_big, "9:00に確定 → 明朝の答え合わせで表に入る"))
-    row1.append(card("④", "当日終値", pending_big, "15:30に確定 → 明朝の答え合わせで表に入る"))
+        row1.append(card("②", "夜間先物の終値（CME日経先物）", val("取得失敗"), "yfinance側の一時的な問題の可能性", big=True))
+    row1.append(card("③", "当日始値", pv("p3", "yen"), "9:00に確定 → 9:30の更新で入る"))
+    row1.append(card("④", "当日終値", pv("p4", "yen"), "15:30に確定 → 15:45の更新で入る"))
     # 参考（⑧理論値の材料）
     row1.append(card("参考", "S&amp;P500（前日）", val(fmt_pct(data["spx_ret"])), f'NASDAQ {fmt_pct(data["ndx_ret"])}'))
     row1.append(card("参考", "ドル円", val(f'{data["fx_now"]:.2f}円' if data.get("fx_now") else "-"),
@@ -857,8 +977,8 @@ def generate_html(data, hist=None):
     row2 = [card("⑤", "夜間先物ギャップ（②−①）＝ 今朝の寄り付き目安",
                  val(f'{fmt_pct(gap_pct)}') if gap_pct is not None else val("-"),
                  (f'{gap_yen:+,.0f}円。現物はこの水準に揃って寄り付きやすい' if gap_yen is not None else ""), big=True),
-            card("⑥", "実際の寄り付きギャップ（③−①）", pending_big, "9:00の始値が出たら計算"),
-            card("⑦", "寄りまでの変化（⑥−⑤）", pending_big, "7:15〜9:00の間に動いた分")]
+            card("⑥", "実際の寄り付きギャップ（③−①）", pv("g6"), "9:30の更新で入る"),
+            card("⑦", "寄りまでの変化（⑥−⑤）", pv("g7", "plain"), "6:00〜9:00の間に動いた分")]
 
     # ---- 問い2 ----
     if data.get("betas") and theo is not None:
@@ -871,7 +991,7 @@ def generate_html(data, hist=None):
     if dev is not None:
         cls = classify_dev(dev)
         dev_cls = "ok" if cls == "neutral" else "warn"
-        row3.append(card("⑨", "乖離（7:15時点）＝ ⑤ − ⑧", val(f"{dev:+.2f}%", dev_cls),
+        row3.append(card("⑨", "乖離（6:00時点）＝ ⑤ − ⑧", val(f"{dev:+.2f}%", dev_cls),
                          f'⑤ {fmt_pct(gap_pct)} − ⑧ {fmt_pct(theo)}。米株・ドル円で説明できない分', big=True))
         if cls == "neutral":
             j_html = '<div class="value" style="font-size:1.3rem"><span class="ok">理論通り</span></div>'
@@ -880,18 +1000,27 @@ def generate_html(data, hist=None):
             direction = "買い" if dev > 0 else "売り"
             j_html = f'<div class="value" style="font-size:1.3rem; white-space:nowrap"><span class="warn">日本固有要因：{direction}</span></div>'
             j_sub = f"|⑨|が{DEVIATION_TH}%超（暫定しきい値）。夜のうちに日本株固有の{direction}が入った"
-        row3.append(card("⑩", "判定（7:15時点）", j_html, j_sub, big=True))
+        row3.append(card("⑩", "判定（6:00時点）", j_html, j_sub, big=True))
     else:
-        row3.append(card("⑨", "乖離（7:15時点）＝ ⑤ − ⑧", val("-"), "理論値が無いため計算できず", big=True))
-        row3.append(card("⑩", "判定（7:15時点）", val("-"), "", big=True))
-    row3.append(card("⑪", "乖離（9:00時点）＝ ⑥ − ⑧", pending_big, "寄り付きで乖離がどう変わったか"))
-    row3.append(card("⑫", "乖離（15:30時点）＝（④−①）− ⑧", pending_big, "引けで理論値との差がいくら残ったか"))
-    row3.append(card("⑬", "判定（15:30時点）", pending_big, "⑩→⑬で 埋まった／残った／日中に発生／理論通り"))
+        row3.append(card("⑨", "乖離（6:00時点）＝ ⑤ − ⑧", val("-"), "理論値が無いため計算できず", big=True))
+        row3.append(card("⑩", "判定（6:00時点）", val("-"), "", big=True))
+    row3.append(card("⑪", "乖離（9:00時点）＝ ⑥ − ⑧", pv("d11"), "寄り付きで乖離がどう変わったか（9:30の更新で入る）"))
+    row3.append(card("⑫", "乖離（15:30時点）＝（④−①）− ⑧", pv("d12"), "引けで理論値との差がいくら残ったか（15:45の更新で入る）"))
+    if tv and tv.get("k13"):
+        label13, lcls13 = K13_LABEL[tv["k13"]]
+        if tv["k13"] in ("remained", "reversed", "emerged"):
+            label13 += "（日本固有要因：" + ("買い" if tv["cls12"] == "buy" else "売り") + "）"
+        pat = ("赤" if tv["cls"] in ("buy", "sell") else "青") + "→" + ("赤" if tv["cls12"] in ("buy", "sell") else "青")
+        row3.append(card("⑬", "判定（15:30時点）",
+                         f'<div class="value" style="font-size:1.3rem"><span class="{lcls13}">{label13}</span></div>',
+                         f"⑩→⑬ ＝ {pat}。|⑫|と{DEVIATION_TH}%（暫定）で判定", big=True))
+    else:
+        row3.append(card("⑬", "判定（15:30時点）", pending_big, "⑩→⑬で 埋まった／残った／日中に発生／理論通り（15:45の更新で入る）"))
 
     cards = [
         f'    <div class="rowcap">前提（円）— この4つの値から下の全列が決まる（＋⑧の材料）</div>\n    <div class="cards">\n{"".join(row1)}    </div>\n',
         f'    <div class="rowcap">問い1 夜間先物ギャップは、寄り付きを当てたか</div>\n    <div class="cards">\n{"".join(row2)}    </div>\n',
-        f'    <div class="rowcap">問い2 理論値との乖離は、引けまでに埋まったか（⑨7:15 → ⑪9:00 → ⑫15:30）</div>\n    <div class="cards">\n{"".join(row3)}    </div>\n',
+        f'    <div class="rowcap">問い2 理論値との乖離は、引けまでに埋まったか（⑨6:00 → ⑪9:00 → ⑫15:30）</div>\n    <div class="cards">\n{"".join(row3)}    </div>\n',
     ]
 
     adr_rows = []
@@ -940,7 +1069,7 @@ def generate_html(data, hist=None):
         mark = '<span class="small">※</span>' if rec.get("repaired") else ""
         is_today = (k == today_key)
         if is_today:
-            mark += ' <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③以降は明朝に埋まる">◀ 今朝</span>'
+            mark += ' <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③は9:30、④は15:45の更新で埋まる">◀ 今日</span>'
         if v["k13"]:
             label, lcls = K13_LABEL[v["k13"]]
             if v["k13"] in ("remained", "reversed", "emerged"):
@@ -948,7 +1077,7 @@ def generate_html(data, hist=None):
             expand = "・寄りで拡大" if (v["cls"] in ("buy", "sell") and v["d11"] is not None and v["d9"] and v["d11"] / v["d9"] > 1.2) else ""
             j13 = f'<span class="{lcls}">{label}</span>{expand}'
         elif v["g6"] is None:
-            j13 = '<span class="small">' + ("採点待ち（明朝）" if is_today else "採点待ち") + '</span>'
+            j13 = '<span class="small">' + ("9:30/15:45の更新で採点" if is_today else "採点待ち") + '</span>'
         else:
             j13 = "-"
         history_rows.append(
@@ -1060,107 +1189,234 @@ def push_to_github():
 # -----------------------------------------
 # main
 # -----------------------------------------
-def main():
-    log("寄り前チェック 開始")
+# -----------------------------------------
+# 時刻を指定したデータ取得（実行時刻に依存しない「6:00の値」を取るため）
+# -----------------------------------------
+ANCHOR = datetime.time(6, 0)       # 観測の基準時刻＝夜間セッションの終値（CME先物は6:00〜7:00休憩。大証ナイトも6:00終了）
+OPEN_READY = datetime.time(9, 20)  # この時刻以降の実行で③当日始値を取り込む（Yahooの反映遅れ考慮）
+CLOSE_READY = datetime.time(15, 40)  # この時刻以降の実行で④当日終値を取り込む
 
-    # 日経平均の前日終値
+
+def bar_close_at(ticker, when):
+    """5分足で when（JSTのaware datetime）以前の最後のバーの終値と、その時刻を返す。無ければ (None, None)"""
+    try:
+        h = yf.Ticker(ticker).history(period="5d", interval="5m")
+        if h.empty:
+            return None, None
+        h = h.set_axis(h.index.tz_convert("Asia/Tokyo"))
+        h = h[h.index < when]["Close"].dropna()      # when より前に始まったバー（6:00なら 05:55 のバー＝6:00の終値）
+        if h.empty:
+            return None, None
+        return float(h.iloc[-1]), h.index[-1].to_pydatetime()
+    except Exception:
+        return None, None
+
+
+def today_ohlc(day):
+    """当日の日中足から O/H/L/C を組む（日足がまだ無い時間帯用）。無ければ None"""
+    try:
+        h = yf.Ticker("^N225").history(period="5d", interval="5m")
+        if h.empty:
+            return None
+        h = h.set_axis(h.index.tz_convert("Asia/Tokyo"))
+        h = h[h.index.date == day].dropna(subset=["Open", "Close"])
+        if h.empty:
+            return None
+        return {"open": round(float(h["Open"].iloc[0]), 1), "high": round(float(h["High"].max()), 1),
+                "low": round(float(h["Low"].min()), 1), "close": round(float(h["Close"].iloc[-1]), 1)}
+    except Exception:
+        return None
+
+
+def observe_morning(today):
+    """6:00時点（夜間セッション終値）の観測（①②⑤⑧⑨と参考値）を作る。何時に実行しても同じ値になるように、
+    先物・ドル円は「6:00直前のバー」、日経・米株の前日終値は「今日より前の日足」から取る"""
+    jst = datetime.timezone(datetime.timedelta(hours=9))
+    anchor = datetime.datetime.combine(today, ANCHOR, tzinfo=jst)
+
+    # ①前日終値: 今日より前の日足のみ（寄り付き後に実行しても当日の値が混ざらない）
     n225 = daily_closes("^N225")
+    if not n225.empty:
+        n225 = n225[n225.index.date < today]
     if n225.empty:
         log("エラー: 日経平均を取得できません")
         sys.exit(1)
     n225_prev = float(n225.iloc[-1])
     n225_date = n225.index[-1].strftime("%m/%d")
-
-    # Yahooの^N225は「前日の日足」が朝7:15時点でまだ無いことがある（2026-08-28, 08-31で発生）。
-    # その場合 iloc[-1] は一つ前の営業日の終値になり、ギャップ・乖離・答え合わせが全部ズレた土台で計算される。
-    # 日足の最終日が「直近の平日」より古ければ、その日の60分足の最終値で前日終値を復元する。
-    expected = datetime.date.today() - datetime.timedelta(days=1)
+    expected = today - datetime.timedelta(days=1)
     while expected.weekday() >= 5:
         expected -= datetime.timedelta(days=1)
     if n225.index[-1].date() < expected:
+        # Yahooの^N225は前日の日足が朝まだ無いことがある → 60分足の最終値で復元
         try:
-            intr = yf.Ticker("^N225").history(
-                start=expected, end=expected + datetime.timedelta(days=1), interval="60m")
+            intr = yf.Ticker("^N225").history(start=expected, end=expected + datetime.timedelta(days=1), interval="60m")
             if len(intr):
                 n225_prev = float(intr["Close"].iloc[-1])
                 n225_date = expected.strftime("%m/%d")
-                n225.loc[pd.Timestamp(expected)] = n225_prev   # 回帰にも最新日を反映
+                n225.loc[pd.Timestamp(expected)] = n225_prev
                 log(f"  ^N225日足に{expected}が無い → 60分足から前日終値 {n225_prev:,.0f} を復元")
             else:
-                log(f"  ^N225: {expected}は休場か日足未着（60分足も無し）→ 日足の最終日 {n225_date} を前日として使用")
+                log(f"  ^N225: {expected}は休場か日足未着 → 日足の最終日 {n225_date} を前日として使用")
         except Exception as e:
             log(f"  前日終値の復元失敗（日足の最終日を使用）: {e}")
 
-    # 夜間先物（円建て優先）
-    fut_last, fut_ticker = None, None
+    # ②夜間先物の終値（円建て優先）: 5分足の6:00直前のバー。取れなければ最新値で代用（時刻を記録）
+    fut_last, fut_ticker, fut_time, anchored = None, None, None, False
     for tk in ("NIY=F", "NKD=F"):
-        v = last_price(tk)
-        if v and v > 10000:  # 日経水準のサニティチェック
-            fut_last, fut_ticker = v, tk
+        v, t = bar_close_at(tk, anchor)
+        if v and v > 10000:
+            fut_last, fut_ticker, fut_time, anchored = v, tk, t, True
             break
+    if fut_last is None:
+        for tk in ("NIY=F", "NKD=F"):
+            v = last_price(tk)
+            if v and v > 10000:
+                fut_last, fut_ticker, fut_time = v, tk, datetime.datetime.now(jst)
+                log(f"  {tk}: 6:00のバーが取れず最新値で代用")
+                break
     gap_pct = (fut_last / n225_prev - 1) * 100 if fut_last else None
     gap_yen = fut_last - n225_prev if fut_last else None
-    log(f"日経前日終値 {n225_prev:,.0f} / 夜間先物 {fut_last} ({fut_ticker}) / ギャップ {gap_pct}")
+    log(f"①前日終値 {n225_prev:,.0f}（{n225_date}） / ②先物 {fut_last} ({fut_ticker}, {fut_time:%H:%M} 時点) / ⑤ギャップ {gap_pct}"
+        if fut_time else f"①前日終値 {n225_prev:,.0f} / ②先物 取得失敗")
 
-    # 米株・ドル円
-    spx = daily_closes("^GSPC")
-    ndx = daily_closes("^IXIC")
-    fx = daily_closes("JPY=X")
+    # 参考: 米株・ドル円（前日終値は今日より前の日足、ドル円は6:00のバー）
+    def before_today(sr):
+        return sr[sr.index.date < today] if not sr.empty else sr
+    spx = before_today(daily_closes("^GSPC"))
+    ndx = before_today(daily_closes("^IXIC"))
+    fx = before_today(daily_closes("JPY=X"))
     spx_ret = float((spx.iloc[-1] / spx.iloc[-2] - 1) * 100) if len(spx) >= 2 else None
     ndx_ret = float((ndx.iloc[-1] / ndx.iloc[-2] - 1) * 100) if len(ndx) >= 2 else None
-    fx_now = last_price("JPY=X") or (float(fx.iloc[-1]) if len(fx) else None)
+    fx_now, _ = bar_close_at("JPY=X", anchor)
+    if fx_now is None:
+        fx_now = last_price("JPY=X") or (float(fx.iloc[-1]) if len(fx) else None)
     fx_chg = (fx_now / float(fx.iloc[-1]) - 1) * 100 if fx_now and len(fx) else None
 
-    # 理論値
+    # ⑧理論値
     betas = estimate_betas(n225, spx, fx)
-    theo_gap = None
+    theo = None
     if betas and spx_ret is not None and fx_chg is not None:
         b1, b2, _ = betas
-        theo_gap = b1 * spx_ret + b2 * fx_chg
-    log(f"S&P500前日 {spx_ret} / ドル円変化 {fx_chg} / 理論値 {theo_gap}")
+        theo = b1 * spx_ret + b2 * fx_chg
+    dev = (gap_pct - theo) if (gap_pct is not None and theo is not None) else None
+    log(f"S&P500前日 {spx_ret} / ドル円変化 {fx_chg} / ⑧理論値 {theo} / ⑨乖離 {dev}")
 
-    # ADR
+    return {
+        "prev_close": n225_prev, "n225_date": n225_date,
+        "fut": fut_last, "fut_ticker": fut_ticker,
+        "obs_time": (lambda t: f"{t.hour}:{t.minute:02d}")(fut_time + datetime.timedelta(minutes=5)) if fut_time else None,
+        "gap": None if gap_pct is None else round(gap_pct, 3),
+        "theo": None if theo is None else round(theo, 3),
+        "dev": None if dev is None else round(dev, 3),
+        "spx_ret": spx_ret, "ndx_ret": ndx_ret,
+        "fx_now": fx_now, "fx_chg": fx_chg,
+        "betas": list(betas) if betas else None,
+        "fut_anchored": anchored, "theo_recomputed": True,
+    }
+
+
+def fill_intraday(rec, today, now):
+    """当日レコードに③始値（9:20以降）と④終値ほか（15:40以降）を追記する。既にあれば触らない"""
+    if now.time() < OPEN_READY:
+        return "morning"
+    o = today_ohlc(today)
+    if not o:
+        log("  当日の日中足が取れず、③④は未記入のまま")
+        return "intraday"
+    if "open" not in rec:
+        rec["open"] = o["open"]
+        log(f"  ③当日始値 {o['open']:,.0f} を記録")
+    if now.time() >= CLOSE_READY:
+        if "close" not in rec:
+            # 日足が既にあればそちらを優先（確定値）
+            try:
+                d = yf.Ticker("^N225").history(period="5d")
+                d = d.set_axis(d.index.tz_localize(None).normalize())
+                if pd.Timestamp(today) in d.index:
+                    row = d.loc[pd.Timestamp(today)]
+                    o = {"open": round(float(row["Open"]), 1), "high": round(float(row["High"]), 1),
+                         "low": round(float(row["Low"]), 1), "close": round(float(row["Close"]), 1)}
+            except Exception:
+                pass
+            rec.update(o)
+            log(f"  ④当日終値 {o['close']:,.0f} を記録（高値 {o['high']:,.0f} / 安値 {o['low']:,.0f}）")
+        return "close"
+    return "intraday"
+
+
+def main():
+    now = datetime.datetime.now()
+    today = now.date()
+    log(f"寄り前チェック 開始（{now:%H:%M} 実行）")
+
+    hist = load_history()
+    key = today.isoformat()
+    rec = hist["days"].get(key)
+    created = False
+    if rec is None:
+        # 今日の観測がまだ無い → 6:00時点の値を作る（何時に実行しても同じ値になる）
+        obs = observe_morning(today)
+        if today.weekday() < 5:
+            hist["days"][key] = obs
+            rec = obs
+            created = True
+        else:
+            rec = obs      # 休場日は記録しないが表示には使う
+    else:
+        log(f"  本日の6:00観測は記録済み（②先物 {rec.get('fut')} / ⑤ {rec.get('gap')}%）→ 追記モード")
+        # 旧形式（参考値なし）のレコードは参考値だけ補う
+        if "spx_ret" not in rec:
+            obs = observe_morning(today)
+            for k2 in ("spx_ret", "ndx_ret", "fx_now", "fx_chg", "betas", "n225_date", "fut_ticker", "obs_time"):
+                rec.setdefault(k2, obs.get(k2))
+
+    # ADR（米国終値ベースなので実行時刻に依存しない）
     adr = calc_adr_gaps()
     adr_bt = backtest_adr_follow()
+    if today.weekday() < 5 and adr and "adr" not in hist["days"].get(key, {}):
+        hist["days"][key]["adr"] = {
+            r["tyo"]: {"gap": round(r["gap"], 2), "prev": r["tyo_prev"], "mkt": r["mkt"]} for r in adr}
 
-    # 乖離の履歴を更新（今朝の観測を記録 + 過去分の答え合わせを埋める）
-    hist = load_history()
-    dev = (gap_pct - theo_gap) if (gap_pct is not None and theo_gap is not None) else None
-    update_history(hist, datetime.date.today(), {
-        "prev_close": n225_prev, "fut": fut_last,
-        "gap": None if gap_pct is None else round(gap_pct, 3),
-        "theo": None if theo_gap is None else round(theo_gap, 3),
-        "dev": None if dev is None else round(dev, 3),
-    }, adr_rows=adr)
+    # 当日の③④を時刻に応じて追記
+    phase = "morning"
+    if today.weekday() < 5:
+        phase = fill_intraday(hist["days"][key], today, now)
+
+    # 過去分の答え合わせ・修復
     backfill_answers(hist)
+    finalize_days(hist)
+    reanchor_futures(hist)
     repair_stale_prev(hist)
+    recompute_theo(hist, rec.get("betas"))
     backfill_adr_answers(hist)
     save_history(hist)
 
-    generate_html({
-        "n225_prev": n225_prev, "n225_date": n225_date,
-        "fut_last": fut_last, "fut_ticker": fut_ticker,
-        "gap_pct": gap_pct, "gap_yen": gap_yen,
-        "spx_ret": spx_ret, "ndx_ret": ndx_ret,
-        "fx_now": fx_now, "fx_chg": fx_chg,
-        "theo_gap": theo_gap, "betas": betas,
+    gap_pct, theo = rec.get("gap"), rec.get("theo")
+    data = {
+        "n225_prev": rec["prev_close"], "n225_date": rec.get("n225_date", ""),
+        "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"),
+        "gap_pct": gap_pct, "gap_yen": (rec["fut"] - rec["prev_close"]) if rec.get("fut") else None,
+        "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
+        "fx_now": rec.get("fx_now"), "fx_chg": rec.get("fx_chg"),
+        "theo_gap": theo, "betas": rec.get("betas"),
         "adr": adr, "adr_bt": adr_bt,
-    }, hist)
+        "today_rec": hist["days"].get(key), "phase": phase,
+    }
+    generate_html(data, hist)
 
-    # X自動投稿用の数値（kabuchiwa_post.py が読む。HTMLとは別に素の数値だけ渡す）
+    # X自動投稿用の数値（kabuchiwa_post.py が読む。朝フェーズ以外は投稿しない）
     try:
         json.dump({
-            "generated": datetime.datetime.now().isoformat(timespec="seconds"),
-            "n225_prev": n225_prev, "n225_date": n225_date,
-            "fut_last": fut_last, "fut_ticker": fut_ticker,
-            "gap_pct": gap_pct, "gap_yen": gap_yen,
-            "spx_ret": spx_ret, "ndx_ret": ndx_ret,
-            "fx_now": fx_now, "fx_chg": fx_chg,
-            "theo_gap": theo_gap, "dev": dev, "dev_th": DEVIATION_TH,
-            "adr": [{"name": r["name"], "tyo": r["tyo"], "mkt": r["mkt"],
-                     "gap": round(r["gap"], 2)} for r in adr],
+            "generated": now.isoformat(timespec="seconds"), "phase": phase, "created_today": created,
+            "n225_prev": rec["prev_close"], "n225_date": rec.get("n225_date", ""),
+            "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"),
+            "gap_pct": gap_pct, "gap_yen": data["gap_yen"],
+            "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
+            "fx_now": rec.get("fx_now"), "fx_chg": rec.get("fx_chg"),
+            "theo_gap": theo, "dev": rec.get("dev"), "dev_th": DEVIATION_TH,
+            "adr": [{"name": r["name"], "tyo": r["tyo"], "mkt": r["mkt"], "gap": round(r["gap"], 2)} for r in adr],
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        log(f"投稿用JSON出力: {POST_JSON}")
+        log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
     except Exception as e:
         log(f"投稿用JSONの出力失敗（投稿はスキップされます）: {e}")
 

@@ -716,6 +716,14 @@ def main():
     d = load_data(data_path)
     if d is None:
         return
+    # yorimae は1日3回走る（7:15/9:30/15:45）。王様の偵察投稿は朝フェーズ（その日の観測を作った実行）だけ
+    if not force and "phase" in d:
+        if d.get("phase") != "morning":
+            log(f"phase={d.get('phase')}（9:20以降の追記実行）→ 王様の偵察は投稿しない")
+            return
+        if not d.get("created_today"):
+            log("本日の観測は既に記録済み（再実行）→ 二重投稿を防ぐためスキップ")
+            return
 
     events = today_events(today)
     text = compose_text(d, events, cfg)
