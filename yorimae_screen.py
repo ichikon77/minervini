@@ -342,7 +342,7 @@ def day_values(rec):
     """1日分の記録から①〜⑬を計算して辞書で返す。未確定（採点前）の値は None"""
     v = {"p1": rec.get("prev_close"), "p2": rec.get("fut"), "p3": rec.get("open"), "p4": rec.get("close"),
          "g5": rec.get("gap"), "g6": None, "g7": None, "t8": rec.get("theo"), "d9": rec.get("dev"),
-         "cls": classify_dev(rec.get("dev")), "d11": None, "d12": None, "r13": None, "k13": None}
+         "cls": classify_dev(rec.get("dev")), "d11": None, "d12": None, "cls12": None, "k13": None}
     p1 = v["p1"]
     if p1 and v["p3"] is not None:
         v["g6"] = (v["p3"] / p1 - 1) * 100
@@ -352,27 +352,31 @@ def day_values(rec):
         v["d11"] = v["g6"] - v["t8"]
     if v["t8"] is not None and p1 and v["p4"] is not None:
         v["d12"] = (v["p4"] / p1 - 1) * 100 - v["t8"]
-    if v["cls"] in ("buy", "sell") and v["d12"] is not None and v["d9"]:
-        v["r13"] = v["d12"] / v["d9"]          # 残り率（同符号なら正。負なら逆側まで行った）
-        r = v["r13"]
-        if r <= 0.25:
-            v["k13"] = "filled"                # 埋まった（引けの乖離が夜間の1/4以下、または逆側）
-        elif r < 0.75:
-            v["k13"] = "partial"               # 一部残った
+    v["cls12"] = classify_dev(v["d12"])          # 引け時点の乖離⑫を⑩と同じしきい値で判定
+    if v["cls"] in ("buy", "sell", "neutral") and v["cls12"] is not None:
+        red9 = v["cls"] in ("buy", "sell")
+        red12 = v["cls12"] in ("buy", "sell")
+        if red9 and not red12:
+            v["k13"] = "filled"        # 赤→青: 夜の日本固有要因は引けまでに消えた（ノイズ・需給）
+        elif red9 and red12:
+            v["k13"] = "remained" if v["cls12"] == v["cls"] else "reversed"   # 赤→赤: 残った / 逆方向に反転
+        elif (not red9) and red12:
+            v["k13"] = "emerged"       # 青→赤: 夜は理論通り、日本の場中で何か起きた
         else:
-            v["k13"] = "remained"              # 残った/拡大（本物の材料だった可能性）
+            v["k13"] = "theory"        # 青→青: 終日理論通り
     return v
 
 
-K13_LABEL = {"filled": ("埋まった", "ok"), "partial": ("一部残った", ""), "remained": ("残った", "warn")}
+K13_LABEL = {"filled": ("埋まった", "ok"), "remained": ("残った", "warn"), "reversed": ("反転", "warn"),
+             "emerged": ("日中に発生", "warn"), "theory": ("理論通り", "ok")}
 
 
 def build_qbox(hist):
     """3つの問いの成績を3枚のカードで返す"""
     errs, same_dir = [], []
     n_all, n_red, n_buy, n_sell = 0, 0, 0, 0
-    n_filled, n_partial, n_remained, n_open_expand = 0, 0, 0, 0
-    ratios, open_ratios = [], []
+    pat = {"filled": 0, "remained": 0, "reversed": 0, "emerged": 0, "theory": 0}
+    n_open_expand = 0
     for rec in hist["days"].values():
         v = day_values(rec)
         if v["g6"] is None or v["g5"] is None:
@@ -385,44 +389,38 @@ def build_qbox(hist):
             n_red += 1
             n_buy += v["cls"] == "buy"
             n_sell += v["cls"] == "sell"
-            if v["k13"]:
-                n_filled += v["k13"] == "filled"
-                n_partial += v["k13"] == "partial"
-                n_remained += v["k13"] == "remained"
-                ratios.append(v["r13"])
-                orat = v["d11"] / v["d9"]          # 寄り時点の乖離 ÷ 夜間の乖離（1超なら寄りで拡大）
-                open_ratios.append(orat)
-                n_open_expand += orat > 1.2
+            if v["d11"] is not None and v["d9"] and v["d11"] / v["d9"] > 1.2:
+                n_open_expand += 1
+        if v["k13"]:
+            pat[v["k13"]] += 1
     if n_all == 0:
         return '  <div class="qbox"><div class="q"><div class="qt">成績</div><div class="qs">蓄積中（翌朝から採点が始まります）</div></div></div>'
     caveat = "（サンプル少・傾向の目安）" if n_all < 20 else ""
-    q1 = (f'<div class="q"><div class="qt">問い1 夜間先物ギャップ⑤は寄り付き⑥を当てたか</div>'
+    q1 = (f'<div class="q"><div class="qt">問い1 7:15の夜間先物ギャップ⑤は、寄り付き⑥を当てたか</div>'
           f'<div class="qv">平均誤差 {sum(errs)/len(errs):.2f}%</div>'
           f'<div class="qs">N={n_all}。|⑦寄りまでの変化| の平均。'
           + (f'方向一致 {sum(same_dir)/len(same_dir)*100:.0f}%（|⑤|≥0.2%の{len(same_dir)}日）' if same_dir else "")
           + f'{caveat}</div></div>')
-    q2 = (f'<div class="q"><div class="qt">問い2 乖離⑨が日本固有要因（赤）だった頻度</div>'
+    q2 = (f'<div class="q"><div class="qt">問い2-a 7:15時点で日本固有要因（赤）があった頻度</div>'
           f'<div class="qv">{n_red}/{n_all}日</div>'
           f'<div class="qs">日本固有要因：買い {n_buy}日・売り {n_sell}日・理論通り {n_all - n_red}日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div>')
-    if ratios:
-        n_dec = len(ratios)
+    n_dec = sum(pat.values())
+    if n_dec:
         verdict = ""
-        if n_dec >= 3:
-            if n_filled > n_remained:
-                verdict = "→ いまのところ乖離は<b>埋まる</b>ことが多い＝ノイズ寄り。赤の朝は寄りで飛びつかず戻りを待つ（逆張り）"
-            elif n_remained > n_filled:
-                verdict = "→ いまのところ乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）"
+        if pat["filled"] + pat["remained"] >= 3:
+            if pat["filled"] > pat["remained"]:
+                verdict = "→ いまのところ夜の乖離は<b>埋まる</b>ことが多い＝ノイズ寄り。赤の朝は寄りで飛びつかず戻りを待つ（逆張り）"
+            elif pat["remained"] > pat["filled"]:
+                verdict = "→ いまのところ夜の乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）"
             else:
                 verdict = "→ 五分五分"
-        avg_open = sum(open_ratios) / n_dec * 100
-        avg_rem = sum(ratios) / n_dec * 100
-        expand_s = f'（うち寄りで拡大 {n_open_expand}日）' if n_open_expand else ""
-        q3 = (f'<div class="q"><div class="qt">問い3 乖離⑨は引けまでに埋まったか（赤の日）</div>'
-              f'<div class="qv">埋まった {n_filled} ／ 一部 {n_partial} ／ 残った {n_remained}</div>'
-              f'<div class="qs">夜間の乖離⑨を100%として、平均で 寄り時点⑪ {avg_open:.0f}% → 引け時点⑫ {avg_rem:.0f}%{expand_s}。'
+        expand_s = f'　赤の朝のうち寄りで拡大 {n_open_expand}日。' if n_open_expand else ""
+        q3 = (f'<div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div>'
+              f'<div class="qv">赤→青 埋まった {pat["filled"]} ／ 赤→赤 残った {pat["remained"] + pat["reversed"]} ／ 青→赤 日中に発生 {pat["emerged"]} ／ 青→青 {pat["theory"]}</div>'
+              f'<div class="qs">⑩（7:15）→⑬（15:30）の組み合わせ。N={n_dec}。{expand_s}'
               f'<br>{verdict}{caveat}</div></div>')
     else:
-        q3 = '<div class="q"><div class="qt">問い3 乖離⑨は引けまでに埋まったか（赤の日）</div><div class="qs">赤の日の採点がまだ無い</div></div>'
+        q3 = '<div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div><div class="qs">採点がまだ無い</div></div>'
     return f'  <div class="qbox">{q1}{q2}{q3}</div>'
 
 
@@ -660,9 +658,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   thead th.grp.sep, td.sep {{ border-left: 1px solid #334155; }}
   td.read {{ text-align: left; color: #cbd5e1; white-space: normal; min-width: 220px; }}
   td.small {{ color: #64748b; font-size: 0.78rem; }}
-  table.compact {{ font-size: 0.8rem; }}
-  table.compact th, table.compact td {{ padding: 6px 8px; }}
-  table.compact td.read {{ min-width: 150px; }}
+  table.compact {{ font-size: 0.78rem; }}
+  table.compact th, table.compact td {{ padding: 5px 7px; }}
+  table.compact thead th {{ white-space: normal; line-height: 1.35; vertical-align: bottom; }}
+  table.compact td.read {{ min-width: 130px; }}
 </style>
 <script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
@@ -747,31 +746,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
-  <h2>答え合わせ（履歴）— 前提の4つの値①〜④から、3つの問いを採点する</h2>
+  <h2>答え合わせ（履歴）— 前提の4つの値①〜④から、2つの問いを採点する</h2>
   <div class="evidence">
     毎朝7:15に出した数字を、その日の実際の値動きで翌朝に採点する。列番号①〜⑬は上のカードと共通。<br>
     <b class="num">前提</b> ①前日終値 ②7:15の先物 ③当日始値 ④当日終値 — この4つの値から下の全列が式で決まる。<br>
     <b class="num">問い1</b> 夜間先物ギャップ⑤は、実際の寄り付き⑥をどれだけ当てたか（⑦＝7:15〜9:00の間に動いた分）。<br>
-    <b class="num">問い2</b> ⑤のうち米株とドル円で説明できない分＝乖離⑨はいくらか。±{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因（赤）</span>。<br>
-    <b class="num">問い3</b> 赤の朝の乖離⑨は、寄り時点⑪→引け時点⑫でどう変わったか。引けまでに埋まればノイズ（需給）、残れば本物の材料。
+    <b class="num">問い2</b> ⑤のうち米株とドル円で説明できない分＝乖離は、引けまでに埋まったか。
+    まず7:15時点の乖離⑨（=⑤−⑧理論値）が±{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因（赤）</span>（⑩）。
+    赤の朝は、その乖離を9:00時点⑪→15:30時点⑫まで追い、引けまでに埋まればノイズ（需給）、残れば本物の材料（⑬）。
     埋まる日が多ければ「赤の朝は寄りで飛びつかず戻りを待つ」、残る日が多ければ「赤は順張り」という実務ルールに昇格できる。
   </div>
 {qbox}
   <div class="table-wrap" style="max-width:none">
   <table class="compact">
     <thead>
-      <tr><th></th><th class="grp sep" colspan="4">前提（円）</th><th class="grp sep" colspan="3">問い1 夜間先物ギャップは寄り付きを当てたか</th><th class="grp sep" colspan="3">問い2 理論値との乖離は</th><th class="grp sep" colspan="3">問い3 乖離は引けまでに埋まったか</th></tr>
+      <tr><th></th><th class="grp sep" colspan="4">前提（円）</th><th class="grp sep" colspan="3">問い1 7:15の夜間先物ギャップは、寄り付きを当てたか</th><th class="grp sep" colspan="6">問い2 理論値との乖離は、引けまでに埋まったか（⑨7:15 → ⑪9:00 → ⑫15:30）</th></tr>
       <tr><th>日付</th>
         <th class="sep">①前日終値</th><th>②7:15先物</th><th>③当日始値</th><th>④当日終値</th>
         <th class="sep">⑤夜間先物ギャップ<br><span style="font-weight:normal">（②−①）</span></th>
         <th>⑥実際の寄り付きギャップ<br><span style="font-weight:normal">（③−①）</span></th>
         <th>⑦寄りまでの変化<br><span style="font-weight:normal">（⑥−⑤）</span></th>
         <th class="sep">⑧理論値<br><span style="font-weight:normal">（米株・ドル円から）</span></th>
-        <th>⑨乖離<br><span style="font-weight:normal">（⑤−⑧）</span></th>
-        <th>⑩判定<br><span style="font-weight:normal">（|⑨|と{dev_th}%）</span></th>
-        <th class="sep">⑪寄り時点の乖離<br><span style="font-weight:normal">（⑥−⑧）</span></th>
-        <th>⑫引け時点の乖離<br><span style="font-weight:normal">（④−①−⑧）</span></th>
-        <th>⑬判定<br><span style="font-weight:normal">（⑫÷⑨＝残り率）</span></th></tr>
+        <th>⑨乖離（7:15時点）<br><span style="font-weight:normal">（⑤−⑧）</span></th>
+        <th>⑩判定（7:15時点）<br><span style="font-weight:normal">（|⑨|と{dev_th}%・暫定）</span></th>
+        <th class="sep">⑪乖離（9:00時点）<br><span style="font-weight:normal">（⑥−⑧）</span></th>
+        <th>⑫乖離（15:30時点）<br><span style="font-weight:normal">（④−①−⑧）</span></th>
+        <th>⑬判定（15:30時点）<br><span style="font-weight:normal">（|⑫|と{dev_th}%・⑩→⑬）</span></th></tr>
     </thead>
     <tbody>
 {history_rows}
@@ -783,8 +783,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>②7:15の先物</b>＝CME日経先物の7:15時点の値。CME先物は日本時間6:00〜7:00の休憩を挟んでほぼ24時間取引のため、夜間の最終値とほぼ同じ（大証ナイトセッション終値と同水準）。<br>
     ・<b>⑦寄りまでの変化</b>が大きい日は、7:15以降のニュースか寄り付きの板の偏り。<br>
     ・<b>⑧理論値</b>＝「米株とドル円だけを見たら本来こう動くはず」の値。b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰、ページ最下部に表示）。<br>
-    ・<b>問い3</b>は同じ「乖離」を3つの時点で追う: ⑨7:15時点 → ⑪寄り時点 → ⑫引け時点。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。
-    <b>⑬判定</b>＝⑫÷⑨で、25%以下＝<span class="ok">埋まった</span>、25〜75%＝一部残った、75%以上＝<span class="warn">残った</span>。⑪が⑨より大きければ「寄りで拡大」。青の日は乖離が小さいので判定しない。<br>
+    ・<b>問い2の⑨⑪⑫</b>は同じ「乖離＝理論値との差」を3つの時点で追う: ⑨7:15時点 → ⑪9:00時点（寄り） → ⑫15:30時点（引け）。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。<br>
+    ・<b>⑩と⑬</b>は同じ物差し: 乖離の絶対値が{dev_th}%以内なら<span class="ok">理論通り</span>、超えたら<span class="warn">日本固有要因：買い/売り</span>。⑩は⑨（7:15時点）に、⑬は⑫（15:30時点）に当てる。
+    組み合わせで <span class="ok">赤→青 埋まった</span>（夜の日本固有要因は引けまでに消えた＝ノイズ・需給）／<span class="warn">赤→赤 残った</span>（引けまで残った＝本物の材料。逆符号なら反転）／
+    <span class="warn">青→赤 日中に発生</span>（夜は理論通りだったが日本の場中で何か起きた）／<span class="ok">青→青 理論通り</span>。⑪が⑨の1.2倍超なら「寄りで拡大」。<br>
+    ・しきい値{dev_th}%は<b>暫定（仮説）</b>。⑫の分布が溜まったら見直す（例: 過去1年の|⑫|の中央値や標準偏差から決める）。<br>
     ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。<br>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
   </p>
@@ -916,10 +919,10 @@ def generate_html(data, hist=None):
             mark += ' <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③以降は明朝に埋まる">◀ 今朝</span>'
         if v["k13"]:
             label, lcls = K13_LABEL[v["k13"]]
-            expand = "・寄りで拡大" if (v["d11"] is not None and v["d9"] and v["d11"] / v["d9"] > 1.2) else ""
-            j13 = f'<span class="{lcls}">{label}</span> 残り{v["r13"]*100:.0f}%{expand}'
-        elif v["cls"] == "neutral" and v["g6"] is not None:
-            j13 = '<span class="small">理論通り（乖離小・判定なし）</span>'
+            if v["k13"] in ("remained", "reversed", "emerged"):
+                label += "（日本固有要因：" + ("買い" if v["cls12"] == "buy" else "売り") + "）"
+            expand = "・寄りで拡大" if (v["cls"] in ("buy", "sell") and v["d11"] is not None and v["d9"] and v["d11"] / v["d9"] > 1.2) else ""
+            j13 = f'<span class="{lcls}">{label}</span>{expand}'
         elif v["g6"] is None:
             j13 = '<span class="small">' + ("採点待ち（明朝）" if is_today else "採点待ち") + '</span>'
         else:
