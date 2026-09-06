@@ -162,6 +162,27 @@ def update_history(hist, today, rec, adr_rows=None):
         }
 
 
+def repair_stale_prev(hist):
+    """過去の記録で「前日終値が一つ前の記録と同じ値」= 日足欠損で古い終値を掴んだ日を検出し、
+    前の記録の実際の終値（backfill済みの close）で前日終値・ギャップ・乖離を作り直す。
+    （2026-08-31, 09-01 がこのパターン。以後は main 側のフォールバックで発生しないはずだが、保険として残す）"""
+    keys = sorted(hist["days"])
+    orig_prev = {k: hist["days"][k].get("prev_close") for k in keys}   # 修正前の値で判定（連鎖検出のため）
+    for prev_k, k in zip(keys, keys[1:]):
+        p, r = hist["days"][prev_k], hist["days"][k]
+        if r.get("repaired") or "close" not in p or not orig_prev[k] or not orig_prev[prev_k]:
+            continue
+        if abs(orig_prev[k] - orig_prev[prev_k]) < 0.5 and abs(p["close"] - orig_prev[k]) >= 0.5:
+            old = r["prev_close"]
+            r["prev_close"] = p["close"]
+            if r.get("fut"):
+                r["gap"] = round((r["fut"] / r["prev_close"] - 1) * 100, 3)
+                if r.get("theo") is not None:
+                    r["dev"] = round(r["gap"] - r["theo"], 3)
+            r["repaired"] = True
+            log(f"  {k}: 前日終値が古い値({old:,.0f})だったため {p['close']:,.0f} に修正（ギャップ {r.get('gap')}% / 乖離 {r.get('dev')}%）")
+
+
 def backfill_answers(hist):
     """過去の記録に「その日の実際の寄り・高安・引け」を埋めて答え合わせを可能にする。
     当日は場中の未確定値を固定してしまわないようスキップ（翌朝の実行で埋まる）"""
@@ -207,9 +228,15 @@ def backfill_adr_answers(hist):
     """ADRギャップ記録に「その日の東京の寄り・引け」を銘柄別に埋める。
     当日は場中の未確定値を固定してしまわないようスキップ"""
     today = pd.Timestamp(datetime.date.today())
-    # 未回答の(日付, 銘柄)があるか
+
+    def unanswered(s):
+        # 未回答、または NaN が保存されてしまった（yfinance が空行を返した日）ものは再取得対象
+        return ("o" not in s) or (s["o"] != s["o"]) or (s.get("c") != s.get("c"))
+
+    # 未回答の(日付, 銘柄)、または前日終値の修正(repaired)が未反映のものがあるか
     need = any("adr" in v and pd.Timestamp(k) < today
-               and any("o" not in s for s in v["adr"].values())
+               and (any(unanswered(s) for s in v["adr"].values())
+                    or (v.get("repaired") and not v.get("adr_repaired")))
                for k, v in hist["days"].items())
     if not need:
         return
@@ -226,18 +253,29 @@ def backfill_adr_answers(hist):
         if d >= today:
             continue
         for code, s in v["adr"].items():
-            if "o" in s:
-                continue
             try:
-                df = data[code + ".T"]
-                idx = df.index.tz_localize(None).normalize()
-                pos = list(idx).index(d) if d in list(idx) else None
-                if pos is None:
+                df = data[code + ".T"].dropna(subset=["Open", "Close"])
+                idx = list(df.index.tz_localize(None).normalize())
+                if d not in idx:
                     continue
-                s["o"] = round(float(df["Open"].iloc[pos]), 1)
-                s["c"] = round(float(df["Close"].iloc[pos]), 1)
+                pos = idx.index(d)
+                # 前日終値が古い値だった日（日足欠損）は、ADR側の「東京前日終値」も古い。
+                # 記録済みのギャップから円換算値を復元し、正しい前日終値で作り直す
+                if v.get("repaired") and not s.get("repaired") and pos >= 1 and s.get("prev"):
+                    true_prev = float(df["Close"].iloc[pos - 1])
+                    if abs(true_prev - s["prev"]) >= 0.5:
+                        implied = s["prev"] * (1 + s["gap"] / 100)
+                        s["gap"] = round((implied / true_prev - 1) * 100, 2)
+                        s["prev"] = round(true_prev, 1)
+                    s["repaired"] = True
+                if unanswered(s):
+                    o, c = float(df["Open"].iloc[pos]), float(df["Close"].iloc[pos])
+                    if o == o and c == c:      # NaN は保存しない
+                        s["o"], s["c"] = round(o, 1), round(c, 1)
             except Exception:
                 continue
+        if v.get("repaired"):
+            v["adr_repaired"] = True
 
 
 def build_adr_stats(hist):
@@ -250,8 +288,8 @@ def build_adr_stats(hist):
     for v in hist["days"].values():
         idx_gap = v.get("gap")
         for code, s in v.get("adr", {}).items():
-            if "o" not in s or not s.get("prev"):
-                continue
+            if "o" not in s or not s.get("prev") or s["o"] != s["o"] or s.get("c") != s.get("c"):
+                continue   # 未回答・NaN は集計から外す
             n_total += 1
             open_gap = (s["o"] / s["prev"] - 1) * 100
             intraday = (s["c"] / s["o"] - 1) * 100
@@ -281,6 +319,107 @@ def _answer_row(rec):
     else:
         filled = None
     return open_gap, intraday, filled
+
+
+READ_TH = 0.3   # 「読み」で日中の動きを↑/↓と呼ぶ閾値(%)
+
+
+def classify_dev(dev):
+    if dev is None:
+        return None
+    if dev >= DEVIATION_TH:
+        return "buy"
+    if dev <= -DEVIATION_TH:
+        return "sell"
+    return "neutral"
+
+
+def build_reading(rec):
+    """1日分の記録から「読み」の一言を作る。(文, 戻した/続いた/None)"""
+    og, intraday, filled = _answer_row(rec)
+    dev = rec.get("dev")
+    cls = classify_dev(dev)
+    if cls is None or intraday is None:
+        return "-", None
+    if intraday >= READ_TH:
+        move = "up"
+    elif intraday <= -READ_TH:
+        move = "down"
+    else:
+        move = "flat"
+    if cls == "buy":
+        if move == "down":
+            s, kind = "日本買い→日中に戻す" + ("（寄り天）" if og is not None and og > 0 else ""), "revert"
+        elif move == "up":
+            s, kind = "日本買い→日中も続伸", "follow"
+        else:
+            s, kind = "日本買い→日中は横", "flat"
+    elif cls == "sell":
+        if move == "up":
+            s, kind = "日本売り→日中に戻す" + ("（寄り底）" if og is not None and og < 0 else ""), "revert"
+        elif move == "down":
+            s, kind = "日本売り→日中も続落", "follow"
+        else:
+            s, kind = "日本売り→日中は横", "flat"
+    else:
+        arrow = {"up": "日中↑", "down": "日中↓", "flat": "日中は横"}[move]
+        s, kind = f"理論通り→{arrow}", None
+    gap = rec.get("gap")
+    if gap is not None and og is not None and abs(og - gap) >= 0.7:
+        s += f"（7:15→9:00で{og - gap:+.1f}%動いた）"
+    return s, kind
+
+
+def build_qbox(hist):
+    """3つの問いの成績を3枚のカードで返す"""
+    errs, same_dir = [], []
+    n_all, n_red, n_buy, n_sell = 0, 0, 0, 0
+    red_revert, red_follow, red_flat = 0, 0, 0
+    for rec in hist["days"].values():
+        og, intraday, _ = _answer_row(rec)
+        gap, dev = rec.get("gap"), rec.get("dev")
+        if og is None or gap is None:
+            continue
+        n_all += 1
+        errs.append(abs(og - gap))
+        if abs(gap) >= 0.2:
+            same_dir.append((og > 0) == (gap > 0))
+        cls = classify_dev(dev)
+        if cls in ("buy", "sell"):
+            n_red += 1
+            n_buy += cls == "buy"
+            n_sell += cls == "sell"
+            _, kind = build_reading(rec)
+            red_revert += kind == "revert"
+            red_follow += kind == "follow"
+            red_flat += kind == "flat"
+    if n_all == 0:
+        return '  <div class="qbox"><div class="q"><div class="qt">成績</div><div class="qs">蓄積中（翌朝から採点が始まります）</div></div></div>'
+    caveat = "（サンプル少・傾向の目安）" if n_all < 20 else ""
+    q1 = (f'<div class="q"><div class="qt">問い1 予告の精度</div>'
+          f'<div class="qv">平均誤差 {sum(errs)/len(errs):.2f}%</div>'
+          f'<div class="qs">N={n_all}。夜間先物ギャップと実際の寄り付きギャップの差の平均。'
+          + (f'方向一致 {sum(same_dir)/len(same_dir)*100:.0f}%（|夜間|≥0.2%の{len(same_dir)}日）' if same_dir else "")
+          + f'{caveat}</div></div>')
+    q2 = (f'<div class="q"><div class="qt">問い2 赤（日本固有要因）の頻度</div>'
+          f'<div class="qv">{n_red}/{n_all}日</div>'
+          f'<div class="qs">日本買い {n_buy}日・日本売り {n_sell}日・理論通り {n_all - n_red}日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div>')
+    if n_red:
+        judged = red_revert + red_follow
+        verdict = ""
+        if judged >= 3:
+            if red_revert > red_follow:
+                verdict = "→ いまのところ<b>逆張り寄り</b>（赤の朝は寄りで飛びつかず日中の戻りを待つ）"
+            elif red_follow > red_revert:
+                verdict = "→ いまのところ<b>順張り寄り</b>（赤の方向に日中も続く）"
+            else:
+                verdict = "→ 五分五分"
+        q3 = (f'<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div>'
+              f'<div class="qv">戻す {red_revert} ／ 続く {red_follow} ／ 横 {red_flat}</div>'
+              f'<div class="qs">赤{n_red}日のうち、日中（寄→引）が乖離と逆方向（戻す）か同方向（続く）か。閾値±{READ_TH}%。{verdict}{caveat}</div></div>')
+    else:
+        q3 = '<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div><div class="qs">赤の日がまだ無い</div></div>'
+    return f'  <div class="qbox">{q1}{q2}{q3}</div>'
 
 
 def build_history_stats(hist):
@@ -313,14 +452,39 @@ def build_history_stats(hist):
 # -----------------------------------------
 # ADRギャップ
 # -----------------------------------------
+def expected_prev_bday():
+    """直近の平日（今日より前）。祝日は考慮しない（休日なら60分足も無く、日足の最終日がそのまま使われる）"""
+    d = datetime.date.today() - datetime.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= datetime.timedelta(days=1)
+    return d
+
+
+def ensure_latest_close(ticker, series, expected):
+    """日足の最終日が expected より古ければ、その日の60分足の最終値を末尾に足して返す（Yahoo日足欠損対策）"""
+    if series.empty or series.index[-1].date() >= expected:
+        return series
+    try:
+        intr = yf.Ticker(ticker).history(
+            start=expected, end=expected + datetime.timedelta(days=1), interval="60m")
+        if len(intr):
+            series = series.copy()
+            series.loc[pd.Timestamp(expected)] = float(intr["Close"].iloc[-1])
+            log(f"  {ticker}: 日足に{expected}が無い → 60分足の終値で補完")
+    except Exception:
+        pass
+    return series
+
+
 def calc_adr_gaps():
     log("ADRギャップを計算中...")
     fx_now = last_price("JPY=X")
+    expected = expected_prev_bday()
     out = []
     for adr, tyo, name, mkt in ADR_LIST:
         try:
             a = daily_closes(adr, period="3mo")
-            j = daily_closes(tyo, period="3mo")
+            j = ensure_latest_close(tyo, daily_closes(tyo, period="3mo"), expected)
             f = daily_closes("JPY=X", period="3mo")
             if len(a) < RATIO_WINDOW or len(j) < RATIO_WINDOW:
                 continue
@@ -481,6 +645,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .evidence b {{ color: #93c5fd; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.9; max-width: 1100px; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
+  .num {{ color: #fbbf24; font-weight: 700; }}
+  .qbox {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; max-width: 1100px; }}
+  .q {{ flex: 1; min-width: 300px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; line-height: 1.7; }}
+  .q .qt {{ color: #fbbf24; font-weight: 700; margin-bottom: 4px; }}
+  .q .qv {{ font-size: 1.1rem; color: #f8fafc; font-weight: 700; }}
+  .q .qs {{ color: #94a3b8; font-size: 0.78rem; }}
+  thead th.grp {{ text-align: center; color: #fbbf24; border-bottom: 1px solid #334155; font-size: 0.8rem; }}
+  thead th.grp.sep, td.sep {{ border-left: 1px solid #334155; }}
+  td.read {{ text-align: left; color: #cbd5e1; white-space: normal; min-width: 220px; }}
+  td.small {{ color: #64748b; font-size: 0.78rem; }}
 </style>
 <script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
@@ -522,14 +696,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
   <p class="subtitle">最終更新: {updated}（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）</p>
   <div class="evidence">
-    <b>使い方:</b> 日経平均の現物は夜間先物の水準にほぼ揃って寄り付くため、①のギャップが「今朝の寄り付き目安」。
-    ②はその夜間変動が<b>米株とドル円で説明がつくか</b>の答え合わせ（過去1年の回帰で理論値を計算）。
-    実測と理論の乖離が小さければ<span class="ok">理論通り（青）</span>=米国由来の動き、
-    乖離が±{dev_th}%超なら<span class="warn">日本固有要因（赤）</span>=海外勢の日本株への強弱や日本関連ニュースが夜間に動いた可能性。
-    ③のADRギャップは個別銘柄の「今朝の寄り付き目安」。プラス=米国市場で東京終値より高く買われた。
+    <b>使い方（番号は下のカード・表と対応）:</b><br>
+    <b class="num">①</b> 日経平均の現物は夜間先物の水準にほぼ揃って寄り付くため、夜間先物と前日終値の差が「今朝の寄り付き目安」。<br>
+    <b class="num">②</b> その夜間の動きが<b>米株とドル円で説明がつくか</b>の答え合わせ（過去1年の回帰で理論値を計算）。
+    実測と理論の乖離が±{dev_th}%以内なら<span class="ok">理論通り（青）</span>=米国由来の動き、
+    超えたら<span class="warn">日本固有要因（赤）</span>=海外勢の日本株への強弱や日本関連ニュースが夜間に動いた可能性。<br>
+    <b class="num">③</b> ADRギャップは個別銘柄の「今朝の寄り付き目安」。プラス=米国市場で東京終値より高く買われた。<br>
+    <span style="color:#94a3b8"><b>用語（このページで「ギャップ」は全部「前日終値からの差(%)」）:</b>
+    <b>夜間先物ギャップ</b>=CME日経先物の夜間の値 − 前日終値（①の数字）／
+    <b>理論ギャップ</b>=米株とドル円の動きから回帰式で計算した「本来こう動くはず」の値（②の数字）／
+    <b>乖離</b>=夜間先物ギャップ − 理論ギャップ／
+    <b>実際の寄り付きギャップ</b>=9:00の寄り値 − 前日終値（翌朝の採点で使う）</span>
   </div>
 {cards}
-  <h2>ADRギャップ（米国終値の円換算 vs 東京前日終値）</h2>
+  <h2><b class="num">③</b> ADRギャップ（米国終値の円換算 vs 東京前日終値）</h2>
   <div class="table-wrap">
   <table>
     <thead><tr><th>銘柄</th><th>コード</th><th>東京前日終値</th><th>ADR円換算</th><th>ギャップ</th></tr></thead>
@@ -563,24 +743,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </tbody>
   </table>
   </div>
-  <h2>乖離の答え合わせ（履歴）</h2>
+  <h2>①②の答え合わせ（履歴）— 毎朝の数字を3つの問いで採点する</h2>
   <div class="evidence">
-    <b>検証の趣旨:</b> 「日本固有要因（赤）」が出た朝は、その後どうなりやすいのか。
-    毎朝の乖離を記録し、その日の実際の寄り付き・日中リターン（寄り→引け）・ギャップ埋め（前日終値まで戻したか）で答え合わせする。
-    データが溜まれば「乖離が大きい日は逆張り/順張りどちらが効くか」をkasetsu（仮説検証）に昇格させる。<br>
-{stats_line}
+    7:15に出した①②の数字を、その日の実際の値動き（寄り付き・日中・引け）で翌朝に採点する。問いは3つ。<br>
+    <b class="num">問い1（予告）</b> ①の夜間先物ギャップは、9:00の実際の寄り付きギャップをどれだけ当てたか。誤差=実際の寄り付きギャップ−夜間先物ギャップ（7:15〜9:00の間に動いた分）。<br>
+    <b class="num">問い2（説明）</b> ②の乖離は赤だったか青だったか。赤=夜のうちに日本株固有の買い/売りが入った朝。<br>
+    <b class="num">問い3（その後）</b> 赤の朝は、日中（寄り→引け）に<b>同じ方向へ続く</b>のか、<b>逆に戻す</b>のか。
+    戻すなら「赤の朝は寄りで飛びつかない」、続くなら「赤は順張り」という実務ルールに昇格できる。溜まったら kasetsu（仮説検証）へ。
   </div>
-  <div class="table-wrap">
+{qbox}
+  <div class="table-wrap" style="max-width:1200px">
   <table>
-    <thead><tr><th>日付</th><th>夜間ギャップ</th><th>理論</th><th>乖離</th><th>実際の寄り</th><th>日中(寄→引)</th><th>ギャップ埋め</th></tr></thead>
+    <thead>
+      <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="3">問い3 その後</th></tr>
+      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差</th><th class="sep">②理論ギャップ</th><th>乖離</th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
+    </thead>
     <tbody>
 {history_rows}
     </tbody>
   </table>
   </div>
+  <p class="note" style="margin-top:8px">
+    ・<b>誤差</b>は夜間先物ギャップと実際の寄り付きギャップの差。大きい日は7:15以降のニュースか、寄り付きの板の偏り。<br>
+    ・<b>ギャップ埋め</b>=寄り付きが前日終値から離れて始まった後、その日のうちに前日終値まで一度でも戻ったか（○/×）。<br>
+    ・<b>読み</b>は乖離の方向と日中リターン（±0.3%を閾値）から機械的に付けた一言。「戻す」が多ければ逆張り、「続く」が多ければ順張りの根拠になる。<br>
+    ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。
+  </p>
   <p class="note">
-    ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<br>
-    ・<b>理論ギャップ</b> = b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、ページ下部に係数表示）。
+    ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<b>夜間先物ギャップ</b>はこれと前日終値の差。<br>
+    ・<b>理論ギャップ</b>（②）= b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
     ドル円の起点はNY終値で近似しているため厳密な分解ではなく目安。<br>
     ・<b>ADR換算比率</b> = 直近{ratio_window}日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
     定義上、平常時のギャップは0近辺になり、表示される値は「昨晩ついた固有のプレミアム/ディスカウント」。<br>
@@ -617,12 +808,12 @@ def generate_html(data, hist=None):
 
     if fut is not None:
         cards.append(
-            f'    <div class="card"><div class="label">CME日経先物（夜間）→ 寄り付き目安</div>'
+            f'    <div class="card"><div class="label"><b class="num">①</b> CME日経先物（夜間）→ 今朝の寄り付き目安</div>'
             f'<div class="value">{fut:,.0f}円</div>'
-            f'<div class="sub">ギャップ {fmt_pct(gap_pct)}（{gap_yen:+,.0f}円）・{data["fut_ticker"]}</div></div>\n')
+            f'<div class="sub">夜間先物ギャップ {fmt_pct(gap_pct)}（{gap_yen:+,.0f}円）・{data["fut_ticker"]}</div></div>\n')
     else:
         cards.append(
-            '    <div class="card"><div class="label">CME日経先物（夜間）</div>'
+            '    <div class="card"><div class="label"><b class="num">①</b> CME日経先物（夜間）</div>'
             '<div class="value">取得失敗</div><div class="sub">yfinance側の一時的な問題の可能性</div></div>\n')
 
     theo = data["theo_gap"]
@@ -634,9 +825,9 @@ def generate_html(data, hist=None):
             direction = "日本買い" if dev > 0 else "日本売り"
             judge = f'<span class="warn">日本固有要因あり（{direction}方向に{abs(dev):.2f}%）</span>'
         cards.append(
-            f'    <div class="card"><div class="label">理論ギャップとの答え合わせ</div>'
+            f'    <div class="card"><div class="label"><b class="num">②</b> 理論ギャップとの答え合わせ</div>'
             f'<div class="value">{fmt_pct(theo)}</div>'
-            f'<div class="sub">実測 {fmt_pct(gap_pct)} − 理論 = 乖離 {dev:+.2f}%<br>{judge}</div></div>\n')
+            f'<div class="sub">夜間先物ギャップ {fmt_pct(gap_pct)} − 理論ギャップ {fmt_pct(theo)} = 乖離 {dev:+.2f}%<br>{judge}</div></div>\n')
 
     cards.append(
         f'    <div class="card"><div class="label">S&amp;P500（前日）</div>'
@@ -667,33 +858,29 @@ def generate_html(data, hist=None):
     for k in sorted(hist["days"], reverse=True)[:30]:
         rec = hist["days"][k]
         og, intraday, filled = _answer_row(rec)
-        dev = rec.get("dev")
-        dev_s = fmt_pct(dev) if dev is not None else "-"
+        gap, dev = rec.get("gap"), rec.get("dev")
+        cls = classify_dev(dev)
+        if cls == "buy":
+            judge_s = '<span class="warn">赤 日本買い</span>'
+        elif cls == "sell":
+            judge_s = '<span class="warn">赤 日本売り</span>'
+        elif cls == "neutral":
+            judge_s = '<span class="ok">青 理論通り</span>'
+        else:
+            judge_s = "-"
+        err_s = f'{og - gap:+.2f}%' if (og is not None and gap is not None) else "-"   # 誤差は符号で色を付けない
         fill_s = "-" if filled is None else ("○" if filled else "×")
+        reading, _ = build_reading(rec)
+        mark = '<span class="small">※</span>' if rec.get("repaired") else ""
         history_rows.append(
-            f'      <tr><td>{k[5:]}</td>'
-            f'<td>{fmt_pct(rec.get("gap"))}</td>'
-            f'<td>{fmt_pct(rec.get("theo"))}</td>'
-            f'<td>{dev_s}</td>'
-            f'<td>{fmt_pct(og)}</td>'
-            f'<td>{fmt_pct(intraday)}</td>'
-            f'<td>{fill_s}</td></tr>')
+            f'      <tr><td>{k[5:]}{mark}</td>'
+            f'<td class="sep">{fmt_pct(gap)}</td><td>{fmt_pct(og)}</td><td>{err_s}</td>'
+            f'<td class="sep">{fmt_pct(rec.get("theo"))}</td><td>{fmt_pct(dev)}</td><td>{judge_s}</td>'
+            f'<td class="sep">{fmt_pct(intraday)}</td><td>{fill_s}</td><td class="read">{reading}</td></tr>')
     if not history_rows:
-        history_rows.append('      <tr><td colspan="7" style="text-align:center; color:#64748b">蓄積中（毎朝の実行で1行ずつ増えます）</td></tr>')
+        history_rows.append('      <tr><td colspan="10" style="text-align:center; color:#64748b">蓄積中（毎朝の実行で1行ずつ増えます）</td></tr>')
 
-    stats = build_history_stats(hist)
-    total_n = sum(s[1] for s in stats)
-    if total_n >= 5:
-        parts = []
-        for g, n, avg, fill in stats:
-            if n:
-                fill_s = f'・ギャップ埋め率{fill:.0f}%' if fill is not None else ""
-                parts.append(f'<b>{g}</b>: N={n} 日中平均{avg:+.2f}%{fill_s}')
-            else:
-                parts.append(f'{g}: N=0')
-        stats_line = "    " + " ／ ".join(parts)
-    else:
-        stats_line = f'    集計はデータが溜まってから表示（現在{total_n}日分）。'
+    qbox = build_qbox(hist)
 
     # ADR答え合わせの集計
     adr_n, prec, buckets = build_adr_stats(hist)
@@ -742,7 +929,7 @@ def generate_html(data, hist=None):
         adr_rows="\n".join(adr_rows),
         beta_note=beta_note,
         history_rows="\n".join(history_rows),
-        stats_line=stats_line,
+        qbox=qbox,
         adr_stats_line=adr_stats_line,
         adr_bt_rows="\n".join(adr_bt_rows),
     )
@@ -800,6 +987,26 @@ def main():
     n225_prev = float(n225.iloc[-1])
     n225_date = n225.index[-1].strftime("%m/%d")
 
+    # Yahooの^N225は「前日の日足」が朝7:15時点でまだ無いことがある（2026-08-28, 08-31で発生）。
+    # その場合 iloc[-1] は一つ前の営業日の終値になり、ギャップ・乖離・答え合わせが全部ズレた土台で計算される。
+    # 日足の最終日が「直近の平日」より古ければ、その日の60分足の最終値で前日終値を復元する。
+    expected = datetime.date.today() - datetime.timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= datetime.timedelta(days=1)
+    if n225.index[-1].date() < expected:
+        try:
+            intr = yf.Ticker("^N225").history(
+                start=expected, end=expected + datetime.timedelta(days=1), interval="60m")
+            if len(intr):
+                n225_prev = float(intr["Close"].iloc[-1])
+                n225_date = expected.strftime("%m/%d")
+                n225.loc[pd.Timestamp(expected)] = n225_prev   # 回帰にも最新日を反映
+                log(f"  ^N225日足に{expected}が無い → 60分足から前日終値 {n225_prev:,.0f} を復元")
+            else:
+                log(f"  ^N225: {expected}は休場か日足未着（60分足も無し）→ 日足の最終日 {n225_date} を前日として使用")
+        except Exception as e:
+            log(f"  前日終値の復元失敗（日足の最終日を使用）: {e}")
+
     # 夜間先物（円建て優先）
     fut_last, fut_ticker = None, None
     for tk in ("NIY=F", "NKD=F"):
@@ -842,6 +1049,7 @@ def main():
         "dev": None if dev is None else round(dev, 3),
     }, adr_rows=adr)
     backfill_answers(hist)
+    repair_stale_prev(hist)
     backfill_adr_answers(hist)
     save_history(hist)
 
