@@ -41,6 +41,7 @@ import yfinance as yf
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPORT_HTML = "yorimae.html"
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "yorimae_history.json")  # 乖離の履歴と答え合わせ用
+POST_JSON = os.path.join(SCRIPT_DIR, "yorimae_post.json")        # X自動投稿(kabuchiwa_post.py)に渡す今朝の数値
 
 # 主要ADR銘柄（ADRティッカー, 東証コード, 表示名, 市場区分）
 # NYSE上場は板が厚くADR価格の信頼性が高い。OTCは流動性が薄く値が古い/飛ぶことがある
@@ -761,7 +762,8 @@ def push_to_github():
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
                     "yorimae_screen.py", "yorimae_run.bat",
-                    "yorimae_history.json", ".gitignore"], check=True)
+                    "yorimae_history.json", ".gitignore",
+                    "kabuchiwa_post.py", "x_config.example.json"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update yorimae report " + today],
         capture_output=True)
@@ -852,6 +854,23 @@ def main():
         "theo_gap": theo_gap, "betas": betas,
         "adr": adr, "adr_bt": adr_bt,
     }, hist)
+
+    # X自動投稿用の数値（kabuchiwa_post.py が読む。HTMLとは別に素の数値だけ渡す）
+    try:
+        json.dump({
+            "generated": datetime.datetime.now().isoformat(timespec="seconds"),
+            "n225_prev": n225_prev, "n225_date": n225_date,
+            "fut_last": fut_last, "fut_ticker": fut_ticker,
+            "gap_pct": gap_pct, "gap_yen": gap_yen,
+            "spx_ret": spx_ret, "ndx_ret": ndx_ret,
+            "fx_now": fx_now, "fx_chg": fx_chg,
+            "theo_gap": theo_gap, "dev": dev, "dev_th": DEVIATION_TH,
+            "adr": [{"name": r["name"], "tyo": r["tyo"], "mkt": r["mkt"],
+                     "gap": round(r["gap"], 2)} for r in adr],
+        }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        log(f"投稿用JSON出力: {POST_JSON}")
+    except Exception as e:
+        log(f"投稿用JSONの出力失敗（投稿はスキップされます）: {e}")
 
     if "--nopush" in sys.argv:
         log("push スキップ")

@@ -1,0 +1,11 @@
+{
+  "_comment": "このファイルを x_config.json という名前でコピーしてキーを埋める。x_config.json は .gitignore 済み（公開リポジトリに絶対に上げない）",
+  "post_enabled": false,
+  "reply_with_link": true,
+  "premium": false,
+  "hashtags": "#寄り前 #日経平均",
+  "consumer_key": "developer.x.com の App > Keys and tokens > API Key",
+  "consumer_secret": "同 API Key Secret",
+  "access_token": "同 Access Token（App permissions を Read and write にしてから生成）",
+  "access_token_secret": "同 Access Token Secret"
+}

@@ -2,6 +2,11 @@
 *_history.json
 *_prev.json
 
+# X自動投稿（kabuchiwa_post.py）: APIキー・下書き・受け渡しJSONは公開リポジトリに上げない
+x_config.json
+drafts/
+yorimae_post.json
+
 # 裁定取引・日銀利上げ確率・売買代金の蓄積データはバックアップのためGitHubにもpushする（除外の除外）
 !saitei_history.json
 !totan_history.json
