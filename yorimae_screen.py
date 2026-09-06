@@ -555,6 +555,24 @@ K13_LABEL = {"filled": ("埋まった", "ok"), "remained": ("残った", "warn")
              "emerged": ("日中に発生", "warn"), "theory": ("理論通り", "ok")}
 
 
+def k13_text(v):
+    """⑬判定の表示文。乖離の時系列（⑨6:00→⑪9:00→⑫15:30）を語順で表す。
+    例: 「寄りで拡大後、埋まった」「寄りで縮小後、残った（日本固有要因：売り）」"""
+    if not v.get("k13"):
+        return None, None
+    label, lcls = K13_LABEL[v["k13"]]
+    if v["k13"] in ("remained", "reversed", "emerged"):
+        label += "（日本固有要因：" + ("買い" if v["cls12"] == "buy" else "売り") + "）"
+    prefix = ""
+    if v["cls"] in ("buy", "sell") and v.get("d11") is not None and v.get("d9"):
+        ratio = v["d11"] / v["d9"]          # 9:00時点の乖離 ÷ 6:00時点の乖離
+        if ratio > 1.2:
+            prefix = "寄りで拡大後、"
+        elif ratio < 0.5:
+            prefix = "寄りで縮小後、"
+    return prefix + label, lcls
+
+
 def build_qbox(hist):
     """3つの問いの成績を3枚のカードで返す"""
     errs, same_dir = [], []
@@ -598,7 +616,7 @@ def build_qbox(hist):
                 verdict = "→ いまのところ夜の乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）"
             else:
                 verdict = "→ 五分五分"
-        expand_s = f'　赤の朝のうち寄りで拡大 {n_open_expand}日。' if n_open_expand else ""
+        expand_s = f'　赤の朝のうち、寄りでいったん拡大したのは {n_open_expand}日。' if n_open_expand else ""
         q3 = (f'<div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div>'
               f'<div class="qv">赤→青 埋まった {pat["filled"]} ／ 赤→赤 残った {pat["remained"] + pat["reversed"]} ／ 青→赤 日中に発生 {pat["emerged"]} ／ 青→青 {pat["theory"]}</div>'
               f'<div class="qs">⑩（6:00）→⑬（15:30）の組み合わせ。N={n_dec}。{expand_s}'
@@ -1012,7 +1030,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>問い2の⑨⑪⑫</b>は同じ「乖離＝理論値との差」を3つの時点で追う: ⑨6:00時点（夜間終値） → ⑪9:00時点（寄り） → ⑫15:30時点（引け）。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。<br>
     ・<b>⑩と⑬</b>は同じ物差し: 乖離の絶対値が{dev_th}%以内なら<span class="ok">理論通り</span>、超えたら<span class="warn">日本固有要因：買い/売り</span>。⑩は⑨（6:00時点）に、⑬は⑫（15:30時点）に当てる。
     組み合わせで <span class="ok">赤→青 埋まった</span>（夜の日本固有要因は引けまでに消えた＝ノイズ・需給）／<span class="warn">赤→赤 残った</span>（引けまで残った＝本物の材料。逆符号なら反転）／
-    <span class="warn">青→赤 日中に発生</span>（夜は理論通りだったが日本の場中で何か起きた）／<span class="ok">青→青 理論通り</span>。⑪が⑨の1.2倍超なら「寄りで拡大」。<br>
+    <span class="warn">青→赤 日中に発生</span>（夜は理論通りだったが日本の場中で何か起きた）／<span class="ok">青→青 理論通り</span>。⑪が⑨の1.2倍超なら「寄りで拡大後、…」、半分未満なら「寄りで縮小後、…」を前に付ける（6:00→9:00→15:30の順に読む）。<br>
     ・しきい値{dev_th}%は<b>暫定（仮説）</b>。⑫の分布が溜まったら見直す（例: 過去1年の|⑫|の中央値や標準偏差から決める）。<br>
     ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。<br>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
@@ -1128,9 +1146,7 @@ def generate_html(data, hist=None):
     row3.append(card("⑪", "乖離（9:00時点）＝ ⑥ − ⑧", pv("d11"), "寄り付きで乖離がどう変わったか（9:30の更新で入る）"))
     row3.append(card("⑫", "乖離（15:30時点）＝（④−①）− ⑧", pv("d12"), "引けで理論値との差がいくら残ったか（15:45の更新で入る）"))
     if tv and tv.get("k13"):
-        label13, lcls13 = K13_LABEL[tv["k13"]]
-        if tv["k13"] in ("remained", "reversed", "emerged"):
-            label13 += "（日本固有要因：" + ("買い" if tv["cls12"] == "buy" else "売り") + "）"
+        label13, lcls13 = k13_text(tv)
         pat = ("赤" if tv["cls"] in ("buy", "sell") else "青") + "→" + ("赤" if tv["cls12"] in ("buy", "sell") else "青")
         row3.append(card("⑬", "判定（15:30時点）",
                          f'<div class="value" style="font-size:1.3rem"><span class="{lcls13}">{label13}</span></div>',
@@ -1194,11 +1210,8 @@ def generate_html(data, hist=None):
         if is_today:
             mark += ' <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③は9:30、④は15:45の更新で埋まる">◀ 今日</span>'
         if v["k13"]:
-            label, lcls = K13_LABEL[v["k13"]]
-            if v["k13"] in ("remained", "reversed", "emerged"):
-                label += "（日本固有要因：" + ("買い" if v["cls12"] == "buy" else "売り") + "）"
-            expand = "・寄りで拡大" if (v["cls"] in ("buy", "sell") and v["d11"] is not None and v["d9"] and v["d11"] / v["d9"] > 1.2) else ""
-            j13 = f'<span class="{lcls}">{label}</span>{expand}'
+            label, lcls = k13_text(v)
+            j13 = f'<span class="{lcls}">{label}</span>'
         elif v["g6"] is None:
             j13 = '<span class="small">' + ("9:30/15:45の更新で採点" if is_today else "採点待ち") + '</span>'
         else:
