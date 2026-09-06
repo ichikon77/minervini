@@ -10,10 +10,10 @@
   前日の日経平均終値のギャップ。現物はほぼ夜間先物の水準に揃って寄り付くため、
   これが「今朝の寄り付き目安」になる。
 
-② 理論ギャップとの答え合わせ（kinri流）
+② 理論値との答え合わせ（kinri流）
   夜間の日経先物の変動は、理屈上「米株(S&P500)の変動×ベータ + ドル円の変動×為替感応度」で
   だいたい説明できる。過去1年の日次データで回帰係数を自前推定し、
-    理論ギャップ% = b1 × S&P500前日騰落% + b2 × ドル円変化%
+    理論値% = b1 × S&P500前日騰落% + b2 × ドル円変化%
   を計算。実測ギャップとの乖離 = 日本固有の夜間要因（海外勢の日本株への強弱など）。
   乖離が小さければ青（理論通り）、大きければ赤（日本固有要因あり）で表示。
   ※ドル円の「前日東京引け時点」は取得できないためNY終値で近似。厳密な分解ではなく目安。
@@ -63,9 +63,9 @@ ADR_LIST = [
     ("KMTUY", "6301.T", "コマツ", "OTC"),
 ]
 
-BETA_LOOKBACK = 250   # 理論ギャップの回帰に使う日数（約1年）
+BETA_LOOKBACK = 250   # 理論値の回帰に使う日数（約1年）
 RATIO_WINDOW = 20     # ADR換算比率の中央値を取る日数
-DEVIATION_TH = 0.5    # 実測-理論ギャップの乖離がこの%を超えたら「日本固有要因あり」(赤)
+DEVIATION_TH = 0.5    # 実測-理論値の乖離がこの%を超えたら「日本固有要因あり」(赤)
 
 
 def log(msg):
@@ -104,7 +104,7 @@ def daily_closes(ticker, period="2y"):
 
 
 # -----------------------------------------
-# 理論ギャップの回帰係数（過去1年: 日経リターン ~ SPX前日リターン + ドル円変化）
+# 理論値の回帰係数（過去1年: 日経リターン ~ SPX前日リターン + ドル円変化）
 # -----------------------------------------
 def estimate_betas(n225, spx, fx):
     """b0 + b1*SPX前日リターン + b2*ドル円日次変化 で日経日次リターンを回帰。
@@ -699,7 +699,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <b>見方（このページの「ギャップ」は全部「前日終値から何%離れているか」）:</b><br>
     <b class="num">①</b> <b>夜間先物ギャップ</b> ＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
     <b class="num">②</b> <b>乖離</b> ＝ ①のうち<b>米株とドル円で説明できなかった分</b>。
-    「米株とドル円だけ見たら本来こう動くはず」という計算値（理論ギャップ）を①から引いた残り。
+    「米株とドル円だけ見たら本来こう動くはず」という計算値（理論値）を①から引いた残り。
     ±{dev_th}%以内なら<span class="ok">青 理論通り</span>、超えたら<span class="warn">赤 日本固有要因</span>＝夜のうちに日本株に固有の買い/売りが入った。<br>
     <b class="num">③</b> <b>ADRギャップ</b> ＝ 個別銘柄の寄り付き目安。プラス＝米国市場で東京終値より高く買われた。<br>
     <span style="color:#94a3b8">翌朝、①②を実際の寄り付き・日中の値動きで採点する → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行（採点欄は明朝埋まる）。</span>
@@ -752,7 +752,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <table>
     <thead>
       <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="3">問い3 その後</th></tr>
-      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差</th><th class="sep">②理論ギャップ</th><th>乖離</th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
+      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差<br><span style="font-weight:normal">（寄り付き−①）</span></th><th class="sep">②理論値</th><th>乖離<br><span style="font-weight:normal">（①−②）</span></th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
     </thead>
     <tbody>
 {history_rows}
@@ -768,7 +768,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </p>
   <p class="note">
     ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<b>夜間先物ギャップ</b>はこれと前日終値の差。<br>
-    ・<b>理論ギャップ</b>（②）= b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
+    ・<b>理論値</b>（②）= b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
     ドル円の起点はNY終値で近似しているため厳密な分解ではなく目安。<br>
     ・<b>ADR換算比率</b> = 直近{ratio_window}日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
     定義上、平常時のギャップは0近辺になり、表示される値は「昨晩ついた固有のプレミアム/ディスカウント」。<br>
@@ -825,15 +825,15 @@ def generate_html(data, hist=None):
             dev_cls = "warn"
         if data.get("betas"):
             b1, b2, _ = data["betas"]
-            theo_expl = (f'理論ギャップ {fmt_pct(theo)} = S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} '
+            theo_expl = (f'理論値 {fmt_pct(theo)} = S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} '
                          f'+ ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}')
         else:
-            theo_expl = f'理論ギャップ {fmt_pct(theo)}'
+            theo_expl = f'理論値 {fmt_pct(theo)}'
         cards.append(
-            f'    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離 ＝ 夜間先物ギャップ − 理論ギャップ</div>'
+            f'    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離（①−②）＝ 夜間先物ギャップ − 理論値</div>'
             f'<div class="value"><span class="{dev_cls}">{dev:+.2f}%</span></div>'
             f'<div class="sub">{judge}<br>'
-            f'夜間先物ギャップ {fmt_pct(gap_pct)} − 理論ギャップ {fmt_pct(theo)}<br>'
+            f'夜間先物ギャップ {fmt_pct(gap_pct)} − 理論値 {fmt_pct(theo)}<br>'
             f'<span style="color:#64748b">{theo_expl}</span></div></div>\n')
 
     cards.append(
@@ -858,7 +858,7 @@ def generate_html(data, hist=None):
                      f'（決定係数R²={r2:.2f}）' if r2 is not None else
                      f'<b>回帰係数（過去{BETA_LOOKBACK}日）</b>: b1={b1:.2f}, b2={b2:.2f}')
     else:
-        beta_note = '回帰係数: データ不足のため理論ギャップは非表示'
+        beta_note = '回帰係数: データ不足のため理論値は非表示'
 
     # 乖離履歴（新しい順に最大30日）
     history_rows = []
@@ -1056,13 +1056,13 @@ def main():
     fx_now = last_price("JPY=X") or (float(fx.iloc[-1]) if len(fx) else None)
     fx_chg = (fx_now / float(fx.iloc[-1]) - 1) * 100 if fx_now and len(fx) else None
 
-    # 理論ギャップ
+    # 理論値
     betas = estimate_betas(n225, spx, fx)
     theo_gap = None
     if betas and spx_ret is not None and fx_chg is not None:
         b1, b2, _ = betas
         theo_gap = b1 * spx_ret + b2 * fx_chg
-    log(f"S&P500前日 {spx_ret} / ドル円変化 {fx_chg} / 理論ギャップ {theo_gap}")
+    log(f"S&P500前日 {spx_ret} / ドル円変化 {fx_chg} / 理論値 {theo_gap}")
 
     # ADR
     adr = calc_adr_gaps()

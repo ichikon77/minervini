@@ -193,7 +193,7 @@ def today_events(today):
 # 王様のセリフ（投稿文）
 # -----------------------------------------
 def build_judgement(d):
-    """理論ギャップとの乖離の読みを (王様の一言, 状態ラベル, 色クラス) で返す"""
+    """理論値との乖離の読みを (王様の一言, 状態ラベル, 色クラス) で返す"""
     gap, theo, dev = d.get("gap_pct"), d.get("theo_gap"), d.get("dev")
     th = d.get("dev_th", 0.5)
     if gap is None or theo is None or dev is None:
@@ -201,8 +201,8 @@ def build_judgement(d):
     if abs(dev) <= th:
         return ("米国の動きで 説明がつく。日本固有の要因は みられぬ", "理論通り", "ok")
     if dev > 0:
-        return (f"理論より {abs(dev):.2f}% 高い。夜のうちに 日本株に 追い風が 吹いたようじゃ", "日本買い方向", "warn")
-    return (f"理論より {abs(dev):.2f}% 低い。夜のうちに 日本株に 向かい風が 吹いたようじゃ。用心せよ", "日本売り方向", "warn")
+        return (f"理論値より {abs(dev):.2f}% 高い。夜のうちに 日本株に 追い風が 吹いたようじゃ", "日本買い方向", "warn")
+    return (f"理論値より {abs(dev):.2f}% 低い。夜のうちに 日本株に 向かい風が 吹いたようじゃ。用心せよ", "日本売り方向", "warn")
 
 
 def gap_phrase(d):
@@ -427,7 +427,7 @@ CARD_TEMPLATE = """<!DOCTYPE html>
   <div class="big">
     <div class="label">CME日経先物（夜間）→ 今朝の寄り付き目安　／　前日終値 {n225_prev}</div>
     <div class="value">{fut_s}<span class="{gap_cls}">{gap_s}</span></div>
-    <div class="judge">理論 {theo_s} ／ 乖離 {dev_s} <span class="badge {judge_cls}">{judge_label}</span></div>
+    <div class="judge">理論値 {theo_s} ／ 乖離 {dev_s} <span class="badge {judge_cls}">{judge_label}</span></div>
   </div>
   <div class="mini">
     <div><div class="label">S&amp;P500</div><div class="v {spx_cls}">{spx_s}</div></div>
@@ -754,7 +754,7 @@ def main():
 
     reply = None
     if cfg.get("reply_with_link", True):
-        reply = f"偵察の詳細（ADR15銘柄・理論ギャップの答え合わせ履歴）はこちらの巻物に。\n{DECK_URL}"
+        reply = f"偵察の詳細（ADR15銘柄・理論値の答え合わせ履歴）はこちらの巻物に。\n{DECK_URL}"
     try:
         post_to_x(cfg, text, png_path if rendered else None, reply)
     except Exception as e:

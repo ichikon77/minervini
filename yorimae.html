@@ -102,12 +102,12 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: 2026-09-06 13:16（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
+  <p class="subtitle">最終更新: 2026-09-06 13:25（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
   <div class="evidence">
     <b>見方（このページの「ギャップ」は全部「前日終値から何%離れているか」）:</b><br>
     <b class="num">①</b> <b>夜間先物ギャップ</b> ＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
     <b class="num">②</b> <b>乖離</b> ＝ ①のうち<b>米株とドル円で説明できなかった分</b>。
-    「米株とドル円だけ見たら本来こう動くはず」という計算値（理論ギャップ）を①から引いた残り。
+    「米株とドル円だけ見たら本来こう動くはず」という計算値（理論値）を①から引いた残り。
     ±0.5%以内なら<span class="ok">青 理論通り</span>、超えたら<span class="warn">赤 日本固有要因</span>＝夜のうちに日本株に固有の買い/売りが入った。<br>
     <b class="num">③</b> <b>ADRギャップ</b> ＝ 個別銘柄の寄り付き目安。プラス＝米国市場で東京終値より高く買われた。<br>
     <span style="color:#94a3b8">翌朝、①②を実際の寄り付き・日中の値動きで採点する → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行（採点欄は明朝埋まる）。</span>
@@ -115,7 +115,7 @@
     <div class="cards">
     <div class="card"><div class="label">日経平均 前日終値</div><div class="value">65,021円</div><div class="sub">09/04 大引け</div></div>
     <div class="card"><div class="label"><b class="num">①</b> CME日経先物（夜間）→ 今朝の寄り付き目安</div><div class="value">65,830円</div><div class="sub">夜間先物ギャップ <span class="pos">+1.24%</span>（+809円）・NIY=F</div></div>
-    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離 ＝ 夜間先物ギャップ − 理論ギャップ</div><div class="value"><span class="warn">+1.62%</span></div><div class="sub"><span class="warn">赤 日本固有要因（日本買い）</span>（米株・ドル円で説明できない分）<br>夜間先物ギャップ <span class="pos">+1.24%</span> − 理論ギャップ <span class="neg">-0.38%</span><br><span style="color:#64748b">理論ギャップ <span class="neg">-0.38%</span> = S&amp;P500 -0.38%×1.01 + ドル円 +0.00%×-0.10</span></div></div>
+    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離（①−②）＝ 夜間先物ギャップ − 理論値</div><div class="value"><span class="warn">+1.62%</span></div><div class="sub"><span class="warn">赤 日本固有要因（日本買い）</span>（米株・ドル円で説明できない分）<br>夜間先物ギャップ <span class="pos">+1.24%</span> − 理論値 <span class="neg">-0.38%</span><br><span style="color:#64748b">理論値 <span class="neg">-0.38%</span> = S&amp;P500 -0.38%×1.01 + ドル円 +0.00%×-0.10</span></div></div>
     <div class="card"><div class="label">S&amp;P500（前日）</div><div class="value"><span class="neg">-0.38%</span></div><div class="sub">NASDAQ <span class="neg">-0.29%</span></div></div>
     <div class="card"><div class="label">ドル円</div><div class="value">156.22円</div><div class="sub">NY前日終値比 <span class="">+0.00%</span></div></div>
     </div>
@@ -163,10 +163,10 @@
   <table>
     <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>同勝率</th><th>ADR↓日の日中</th><th>同続落率</th></tr></thead>
     <tbody>
-      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">78%</span></td><td>88% (N=153)</td><td>0.94</td><td>0.79</td><td>1.72%</td><td><span class="pos">+0.42%</span> (N=99)</td><td><span class="">52%</span></td><td><span class="neg">-0.03%</span> (N=95)</td><td><span class="">52%</span></td></tr>
+      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">77%</span></td><td>87% (N=153)</td><td>0.94</td><td>0.79</td><td>1.72%</td><td><span class="pos">+0.42%</span> (N=99)</td><td><span class="">52%</span></td><td><span class="neg">-0.03%</span> (N=95)</td><td><span class="">52%</span></td></tr>
       <tr><td>東京エレクトロン</td><td>8035 / OTC</td><td>250</td><td><span class="ok">76%</span></td><td>89% (N=126)</td><td>0.91</td><td>0.77</td><td>1.42%</td><td><span class="neg">-0.06%</span> (N=85)</td><td><span class="">48%</span></td><td><span class="pos">+0.37%</span> (N=89)</td><td><span class="">44%</span></td></tr>
       <tr><td>みずほFG</td><td>8411 / NYSE</td><td>250</td><td><span class="ok">77%</span></td><td>89% (N=103)</td><td>0.81</td><td>0.71</td><td>0.92%</td><td><span class="pos">+0.46%</span> (N=76)</td><td><span class="ok">61%</span></td><td><span class="neg">-0.20%</span> (N=80)</td><td><span class="">52%</span></td></tr>
-      <tr><td>三井住友FG</td><td>8316 / NYSE</td><td>250</td><td><span class="ok">70%</span></td><td>87% (N=90)</td><td>0.76</td><td>0.66</td><td>0.90%</td><td><span class="pos">+0.27%</span> (N=70)</td><td><span class="">54%</span></td><td><span class="neg">-0.18%</span> (N=76)</td><td><span class="">54%</span></td></tr>
+      <tr><td>三井住友FG</td><td>8316 / NYSE</td><td>250</td><td><span class="ok">70%</span></td><td>88% (N=90)</td><td>0.76</td><td>0.66</td><td>0.90%</td><td><span class="pos">+0.27%</span> (N=70)</td><td><span class="">54%</span></td><td><span class="neg">-0.18%</span> (N=76)</td><td><span class="">54%</span></td></tr>
       <tr><td>三菱UFJ</td><td>8306 / NYSE</td><td>250</td><td><span class="ok">70%</span></td><td>86% (N=93)</td><td>0.69</td><td>0.65</td><td>0.83%</td><td><span class="pos">+0.39%</span> (N=75)</td><td><span class="ok">64%</span></td><td><span class="neg">-0.18%</span> (N=84)</td><td><span class="">54%</span></td></tr>
       <tr><td>日立</td><td>6501 / OTC</td><td>250</td><td><span class="ok">66%</span></td><td>86% (N=98)</td><td>0.82</td><td>0.65</td><td>1.13%</td><td><span class="pos">+0.03%</span> (N=73)</td><td><span class="">52%</span></td><td><span class="neg">-0.29%</span> (N=77)</td><td><span class="warn">58%</span></td></tr>
       <tr><td>任天堂</td><td>7974 / OTC</td><td>250</td><td><span class="">62%</span></td><td>71% (N=101)</td><td>0.66</td><td>0.63</td><td>1.19%</td><td><span class="pos">+0.01%</span> (N=68)</td><td><span class="">51%</span></td><td><span class="neg">-0.55%</span> (N=82)</td><td><span class="warn">65%</span></td></tr>
@@ -194,7 +194,7 @@
   <table>
     <thead>
       <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="3">問い3 その後</th></tr>
-      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差</th><th class="sep">②理論ギャップ</th><th>乖離</th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
+      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差<br><span style="font-weight:normal">（寄り付き−①）</span></th><th class="sep">②理論値</th><th>乖離<br><span style="font-weight:normal">（①−②）</span></th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
     </thead>
     <tbody>
       <tr style="opacity:0.75"><td style="white-space:nowrap">09-06 <span class="num" style="font-size:0.75rem">◀ 今朝</span> <span class="small">休場日・記録なし</span></td><td class="sep"><span class="pos">+1.24%</span></td><td>-</td><td>-</td><td class="sep"><span class="neg">-0.38%</span></td><td><span class="pos">+1.62%</span></td><td><span class="warn">赤 日本買い</span></td><td class="sep">-</td><td>-</td><td class="read">休場日のため採点なし（次の営業日の朝から記録）</td></tr>
@@ -216,13 +216,13 @@
   </p>
   <p class="note">
     ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<b>夜間先物ギャップ</b>はこれと前日終値の差。<br>
-    ・<b>理論ギャップ</b>（②）= b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
+    ・<b>理論値</b>（②）= b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
     ドル円の起点はNY終値で近似しているため厳密な分解ではなく目安。<br>
     ・<b>ADR換算比率</b> = 直近20日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
     定義上、平常時のギャップは0近辺になり、表示される値は「昨晩ついた固有のプレミアム/ディスカウント」。<br>
     ・ADRは米国での流動性が薄い銘柄（OTC系）ほどノイズが大きい。大型のTM/SONY/MUFG等を優先的に信頼する。<br>
     ・<b>回帰係数（過去250日）</b>: 日経リターン ≈ 1.01×S&P500前日 + -0.10×ドル円変化（決定係数R²=0.20）
   </p>
-  <p class="updated">最終更新: 2026-09-06 13:16</p>
+  <p class="updated">最終更新: 2026-09-06 13:25</p>
 </body>
 </html>
