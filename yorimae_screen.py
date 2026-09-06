@@ -646,6 +646,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.9; max-width: 1100px; }}
   .updated {{ text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }}
   .num {{ color: #fbbf24; font-weight: 700; }}
+  .card .label.big {{ font-size: 1.05rem; color: #cbd5e1; margin-bottom: 6px; }}
   .qbox {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; max-width: 1100px; }}
   .q {{ flex: 1; min-width: 300px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; line-height: 1.7; }}
   .q .qt {{ color: #fbbf24; font-weight: 700; margin-bottom: 4px; }}
@@ -752,7 +753,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <table>
     <thead>
       <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="3">問い3 その後</th></tr>
-      <tr><th>日付</th><th class="sep">①夜間先物ギャップ</th><th>実際の寄り付きギャップ</th><th>誤差<br><span style="font-weight:normal">（寄り付き−①）</span></th><th class="sep">②理論値</th><th>乖離<br><span style="font-weight:normal">（①−②）</span></th><th>判定</th><th class="sep">日中(寄→引)</th><th>ギャップ埋め</th><th>読み</th></tr>
+      <tr><th>日付</th>
+        <th class="sep">①夜間先物ギャップ<br><span style="font-weight:normal">（7:15の先物−前日終値）</span></th>
+        <th>実際の寄り付きギャップ<br><span style="font-weight:normal">（当日始値−前日終値）</span></th>
+        <th>誤差<br><span style="font-weight:normal">（寄り付き−①）</span></th>
+        <th class="sep">②理論値<br><span style="font-weight:normal">（米株・ドル円から計算）</span></th>
+        <th>乖離<br><span style="font-weight:normal">（①−②）</span></th>
+        <th>判定<br><span style="font-weight:normal">（乖離±0.5%）</span></th>
+        <th class="sep">日中<br><span style="font-weight:normal">（引け−始値）</span></th>
+        <th>ギャップ埋め<br><span style="font-weight:normal">（前日終値まで戻したか）</span></th>
+        <th>読み</th></tr>
     </thead>
     <tbody>
 {history_rows}
@@ -760,6 +770,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note" style="margin-top:8px">
+    ・<b>①夜間先物ギャップ</b>＝（7:15時点のCME日経先物の値 − 日経平均の前日終値）÷ 前日終値。CME先物は日本時間6:00〜7:00の休憩を挟んでほぼ24時間取引のため、7:15の値は夜間の最終値とほぼ同じ（大証ナイトセッション終値と同水準）。<br>
+    ・<b>実際の寄り付きギャップ</b>＝（当日の日経平均の始値 − 前日終値）÷ 前日終値。9:00の寄り値＝始値。<br>
     ・<b>誤差</b>は夜間先物ギャップと実際の寄り付きギャップの差。大きい日は7:15以降のニュースか、寄り付きの板の偏り。<br>
     ・<b>ギャップ埋め</b>=寄り付きが前日終値から離れて始まった後、その日のうちに前日終値まで一度でも戻ったか（○/×）。<br>
     ・<b>読み</b>は乖離の方向と日中リターン（±0.3%を閾値）から機械的に付けた一言。「戻す」が多ければ逆張り、「続く」が多ければ順張りの根拠になる。<br>
@@ -805,12 +817,12 @@ def generate_html(data, hist=None):
 
     if fut is not None:
         cards.append(
-            f'    <div class="card"><div class="label"><b class="num">①</b> CME日経先物（夜間）→ 今朝の寄り付き目安</div>'
+            f'    <div class="card"><div class="label big"><b class="num">①</b> CME日経先物（夜間）→ 今朝の寄り付き目安</div>'
             f'<div class="value">{fut:,.0f}円</div>'
             f'<div class="sub">夜間先物ギャップ {fmt_pct(gap_pct)}（{gap_yen:+,.0f}円）・{data["fut_ticker"]}</div></div>\n')
     else:
         cards.append(
-            '    <div class="card"><div class="label"><b class="num">①</b> CME日経先物（夜間）</div>'
+            '    <div class="card"><div class="label big"><b class="num">①</b> CME日経先物（夜間）</div>'
             '<div class="value">取得失敗</div><div class="sub">yfinance側の一時的な問題の可能性</div></div>\n')
 
     theo = data["theo_gap"]
@@ -830,7 +842,7 @@ def generate_html(data, hist=None):
         else:
             theo_expl = f'理論値 {fmt_pct(theo)}'
         cards.append(
-            f'    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離（①−②）＝ 夜間先物ギャップ − 理論値</div>'
+            f'    <div class="card" style="min-width:330px"><div class="label big"><b class="num">②</b> 乖離（①−②）＝ 夜間先物ギャップ − 理論値</div>'
             f'<div class="value"><span class="{dev_cls}">{dev:+.2f}%</span></div>'
             f'<div class="sub">{judge}<br>'
             f'夜間先物ギャップ {fmt_pct(gap_pct)} − 理論値 {fmt_pct(theo)}<br>'
