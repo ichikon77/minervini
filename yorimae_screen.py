@@ -312,12 +312,14 @@ def _answer_row(rec):
     prev = rec["prev_close"]
     open_gap = (rec["open"] / prev - 1) * 100
     intraday = (rec["close"] / rec["open"] - 1) * 100
-    if rec["open"] < prev:
-        filled = rec["high"] >= prev
-    elif rec["open"] > prev:
-        filled = rec["low"] <= prev
-    else:
+    # 窓埋め: 寄り付きで前日終値から離れて始まった後、日中に一度でも前日終値まで戻ったか（高値/安値で判定）。
+    # 寄り付きギャップが±0.2%以内は「窓」と呼べないので判定しない（None）
+    if abs(open_gap) < 0.2:
         filled = None
+    elif rec["open"] < prev:
+        filled = rec["high"] >= prev
+    else:
+        filled = rec["low"] <= prev
     return open_gap, intraday, filled
 
 
@@ -375,8 +377,9 @@ def build_qbox(hist):
     errs, same_dir = [], []
     n_all, n_red, n_buy, n_sell = 0, 0, 0, 0
     red_revert, red_follow, red_flat = 0, 0, 0
+    red_fills, all_fills = [], []
     for rec in hist["days"].values():
-        og, intraday, _ = _answer_row(rec)
+        og, intraday, filled = _answer_row(rec)
         gap, dev = rec.get("gap"), rec.get("dev")
         if og is None or gap is None:
             continue
@@ -384,6 +387,8 @@ def build_qbox(hist):
         errs.append(abs(og - gap))
         if abs(gap) >= 0.2:
             same_dir.append((og > 0) == (gap > 0))
+        if filled is not None:
+            all_fills.append(filled)
         cls = classify_dev(dev)
         if cls in ("buy", "sell"):
             n_red += 1
@@ -393,6 +398,8 @@ def build_qbox(hist):
             red_revert += kind == "revert"
             red_follow += kind == "follow"
             red_flat += kind == "flat"
+            if filled is not None:
+                red_fills.append(filled)
     if n_all == 0:
         return '  <div class="qbox"><div class="q"><div class="qt">成績</div><div class="qs">蓄積中（翌朝から採点が始まります）</div></div></div>'
     caveat = "（サンプル少・傾向の目安）" if n_all < 20 else ""
@@ -414,9 +421,14 @@ def build_qbox(hist):
                 verdict = "→ いまのところ<b>順張り寄り</b>（赤の方向に日中も続く）"
             else:
                 verdict = "→ 五分五分"
+        fill_s = ""
+        if red_fills:
+            fill_s = f'　窓埋め率 {sum(red_fills)/len(red_fills)*100:.0f}%（窓あり{len(red_fills)}日）'
+            if all_fills:
+                fill_s += f'／全日 {sum(all_fills)/len(all_fills)*100:.0f}%'
         q3 = (f'<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div>'
               f'<div class="qv">戻す {red_revert} ／ 続く {red_follow} ／ 横 {red_flat}</div>'
-              f'<div class="qs">赤{n_red}日のうち、日中（寄→引）が乖離と逆方向（戻す）か同方向（続く）か。閾値±{READ_TH}%。{verdict}{caveat}</div></div>')
+              f'<div class="qs">赤{n_red}日のうち、日中（寄→引）が乖離と逆方向（戻す）か同方向（続く）か。閾値±{READ_TH}%。{fill_s}<br>{verdict}{caveat}</div></div>')
     else:
         q3 = '<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div><div class="qs">赤の日がまだ無い</div></div>'
     return f'  <div class="qbox">{q1}{q2}{q3}</div>'
@@ -761,7 +773,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <th>乖離<br><span style="font-weight:normal">（①−②）</span></th>
         <th>判定<br><span style="font-weight:normal">（乖離±0.5%）</span></th>
         <th class="sep">日中<br><span style="font-weight:normal">（引け−始値）</span></th>
-        <th>ギャップ埋め<br><span style="font-weight:normal">（前日終値まで戻したか）</span></th>
+        <th>窓埋め<br><span style="font-weight:normal">（日中に前日終値まで戻った）</span></th>
         <th>読み</th></tr>
     </thead>
     <tbody>
@@ -773,7 +785,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>①夜間先物ギャップ</b>＝（7:15時点のCME日経先物の値 − 日経平均の前日終値）÷ 前日終値。CME先物は日本時間6:00〜7:00の休憩を挟んでほぼ24時間取引のため、7:15の値は夜間の最終値とほぼ同じ（大証ナイトセッション終値と同水準）。<br>
     ・<b>実際の寄り付きギャップ</b>＝（当日の日経平均の始値 − 前日終値）÷ 前日終値。9:00の寄り値＝始値。<br>
     ・<b>誤差</b>は夜間先物ギャップと実際の寄り付きギャップの差。大きい日は7:15以降のニュースか、寄り付きの板の偏り。<br>
-    ・<b>ギャップ埋め</b>=寄り付きが前日終値から離れて始まった後、その日のうちに前日終値まで一度でも戻ったか（○/×）。<br>
+    ・<b>窓埋め</b>=寄り付きで前日終値から離れて始まった（窓が開いた）後、その日のうちに高値/安値が一度でも前日終値に届いたか（○/×）。寄り付きギャップ±0.2%以内は窓なしとして判定しない（−）。
+    「寄りで飛びつかず待った人に、前日終値で拾う/逃げる機会が日中に来たか」を見る指標。<br>
     ・<b>読み</b>は乖離の方向と日中リターン（±0.3%を閾値）から機械的に付けた一言。「戻す」が多ければ逆張り、「続く」が多ければ順張りの根拠になる。<br>
     ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。<br>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
