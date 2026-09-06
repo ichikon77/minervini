@@ -694,19 +694,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: {updated}（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）</p>
+  <p class="subtitle">最終更新: {updated}（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）{holiday_note}</p>
   <div class="evidence">
-    <b>使い方（番号は下のカード・表と対応）:</b><br>
-    <b class="num">①</b> 日経平均の現物は夜間先物の水準にほぼ揃って寄り付くため、夜間先物と前日終値の差が「今朝の寄り付き目安」。<br>
-    <b class="num">②</b> その夜間の動きが<b>米株とドル円で説明がつくか</b>の答え合わせ（過去1年の回帰で理論値を計算）。
-    実測と理論の乖離が±{dev_th}%以内なら<span class="ok">理論通り（青）</span>=米国由来の動き、
-    超えたら<span class="warn">日本固有要因（赤）</span>=海外勢の日本株への強弱や日本関連ニュースが夜間に動いた可能性。<br>
-    <b class="num">③</b> ADRギャップは個別銘柄の「今朝の寄り付き目安」。プラス=米国市場で東京終値より高く買われた。<br>
-    <span style="color:#94a3b8"><b>用語（このページで「ギャップ」は全部「前日終値からの差(%)」）:</b>
-    <b>夜間先物ギャップ</b>=CME日経先物の夜間の値 − 前日終値（①の数字）／
-    <b>理論ギャップ</b>=米株とドル円の動きから回帰式で計算した「本来こう動くはず」の値（②の数字）／
-    <b>乖離</b>=夜間先物ギャップ − 理論ギャップ／
-    <b>実際の寄り付きギャップ</b>=9:00の寄り値 − 前日終値（翌朝の採点で使う）</span>
+    <b>見方（このページの「ギャップ」は全部「前日終値から何%離れているか」）:</b><br>
+    <b class="num">①</b> <b>夜間先物ギャップ</b> ＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
+    <b class="num">②</b> <b>乖離</b> ＝ ①のうち<b>米株とドル円で説明できなかった分</b>。
+    「米株とドル円だけ見たら本来こう動くはず」という計算値（理論ギャップ）を①から引いた残り。
+    ±{dev_th}%以内なら<span class="ok">青 理論通り</span>、超えたら<span class="warn">赤 日本固有要因</span>＝夜のうちに日本株に固有の買い/売りが入った。<br>
+    <b class="num">③</b> <b>ADRギャップ</b> ＝ 個別銘柄の寄り付き目安。プラス＝米国市場で東京終値より高く買われた。<br>
+    <span style="color:#94a3b8">翌朝、①②を実際の寄り付き・日中の値動きで採点する → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行（採点欄は明朝埋まる）。</span>
   </div>
 {cards}
   <h2><b class="num">③</b> ADRギャップ（米国終値の円換算 vs 東京前日終値）</h2>
@@ -767,7 +763,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>誤差</b>は夜間先物ギャップと実際の寄り付きギャップの差。大きい日は7:15以降のニュースか、寄り付きの板の偏り。<br>
     ・<b>ギャップ埋め</b>=寄り付きが前日終値から離れて始まった後、その日のうちに前日終値まで一度でも戻ったか（○/×）。<br>
     ・<b>読み</b>は乖離の方向と日中リターン（±0.3%を閾値）から機械的に付けた一言。「戻す」が多ければ逆張り、「続く」が多ければ順張りの根拠になる。<br>
-    ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。
+    ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。<br>
+    ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
   </p>
   <p class="note">
     ・<b>夜間先物</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の直近値。大証ナイトセッションとほぼ同水準。<b>夜間先物ギャップ</b>はこれと前日終値の差。<br>
@@ -820,14 +817,24 @@ def generate_html(data, hist=None):
     if theo is not None and gap_pct is not None:
         dev = gap_pct - theo
         if abs(dev) <= DEVIATION_TH:
-            judge = '<span class="ok">理論通り（米国由来の動き）</span>'
+            judge = '<span class="ok">青 理論通り</span>（米株・ドル円で説明がつく動き）'
+            dev_cls = "ok"
         else:
             direction = "日本買い" if dev > 0 else "日本売り"
-            judge = f'<span class="warn">日本固有要因あり（{direction}方向に{abs(dev):.2f}%）</span>'
+            judge = f'<span class="warn">赤 日本固有要因（{direction}）</span>（米株・ドル円で説明できない分）'
+            dev_cls = "warn"
+        if data.get("betas"):
+            b1, b2, _ = data["betas"]
+            theo_expl = (f'理論ギャップ {fmt_pct(theo)} = S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} '
+                         f'+ ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}')
+        else:
+            theo_expl = f'理論ギャップ {fmt_pct(theo)}'
         cards.append(
-            f'    <div class="card"><div class="label"><b class="num">②</b> 理論ギャップとの答え合わせ</div>'
-            f'<div class="value">{fmt_pct(theo)}</div>'
-            f'<div class="sub">夜間先物ギャップ {fmt_pct(gap_pct)} − 理論ギャップ {fmt_pct(theo)} = 乖離 {dev:+.2f}%<br>{judge}</div></div>\n')
+            f'    <div class="card" style="min-width:330px"><div class="label"><b class="num">②</b> 乖離 ＝ 夜間先物ギャップ − 理論ギャップ</div>'
+            f'<div class="value"><span class="{dev_cls}">{dev:+.2f}%</span></div>'
+            f'<div class="sub">{judge}<br>'
+            f'夜間先物ギャップ {fmt_pct(gap_pct)} − 理論ギャップ {fmt_pct(theo)}<br>'
+            f'<span style="color:#64748b">{theo_expl}</span></div></div>\n')
 
     cards.append(
         f'    <div class="card"><div class="label">S&amp;P500（前日）</div>'
@@ -855,6 +862,20 @@ def generate_html(data, hist=None):
 
     # 乖離履歴（新しい順に最大30日）
     history_rows = []
+    today_key = datetime.date.today().isoformat()
+    if today_key not in hist["days"] and gap_pct is not None:
+        # 休場日（土日など）は履歴に記録しないが、カードと表の対応が見えるように「今朝」の行だけ表示する
+        dev_now = (gap_pct - theo) if theo is not None else None
+        cls_now = classify_dev(dev_now)
+        judge_now = ('<span class="warn">赤 日本買い</span>' if cls_now == "buy" else
+                     '<span class="warn">赤 日本売り</span>' if cls_now == "sell" else
+                     '<span class="ok">青 理論通り</span>' if cls_now == "neutral" else "-")
+        history_rows.append(
+            f'      <tr style="opacity:0.75"><td style="white-space:nowrap">{today_key[5:]} '
+            f'<span class="num" style="font-size:0.75rem">◀ 今朝</span> <span class="small">休場日・記録なし</span></td>'
+            f'<td class="sep">{fmt_pct(gap_pct)}</td><td>-</td><td>-</td>'
+            f'<td class="sep">{fmt_pct(theo)}</td><td>{fmt_pct(dev_now)}</td><td>{judge_now}</td>'
+            f'<td class="sep">-</td><td>-</td><td class="read">休場日のため採点なし（次の営業日の朝から記録）</td></tr>')
     for k in sorted(hist["days"], reverse=True)[:30]:
         rec = hist["days"][k]
         og, intraday, filled = _answer_row(rec)
@@ -872,8 +893,12 @@ def generate_html(data, hist=None):
         fill_s = "-" if filled is None else ("○" if filled else "×")
         reading, _ = build_reading(rec)
         mark = '<span class="small">※</span>' if rec.get("repaired") else ""
+        if k == datetime.date.today().isoformat():
+            mark += ' <span class="num" style="font-size:0.75rem" title="上のカード①②と同じ数字。実際の寄り付き以降は明朝に埋まる">◀ 今朝</span>'
+            if og is None:
+                reading = "採点待ち"
         history_rows.append(
-            f'      <tr><td>{k[5:]}{mark}</td>'
+            f'      <tr><td style="white-space:nowrap">{k[5:]}{mark}</td>'
             f'<td class="sep">{fmt_pct(gap)}</td><td>{fmt_pct(og)}</td><td>{err_s}</td>'
             f'<td class="sep">{fmt_pct(rec.get("theo"))}</td><td>{fmt_pct(dev)}</td><td>{judge_s}</td>'
             f'<td class="sep">{fmt_pct(intraday)}</td><td>{fill_s}</td><td class="read">{reading}</td></tr>')
@@ -920,7 +945,11 @@ def generate_html(data, hist=None):
     if not adr_bt_rows:
         adr_bt_rows.append('      <tr><td colspan="12" style="text-align:center; color:#64748b">計算失敗（yfinance側の一時的な問題の可能性）</td></tr>')
 
+    is_holiday = datetime.date.today().weekday() >= 5
+    holiday_note = (' | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から'
+                    if is_holiday else "")
     html = HTML_TEMPLATE.format(
+        holiday_note=holiday_note,
         updated_date=datetime.date.today().isoformat(),
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         dev_th=DEVIATION_TH,
