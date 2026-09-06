@@ -614,13 +614,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   .nav a:hover {{ background: #334155; }}
   .nav a.active {{ background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }}
-  .cards {{ display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }}
+  .cards {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }}
+  .rowcap {{ font-size: 0.85rem; color: #fbbf24; margin: 14px 0 6px; font-weight: 600; }}
   .card {{
     background: #1e293b; border: 1px solid #334155; border-radius: 10px;
-    padding: 14px 18px; min-width: 215px;
+    padding: 12px 16px; min-width: 200px; max-width: 330px; flex: 1;
   }}
   .card .label {{ font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }}
-  .card .value {{ font-size: 1.35rem; font-weight: 700; color: #f8fafc; }}
+  .card .value {{ font-size: 1.15rem; font-weight: 700; color: #f8fafc; }}
+  .card .label.big + .value {{ font-size: 1.6rem; }}
   .card .sub {{ font-size: 0.78rem; color: #94a3b8; margin-top: 4px; line-height: 1.5; }}
   .pos {{ color: #4ade80; font-weight: 700; }}
   .neg {{ color: #f87171; font-weight: 700; }}
@@ -815,60 +817,82 @@ def fmt_pct(v, digits=2):
 
 def generate_html(data, hist=None):
     hist = hist or {"days": {}}
-    cards = []
-
     n225_prev = data["n225_prev"]
     fut = data["fut_last"]
     gap_pct = data["gap_pct"]
     gap_yen = data["gap_yen"]
-
-    cards.append(
-        f'    <div class="cards">\n'
-        f'    <div class="card"><div class="label big"><b class="num">①</b> 日経平均 前日終値</div>'
-        f'<div class="value">{n225_prev:,.0f}円</div>'
-        f'<div class="sub">{data["n225_date"]} 大引け</div></div>\n')
-
-    if fut is not None:
-        cards.append(
-            f'    <div class="card"><div class="label big"><b class="num">②</b> CME日経先物（7:15）→ 今朝の寄り付き目安</div>'
-            f'<div class="value">{fut:,.0f}円</div>'
-            f'<div class="sub"><b class="num">⑤</b> 夜間先物ギャップ（②−①） {fmt_pct(gap_pct)}（{gap_yen:+,.0f}円）・{data["fut_ticker"]}</div></div>\n')
-    else:
-        cards.append(
-            '    <div class="card"><div class="label big"><b class="num">②</b> CME日経先物（7:15）</div>'
-            '<div class="value">取得失敗</div><div class="sub">yfinance側の一時的な問題の可能性</div></div>\n')
-
     theo = data["theo_gap"]
-    if theo is not None and gap_pct is not None:
-        dev = gap_pct - theo
-        if abs(dev) <= DEVIATION_TH:
-            judge = '<b class="num">⑩</b> <span class="ok">理論通り</span>（米株・ドル円で説明がつく動き）'
-            dev_cls = "ok"
+    dev = (gap_pct - theo) if (theo is not None and gap_pct is not None) else None
+
+    # 採点対象の日付（今日が休場日なら次の平日）。③④以降はその日の場が終わるまで「（−）」
+    target = datetime.date.today()
+    while target.weekday() >= 5:
+        target += datetime.timedelta(days=1)
+    tlabel = f"{target.month}/{target.day}"
+    pending_big = f'<div class="value" style="color:#64748b">{tlabel}（−）</div>'
+
+    def card(num, title, value_html, sub_html="", big=False, style=""):
+        return (f'    <div class="card"{" style=" + chr(34) + style + chr(34) if style else ""}>'
+                f'<div class="label{" big" if big else ""}"><b class="num">{num}</b> {title}</div>'
+                f'{value_html}<div class="sub">{sub_html}</div></div>\n')
+
+    def val(html, cls=""):
+        return f'<div class="value"><span class="{cls}">{html}</span></div>' if cls else f'<div class="value">{html}</div>'
+
+    # ---- 前提（円）----
+    row1 = [card("①", "前日終値", val(f"{n225_prev:,.0f}円"), f'{data["n225_date"]} 大引け')]
+    if fut is not None:
+        row1.append(card("②", "7:15の先物（CME日経先物）", val(f"{fut:,.0f}円"),
+                         f'{data["fut_ticker"]}・夜間の最終値とほぼ同じ', big=True))
+    else:
+        row1.append(card("②", "7:15の先物（CME日経先物）", val("取得失敗"), "yfinance側の一時的な問題の可能性", big=True))
+    row1.append(card("③", "当日始値", pending_big, "9:00に確定 → 明朝の答え合わせで表に入る"))
+    row1.append(card("④", "当日終値", pending_big, "15:30に確定 → 明朝の答え合わせで表に入る"))
+    # 参考（⑧理論値の材料）
+    row1.append(card("参考", "S&amp;P500（前日）", val(fmt_pct(data["spx_ret"])), f'NASDAQ {fmt_pct(data["ndx_ret"])}'))
+    row1.append(card("参考", "ドル円", val(f'{data["fx_now"]:.2f}円' if data.get("fx_now") else "-"),
+                     f'NY前日終値比 {fmt_pct(data["fx_chg"])}'))
+
+    # ---- 問い1 ----
+    row2 = [card("⑤", "夜間先物ギャップ（②−①）＝ 今朝の寄り付き目安",
+                 val(f'{fmt_pct(gap_pct)}') if gap_pct is not None else val("-"),
+                 (f'{gap_yen:+,.0f}円。現物はこの水準に揃って寄り付きやすい' if gap_yen is not None else ""), big=True),
+            card("⑥", "実際の寄り付きギャップ（③−①）", pending_big, "9:00の始値が出たら計算"),
+            card("⑦", "寄りまでの変化（⑥−⑤）", pending_big, "7:15〜9:00の間に動いた分")]
+
+    # ---- 問い2 ----
+    if data.get("betas") and theo is not None:
+        b1, b2, _ = data["betas"]
+        theo_sub = (f'S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} + ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}<br>'
+                    f'「米株とドル円だけ見たら本来こう動くはず」の値')
+    else:
+        theo_sub = "データ不足で計算できず"
+    row3 = [card("⑧", "理論値（米株・ドル円から）", val(fmt_pct(theo)) if theo is not None else val("-"), theo_sub)]
+    if dev is not None:
+        cls = classify_dev(dev)
+        dev_cls = "ok" if cls == "neutral" else "warn"
+        row3.append(card("⑨", "乖離（7:15時点）＝ ⑤ − ⑧", val(f"{dev:+.2f}%", dev_cls),
+                         f'⑤ {fmt_pct(gap_pct)} − ⑧ {fmt_pct(theo)}。米株・ドル円で説明できない分', big=True))
+        if cls == "neutral":
+            j_html = '<div class="value" style="font-size:1.3rem"><span class="ok">理論通り</span></div>'
+            j_sub = f"|⑨|が{DEVIATION_TH}%以内。米株・ドル円で説明がつく動き"
         else:
             direction = "買い" if dev > 0 else "売り"
-            judge = f'<b class="num">⑩</b> <span class="warn">日本固有要因：{direction}</span>（米株・ドル円で説明できない分が{direction}方向に出た）'
-            dev_cls = "warn"
-        if data.get("betas"):
-            b1, b2, _ = data["betas"]
-            theo_expl = (f'⑧理論値 {fmt_pct(theo)} = S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} '
-                         f'+ ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}')
-        else:
-            theo_expl = f'⑧理論値 {fmt_pct(theo)}'
-        cards.append(
-            f'    <div class="card" style="min-width:330px"><div class="label big"><b class="num">⑨</b> 乖離（⑤−⑧）＝ 夜間先物ギャップ − 理論値</div>'
-            f'<div class="value"><span class="{dev_cls}">{dev:+.2f}%</span></div>'
-            f'<div class="sub">{judge}<br>'
-            f'⑤夜間先物ギャップ {fmt_pct(gap_pct)} − ⑧理論値 {fmt_pct(theo)}<br>'
-            f'<span style="color:#64748b">{theo_expl}</span></div></div>\n')
+            j_html = f'<div class="value" style="font-size:1.3rem; white-space:nowrap"><span class="warn">日本固有要因：{direction}</span></div>'
+            j_sub = f"|⑨|が{DEVIATION_TH}%超（暫定しきい値）。夜のうちに日本株固有の{direction}が入った"
+        row3.append(card("⑩", "判定（7:15時点）", j_html, j_sub, big=True))
+    else:
+        row3.append(card("⑨", "乖離（7:15時点）＝ ⑤ − ⑧", val("-"), "理論値が無いため計算できず", big=True))
+        row3.append(card("⑩", "判定（7:15時点）", val("-"), "", big=True))
+    row3.append(card("⑪", "乖離（9:00時点）＝ ⑥ − ⑧", pending_big, "寄り付きで乖離がどう変わったか"))
+    row3.append(card("⑫", "乖離（15:30時点）＝（④−①）− ⑧", pending_big, "引けで理論値との差がいくら残ったか"))
+    row3.append(card("⑬", "判定（15:30時点）", pending_big, "⑩→⑬で 埋まった／残った／日中に発生／理論通り"))
 
-    cards.append(
-        f'    <div class="card"><div class="label">S&amp;P500（前日）</div>'
-        f'<div class="value">{fmt_pct(data["spx_ret"])}</div>'
-        f'<div class="sub">NASDAQ {fmt_pct(data["ndx_ret"])}</div></div>\n'
-        f'    <div class="card"><div class="label">ドル円</div>'
-        f'<div class="value">{data["fx_now"]:.2f}円</div>'
-        f'<div class="sub">NY前日終値比 {fmt_pct(data["fx_chg"])}</div></div>\n'
-        '    </div>')
+    cards = [
+        f'    <div class="rowcap">前提（円）— この4つの値から下の全列が決まる（＋⑧の材料）</div>\n    <div class="cards">\n{"".join(row1)}    </div>\n',
+        f'    <div class="rowcap">問い1 夜間先物ギャップは、寄り付きを当てたか</div>\n    <div class="cards">\n{"".join(row2)}    </div>\n',
+        f'    <div class="rowcap">問い2 理論値との乖離は、引けまでに埋まったか（⑨7:15 → ⑪9:00 → ⑫15:30）</div>\n    <div class="cards">\n{"".join(row3)}    </div>\n',
+    ]
 
     adr_rows = []
     for r in data["adr"]:

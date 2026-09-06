@@ -20,13 +20,15 @@
   }
   .nav a:hover { background: #334155; }
   .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
-  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .rowcap { font-size: 0.85rem; color: #fbbf24; margin: 14px 0 6px; font-weight: 600; }
   .card {
     background: #1e293b; border: 1px solid #334155; border-radius: 10px;
-    padding: 14px 18px; min-width: 215px;
+    padding: 12px 16px; min-width: 200px; max-width: 330px; flex: 1;
   }
   .card .label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
-  .card .value { font-size: 1.35rem; font-weight: 700; color: #f8fafc; }
+  .card .value { font-size: 1.15rem; font-weight: 700; color: #f8fafc; }
+  .card .label.big + .value { font-size: 1.6rem; }
   .card .sub { font-size: 0.78rem; color: #94a3b8; margin-top: 4px; line-height: 1.5; }
   .pos { color: #4ade80; font-weight: 700; }
   .neg { color: #f87171; font-weight: 700; }
@@ -107,7 +109,7 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: 2026-09-06 14:52（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
+  <p class="subtitle">最終更新: 2026-09-06 15:00（毎朝7:15・CME引け後） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
     <b class="num">⑤ 夜間先物ギャップ</b>（②7:15の先物 − ①前日終値）＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
@@ -117,13 +119,31 @@
     <b class="num">ADRギャップ</b> ＝ 個別銘柄の寄り付き目安。プラス＝米国市場で東京終値より高く買われた。<br>
     <span style="color:#94a3b8">翌朝、③当日始値・④当日終値が出たら採点 → 下の「答え合わせ（履歴）」表。今朝のカードの数字は、その表の一番上の行（③以降は明朝埋まる）。</span>
   </div>
+    <div class="rowcap">前提（円）— この4つの値から下の全列が決まる（＋⑧の材料）</div>
     <div class="cards">
-    <div class="card"><div class="label big"><b class="num">①</b> 日経平均 前日終値</div><div class="value">65,021円</div><div class="sub">09/04 大引け</div></div>
-    <div class="card"><div class="label big"><b class="num">②</b> CME日経先物（7:15）→ 今朝の寄り付き目安</div><div class="value">65,830円</div><div class="sub"><b class="num">⑤</b> 夜間先物ギャップ（②−①） <span class="pos">+1.24%</span>（+809円）・NIY=F</div></div>
-    <div class="card" style="min-width:330px"><div class="label big"><b class="num">⑨</b> 乖離（⑤−⑧）＝ 夜間先物ギャップ − 理論値</div><div class="value"><span class="warn">+1.62%</span></div><div class="sub"><b class="num">⑩</b> <span class="warn">日本固有要因：買い</span>（米株・ドル円で説明できない分が買い方向に出た）<br>⑤夜間先物ギャップ <span class="pos">+1.24%</span> − ⑧理論値 <span class="neg">-0.38%</span><br><span style="color:#64748b">⑧理論値 <span class="neg">-0.38%</span> = S&amp;P500 -0.38%×1.01 + ドル円 +0.00%×-0.10</span></div></div>
-    <div class="card"><div class="label">S&amp;P500（前日）</div><div class="value"><span class="neg">-0.38%</span></div><div class="sub">NASDAQ <span class="neg">-0.29%</span></div></div>
-    <div class="card"><div class="label">ドル円</div><div class="value">156.22円</div><div class="sub">NY前日終値比 <span class="">+0.00%</span></div></div>
+    <div class="card"><div class="label"><b class="num">①</b> 前日終値</div><div class="value">65,021円</div><div class="sub">09/04 大引け</div></div>
+    <div class="card"><div class="label big"><b class="num">②</b> 7:15の先物（CME日経先物）</div><div class="value">65,830円</div><div class="sub">NIY=F・夜間の最終値とほぼ同じ</div></div>
+    <div class="card"><div class="label"><b class="num">③</b> 当日始値</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">9:00に確定 → 明朝の答え合わせで表に入る</div></div>
+    <div class="card"><div class="label"><b class="num">④</b> 当日終値</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">15:30に確定 → 明朝の答え合わせで表に入る</div></div>
+    <div class="card"><div class="label"><b class="num">参考</b> S&amp;P500（前日）</div><div class="value"><span class="neg">-0.38%</span></div><div class="sub">NASDAQ <span class="neg">-0.29%</span></div></div>
+    <div class="card"><div class="label"><b class="num">参考</b> ドル円</div><div class="value">156.22円</div><div class="sub">NY前日終値比 <span class="">+0.00%</span></div></div>
     </div>
+    <div class="rowcap">問い1 夜間先物ギャップは、寄り付きを当てたか</div>
+    <div class="cards">
+    <div class="card"><div class="label big"><b class="num">⑤</b> 夜間先物ギャップ（②−①）＝ 今朝の寄り付き目安</div><div class="value"><span class="pos">+1.24%</span></div><div class="sub">+809円。現物はこの水準に揃って寄り付きやすい</div></div>
+    <div class="card"><div class="label"><b class="num">⑥</b> 実際の寄り付きギャップ（③−①）</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">9:00の始値が出たら計算</div></div>
+    <div class="card"><div class="label"><b class="num">⑦</b> 寄りまでの変化（⑥−⑤）</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">7:15〜9:00の間に動いた分</div></div>
+    </div>
+    <div class="rowcap">問い2 理論値との乖離は、引けまでに埋まったか（⑨7:15 → ⑪9:00 → ⑫15:30）</div>
+    <div class="cards">
+    <div class="card"><div class="label"><b class="num">⑧</b> 理論値（米株・ドル円から）</div><div class="value"><span class="neg">-0.38%</span></div><div class="sub">S&amp;P500 -0.38%×1.01 + ドル円 +0.00%×-0.10<br>「米株とドル円だけ見たら本来こう動くはず」の値</div></div>
+    <div class="card"><div class="label big"><b class="num">⑨</b> 乖離（7:15時点）＝ ⑤ − ⑧</div><div class="value"><span class="warn">+1.62%</span></div><div class="sub">⑤ <span class="pos">+1.24%</span> − ⑧ <span class="neg">-0.38%</span>。米株・ドル円で説明できない分</div></div>
+    <div class="card"><div class="label big"><b class="num">⑩</b> 判定（7:15時点）</div><div class="value" style="font-size:1.3rem; white-space:nowrap"><span class="warn">日本固有要因：買い</span></div><div class="sub">|⑨|が0.5%超（暫定しきい値）。夜のうちに日本株固有の買いが入った</div></div>
+    <div class="card"><div class="label"><b class="num">⑪</b> 乖離（9:00時点）＝ ⑥ − ⑧</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">寄り付きで乖離がどう変わったか</div></div>
+    <div class="card"><div class="label"><b class="num">⑫</b> 乖離（15:30時点）＝（④−①）− ⑧</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">引けで理論値との差がいくら残ったか</div></div>
+    <div class="card"><div class="label"><b class="num">⑬</b> 判定（15:30時点）</div><div class="value" style="color:#64748b">9/7（−）</div><div class="sub">⑩→⑬で 埋まった／残った／日中に発生／理論通り</div></div>
+    </div>
+
   <h2>ADRギャップ（米国終値の円換算 vs 東京前日終値）— 個別銘柄の寄り付き目安</h2>
   <div class="table-wrap">
   <table>
@@ -178,9 +198,9 @@
       <tr><td>オリックス</td><td>8591 / NYSE</td><td>250</td><td><span class="ok">69%</span></td><td>83% (N=82)</td><td>0.75</td><td>0.62</td><td>0.94%</td><td><span class="neg">-0.14%</span> (N=62)</td><td><span class="">48%</span></td><td><span class="neg">-0.35%</span> (N=75)</td><td><span class="warn">61%</span></td></tr>
       <tr><td>野村HD</td><td>8604 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>83% (N=93)</td><td>0.68</td><td>0.61</td><td>1.06%</td><td><span class="pos">+0.10%</span> (N=68)</td><td><span class="ok">56%</span></td><td><span class="neg">-0.32%</span> (N=89)</td><td><span class="warn">56%</span></td></tr>
       <tr><td>ホンダ</td><td>7267 / NYSE</td><td>250</td><td><span class="ok">72%</span></td><td>86% (N=93)</td><td>0.63</td><td>0.58</td><td>0.87%</td><td><span class="pos">+0.28%</span> (N=58)</td><td><span class="ok">55%</span></td><td><span class="neg">-0.36%</span> (N=84)</td><td><span class="warn">62%</span></td></tr>
-      <tr><td>武田薬品</td><td>4502 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>83% (N=72)</td><td>0.59</td><td>0.57</td><td>0.77%</td><td><span class="pos">+0.15%</span> (N=63)</td><td><span class="">52%</span></td><td><span class="neg">-0.16%</span> (N=83)</td><td><span class="">53%</span></td></tr>
+      <tr><td>武田薬品</td><td>4502 / NYSE</td><td>250</td><td><span class="ok">66%</span></td><td>83% (N=72)</td><td>0.59</td><td>0.57</td><td>0.77%</td><td><span class="pos">+0.15%</span> (N=63)</td><td><span class="">52%</span></td><td><span class="neg">-0.16%</span> (N=83)</td><td><span class="">53%</span></td></tr>
       <tr><td>コマツ</td><td>6301 / OTC</td><td>250</td><td><span class="ok">65%</span></td><td>77% (N=91)</td><td>0.77</td><td>0.56</td><td>1.08%</td><td><span class="pos">+0.05%</span> (N=67)</td><td><span class="">49%</span></td><td><span class="neg">-0.09%</span> (N=86)</td><td><span class="">53%</span></td></tr>
-      <tr><td>トヨタ</td><td>7203 / NYSE</td><td>250</td><td><span class="ok">66%</span></td><td>86% (N=78)</td><td>0.73</td><td>0.56</td><td>0.94%</td><td><span class="neg">-0.19%</span> (N=77)</td><td><span class="">40%</span></td><td><span class="neg">-0.41%</span> (N=81)</td><td><span class="warn">68%</span></td></tr>
+      <tr><td>トヨタ</td><td>7203 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>86% (N=78)</td><td>0.73</td><td>0.56</td><td>0.94%</td><td><span class="neg">-0.19%</span> (N=77)</td><td><span class="">40%</span></td><td><span class="neg">-0.41%</span> (N=81)</td><td><span class="warn">68%</span></td></tr>
       <tr><td>ファーストリテ</td><td>9983 / OTC</td><td>250</td><td><span class="">62%</span></td><td>78% (N=72)</td><td>0.67</td><td>0.55</td><td>0.98%</td><td><span class="pos">+0.08%</span> (N=61)</td><td><span class="">48%</span></td><td><span class="pos">+0.16%</span> (N=66)</td><td><span class="">52%</span></td></tr>
       <tr><td>ソニーG</td><td>6758 / NYSE</td><td>250</td><td><span class="">64%</span></td><td>80% (N=90)</td><td>0.57</td><td>0.43</td><td>1.21%</td><td><span class="pos">+0.10%</span> (N=82)</td><td><span class="">51%</span></td><td><span class="neg">-0.12%</span> (N=84)</td><td><span class="">51%</span></td></tr>
     </tbody>
@@ -246,6 +266,6 @@
     ・ADRは米国での流動性が薄い銘柄（OTC系）ほどノイズが大きい。大型のTM/SONY/MUFG等を優先的に信頼する。<br>
     ・<b>回帰係数（過去250日）</b>: 日経リターン ≈ 1.01×S&P500前日 + -0.10×ドル円変化（決定係数R²=0.20）
   </p>
-  <p class="updated">最終更新: 2026-09-06 14:52</p>
+  <p class="updated">最終更新: 2026-09-06 15:00</p>
 </body>
 </html>
