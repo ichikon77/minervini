@@ -257,6 +257,33 @@ def adr_phrase(d, n=2):
     return "。".join(parts)
 
 
+ADR_WIN_TH = 60     # 勝率/続落率がこの%以上なら「ADRの流れが日中もつづきやすい」と一言添える
+ADR_WIN_MIN_N = 20   # サンプル数の下限
+
+
+def adr_follow_picks(d):
+    """今朝ADRが動いた銘柄のうち、過去1年で「ADRの方向に日中も続いた率」が高いものを返す
+    [(name, 'up'/'down', win%, n), ...]"""
+    out = []
+    for r in d.get("adr") or []:
+        g = r.get("gap")
+        if g is None:
+            continue
+        if g >= 0.5 and (r.get("up_win") or 0) >= ADR_WIN_TH and (r.get("up_n") or 0) >= ADR_WIN_MIN_N:
+            out.append((short_name(r["name"]), "up", r["up_win"], r["up_n"]))
+        elif g <= -0.5 and (r.get("dn_win") or 0) >= ADR_WIN_TH and (r.get("dn_n") or 0) >= ADR_WIN_MIN_N:
+            out.append((short_name(r["name"]), "down", r["dn_win"], r["dn_n"]))
+    return out
+
+
+def adr_follow_phrase(d):
+    picks = adr_follow_picks(d)
+    if not picks:
+        return ""
+    parts = [f'{n}（ADR{"↑" if k == "up" else "↓"}の日は {w:.0f}% 日中も {"上" if k == "up" else "下"}）' for n, k, w, _ in picks[:3]]
+    return "過去1年の記録では " + "、".join(parts) + " という くせが ある"
+
+
 def event_phrase(events):
     bosses = [e for e, k in events if k == "boss"]
     infos = [e for e, k in events if k in ("info", "us_morning")]
@@ -266,6 +293,18 @@ def event_phrase(events):
     if infos:
         parts.append("。".join(infos))
     return "。".join(parts)
+
+
+def walls_phrase(d):
+    """上下それぞれ最も近い壁を王様の口調で。無ければ空"""
+    w = d.get("walls") or {}
+    up, dn = (w.get("up") or [None])[0], (w.get("down") or [None])[0]
+    parts = []
+    if up:
+        parts.append(f'上には {up["name"]}の壁 {up["price"]:,}円（{up["pct"]:+.1f}%）')
+    if dn:
+        parts.append(f'下には {dn["name"]}の壁 {dn["price"]:,}円（{dn["pct"]:+.1f}%）')
+    return "、".join(parts) + " が ある" if parts else ""
 
 
 def compose_text(d, events, cfg):
@@ -280,9 +319,11 @@ def compose_text(d, events, cfg):
         (1, gap_phrase(d) + "。"),
         (2, judge + "。"),
         (3, event_phrase(events) + "。" if events else ""),
-        (4, us_phrase(d) + "。"),
-        (5, adr_phrase(d) + "。" if adr_phrase(d) else ""),
-        (6, hashtags),
+        (4, walls_phrase(d) + "。" if walls_phrase(d) else ""),
+        (5, us_phrase(d) + "。"),
+        (6, adr_phrase(d) + "。" if adr_phrase(d) else ""),
+        (7, adr_follow_phrase(d) + "。" if adr_follow_phrase(d) else ""),
+        (8, hashtags),
     ]
     lines = [(p, s) for p, s in lines if s and s != "。"]
 
@@ -294,7 +335,7 @@ def compose_text(d, events, cfg):
     text = render(active)
     # 上限（無料枠は日本語140字相当）を超えたら優先度の低い行から順に落とす。
     # ADR → 米株/ドル円 → ハッシュタグ → イベント → 判定 の順（先物ギャップと判定は最後まで残す）
-    drop_order = [5, 4, 6, 3, 2]
+    drop_order = [7, 6, 5, 4, 8, 3, 2]
     for p in drop_order:
         if weighted_len(text) <= max_len:
             break
@@ -390,7 +431,7 @@ CARD_TEMPLATE = """<!DOCTYPE html>
   .window {{
     position: absolute; left: 0; top: 190px; right: 0;
     background: #000; border: 4px solid #fff; border-radius: 6px; outline: 3px solid #000;
-    padding: 18px 22px 20px; font-size: 22px; line-height: 1.55; color: #fff;
+    padding: 14px 18px 14px; font-size: 20px; line-height: 1.5; color: #fff;
   }}
   .window::before {{ content: "＊「"; color: #fff; }}
   .window .who {{ position: absolute; top: -20px; left: 18px; background: #000; padding: 0 10px; font-size: 18px; color: #fde68a; }}
@@ -411,6 +452,12 @@ CARD_TEMPLATE = """<!DOCTYPE html>
   .adr {{ margin-top: 14px; font-size: 20px; line-height: 1.7; white-space: nowrap; }}
   .adr b {{ color: #94a3b8; font-weight: normal; margin-right: 8px; }}
   .boss {{ margin-top: 10px; font-size: 20px; color: #fde68a; line-height: 1.6; }}
+  .walls {{ position: absolute; left: 0; right: 0; bottom: 0; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 8px 14px 6px; font-size: 16px; line-height: 1.45; font-variant-numeric: tabular-nums; }}
+  .walls .label {{ font-size: 13px; color: #94a3b8; margin-bottom: 2px; }}
+  .walls .row {{ display: flex; gap: 10px; white-space: nowrap; }}
+  .walls .row span:first-child {{ width: 18px; }}
+  .walls .row span:nth-child(2) {{ width: 78px; text-align: right; }}
+  .walls .up {{ color: #fca5a5; }} .walls .dn {{ color: #86efac; }} .walls .ref {{ color: #fde68a; }}
   .boss .info {{ color: #cbd5e1; }}
   .pos {{ color: #4ade80; }} .neg {{ color: #f87171; }} .flat {{ color: #e2e8f0; }}
   .foot {{ position: absolute; left: 36px; right: 36px; bottom: 18px; display: flex; font-size: 17px; color: #64748b; }}
@@ -422,6 +469,7 @@ CARD_TEMPLATE = """<!DOCTYPE html>
 <div class="left">
   <div class="king">{king}</div>
   <div class="window"><span class="who">王様</span>{speech}</div>
+  {walls_html}
 </div>
 <div class="right">
   <div class="big">
@@ -434,7 +482,7 @@ CARD_TEMPLATE = """<!DOCTYPE html>
     <div><div class="label">NASDAQ</div><div class="v {ndx_cls}">{ndx_s}</div></div>
     <div><div class="label">ドル円</div><div class="v">{fx_s} <span style="font-size:18px" class="{fxc_cls}">{fxc_s}</span></div></div>
   </div>
-  <div class="adr">{adr_up}{adr_dn}</div>
+  <div class="adr">{adr_up}{adr_dn}{adr_note}</div>
   <div class="boss">{boss_s}</div>
 </div>
 <div class="foot"><span>{deck_url}/yorimae.html　毎朝7:15 自動更新（ADR15銘柄・答え合わせ履歴はデッキで）</span><span>@kabuchiwa</span></div>
@@ -459,6 +507,21 @@ def short_name(name):
     return SHORT_NAMES.get(name, name)
 
 
+def build_walls_html(d):
+    """右下の「壁」ブロック: 上側2本・基準（②夜間先物）・下側2本のラダー表示"""
+    w = d.get("walls") or {}
+    if not w.get("ref"):
+        return ""
+    rows = []
+    for x in reversed(w.get("up") or []):
+        rows.append(f'<div class="row up"><span>▲</span><span>{x["price"]:,}</span><span>{x["name"]}（{x["pct"]:+.1f}%）</span></div>')
+    rows.append(f'<div class="row ref"><span>●</span><span>{w["ref"]:,.0f}</span><span>夜間先物の終値（6:00）</span></div>')
+    for x in (w.get("down") or []):
+        rows.append(f'<div class="row dn"><span>▼</span><span>{x["price"]:,}</span><span>{x["name"]}（{x["pct"]:+.1f}%）</span></div>')
+    eps = f'　EPS {w["eps"]:,.0f}×PER' if w.get("eps") else ""
+    return f'<div class="walls"><div class="label">壁の目安（▲抵抗 ▼支持）{eps}・前月高安</div>{"".join(rows)}</div>'
+
+
 def build_card_html(d, events, today):
     judge_text, judge_label, judge_cls = build_judgement(d)
     fut, gap, yen = d.get("fut_last"), d.get("gap_pct"), d.get("gap_yen")
@@ -466,10 +529,16 @@ def build_card_html(d, events, today):
     ups = [r for r in adr if r["gap"] >= 0.3][:4]
     dns = [r for r in sorted(adr, key=lambda r: r["gap"]) if r["gap"] <= -0.3][:4]
 
-    def adr_line(label, rows):
+    def adr_line(label, rows, side):
         if not rows:
             return ""
-        s = "　".join(f'{short_name(r["name"])} <span class="{_cls(r["gap"])}">{r["gap"]:+.1f}%</span>' for r in rows)
+        def one(r):
+            win = r.get("up_win") if side == "up" else r.get("dn_win")
+            n = r.get("up_n") if side == "up" else r.get("dn_n")
+            mark = (f' <span style="color:#fde68a;font-size:15px">★{win:.0f}%</span>'
+                    if win is not None and win >= ADR_WIN_TH and (n or 0) >= ADR_WIN_MIN_N else "")
+            return f'{short_name(r["name"])} <span class="{_cls(r["gap"])}">{r["gap"]:+.1f}%</span>{mark}'
+        s = "　".join(one(r) for r in rows)
         return f"<div><b>{label}</b>{s}</div>"
 
     bosses = [e for e, k in events if k == "boss"]
@@ -497,8 +566,10 @@ def build_card_html(d, events, today):
         ndx_cls=_cls(d.get("ndx_ret")), ndx_s=fmt_signed(d.get("ndx_ret")),
         fx_s=(f'{d["fx_now"]:.2f}円' if d.get("fx_now") else "-"),
         fxc_cls=_cls(d.get("fx_chg")), fxc_s=fmt_signed(d.get("fx_chg")),
-        adr_up=adr_line("ADR つよい", ups), adr_dn=adr_line("ADR よわい", dns),
-        boss_s=boss_s, deck_url=DECK_URL_SHORT,
+        adr_up=adr_line("ADR つよい", ups, "up"), adr_dn=adr_line("ADR よわい", dns, "down"),
+        adr_note=('<div style="font-size:14px;color:#94a3b8">★＝過去1年、ADRの方向に日中も続いた率（%）が' + str(ADR_WIN_TH) + '%以上</div>'
+                  if adr_follow_picks(d) else ""),
+        boss_s=boss_s, deck_url=DECK_URL_SHORT, walls_html=build_walls_html(d),
     )
 
 

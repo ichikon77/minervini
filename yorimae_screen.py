@@ -584,6 +584,45 @@ def ensure_latest_close(ticker, series, expected):
     return series
 
 
+# -----------------------------------------
+# 壁（支持・抵抗の目安）: rironデッキのEPS×PERラダー + 前月の高値/安値
+# -----------------------------------------
+RIRON_JSON = os.path.join(SCRIPT_DIR, "riron_history.json")
+PER_STEPS = [10.5 + 0.5 * i for i in range(22)]   # riron_screen.py と同じ 10.5〜21.0
+
+
+def compute_walls(ref, today):
+    """基準値 ref（②夜間先物の終値）に対して、上側・下側それぞれ最も近い「壁」を返す。
+    候補: EPS×PER（0.5刻み）の理論株価、前月の高値・安値。X投稿カードの右下に載せる用"""
+    out = {"ref": ref, "up": [], "down": [], "eps": None, "eps_date": None}
+    try:
+        rh = json.load(open(RIRON_JSON, encoding="utf-8"))
+        last_k = sorted(rh)[-1]
+        eps = float(rh[last_k]["EPS"])
+        out["eps"], out["eps_date"] = eps, last_k
+        levels = [(round(eps * per), f"PER{per:.1f}倍") for per in PER_STEPS]
+    except Exception as e:
+        log(f"  riron_history.json が読めず PER の壁は省略: {e}")
+        levels = []
+    try:
+        first_this = today.replace(day=1)
+        last_prev = first_this - datetime.timedelta(days=1)
+        h = yf.Ticker("^N225").history(start=last_prev.replace(day=1), end=first_this)
+        if len(h):
+            levels.append((round(float(h["High"].max())), f"{last_prev.month}月高値"))
+            levels.append((round(float(h["Low"].min())), f"{last_prev.month}月安値"))
+    except Exception as e:
+        log(f"  前月高安の取得失敗: {e}")
+    if ref is None:
+        return out
+    ups = sorted([(p, n) for p, n in levels if p > ref], key=lambda x: x[0])
+    downs = sorted([(p, n) for p, n in levels if p < ref], key=lambda x: -x[0])
+    # 上下それぞれ最も近い2本（PERの壁と前月高安が両方近い場合に両方見せる）
+    out["up"] = [{"price": p, "name": n, "pct": round((p / ref - 1) * 100, 2)} for p, n in ups[:2]]
+    out["down"] = [{"price": p, "name": n, "pct": round((p / ref - 1) * 100, 2)} for p, n in downs[:2]]
+    return out
+
+
 def calc_adr_gaps():
     log("ADRギャップを計算中...")
     fx_now = last_price("JPY=X")
@@ -1370,6 +1409,9 @@ def main():
             for k2 in ("spx_ret", "ndx_ret", "fx_now", "fx_chg", "betas", "n225_date", "fut_ticker", "obs_time"):
                 rec.setdefault(k2, obs.get(k2))
 
+    # 壁（X投稿カード用）: ②夜間先物の終値を基準に、上下で最も近いPER理論株価・前月高安
+    walls = compute_walls(rec.get("fut"), today)
+
     # ADR（米国終値ベースなので実行時刻に依存しない）
     adr = calc_adr_gaps()
     adr_bt = backtest_adr_follow()
@@ -1405,6 +1447,7 @@ def main():
     generate_html(data, hist)
 
     # X自動投稿用の数値（kabuchiwa_post.py が読む。朝フェーズ以外は投稿しない）
+    bt_by_tyo = {b["tyo"]: b for b in (adr_bt or [])}   # ADR追随バックテスト（勝率/続落率）を銘柄ごとに付ける
     try:
         json.dump({
             "generated": now.isoformat(timespec="seconds"), "phase": phase, "created_today": created,
@@ -1414,7 +1457,10 @@ def main():
             "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
             "fx_now": rec.get("fx_now"), "fx_chg": rec.get("fx_chg"),
             "theo_gap": theo, "dev": rec.get("dev"), "dev_th": DEVIATION_TH,
-            "adr": [{"name": r["name"], "tyo": r["tyo"], "mkt": r["mkt"], "gap": round(r["gap"], 2)} for r in adr],
+            "adr": [dict({"name": r["name"], "tyo": r["tyo"], "mkt": r["mkt"], "gap": round(r["gap"], 2)},
+                         **{k2: bt_by_tyo.get(r["tyo"], {}).get(k2) for k2 in ("up_win", "dn_win", "up_n", "dn_n", "match")})
+                    for r in adr],
+            "walls": walls,
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
     except Exception as e:
