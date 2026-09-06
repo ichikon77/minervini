@@ -336,6 +336,37 @@ def classify_dev(dev):
     return "neutral"
 
 
+def decompose_dev(rec):
+    """乖離（日本固有の夜間の動き）が、寄り付きと日中でどれだけ埋まり、引けにいくら残ったかを分解する。
+    乖離の符号で向きを揃える（プラス=乖離を埋める方向、マイナス=乖離が拡大した方向）。
+      寄りで埋めた分 = (夜間先物ギャップ − 寄り付きギャップ) × sign
+      日中で埋めた分 = (寄り付きギャップ − 引けの全日ギャップ) × sign
+      引けの残り     = (引けの全日ギャップ − 理論値) × sign
+    3つの合計 = |乖離|。返り値: (寄り埋め, 日中埋め, 残り, 残り比率, 判定キー) または None"""
+    og, intraday, _ = _answer_row(rec)
+    gap, theo, dev = rec.get("gap"), rec.get("theo"), rec.get("dev")
+    if og is None or gap is None or theo is None or dev is None or abs(dev) < 1e-9:
+        return None
+    if "close" not in rec or not rec.get("prev_close"):
+        return None
+    full = (rec["close"] / rec["prev_close"] - 1) * 100      # 引けの全日ギャップ（前日終値比）
+    sign = 1 if dev > 0 else -1
+    fill_open = (gap - og) * sign
+    fill_intra = (og - full) * sign
+    remain = (full - theo) * sign
+    ratio = remain / abs(dev)
+    if ratio <= 0.25:
+        kind = "filled"      # 埋まった（引けは理論値の近く、または逆側）
+    elif ratio < 0.75:
+        kind = "partial"     # 一部残った
+    else:
+        kind = "remained"    # 残った/拡大（本物の材料だった可能性）
+    return fill_open, fill_intra, remain, ratio, kind
+
+
+DECOMP_LABEL = {"filled": ("埋まった", "ok"), "partial": ("一部残った", ""), "remained": ("残った", "warn")}
+
+
 def build_reading(rec):
     """1日分の記録から「読み」の一言を作る。(文, 戻した/続いた/None)"""
     og, intraday, filled = _answer_row(rec)
@@ -376,10 +407,10 @@ def build_qbox(hist):
     """3つの問いの成績を3枚のカードで返す"""
     errs, same_dir = [], []
     n_all, n_red, n_buy, n_sell = 0, 0, 0, 0
-    red_revert, red_follow, red_flat = 0, 0, 0
-    red_fills, all_fills = [], []
+    n_filled, n_partial, n_remained, n_open_expand = 0, 0, 0, 0
+    ratios, fo_list, fi_list = [], [], []
     for rec in hist["days"].values():
-        og, intraday, filled = _answer_row(rec)
+        og, intraday, _ = _answer_row(rec)
         gap, dev = rec.get("gap"), rec.get("dev")
         if og is None or gap is None:
             continue
@@ -387,19 +418,21 @@ def build_qbox(hist):
         errs.append(abs(og - gap))
         if abs(gap) >= 0.2:
             same_dir.append((og > 0) == (gap > 0))
-        if filled is not None:
-            all_fills.append(filled)
         cls = classify_dev(dev)
         if cls in ("buy", "sell"):
             n_red += 1
             n_buy += cls == "buy"
             n_sell += cls == "sell"
-            _, kind = build_reading(rec)
-            red_revert += kind == "revert"
-            red_follow += kind == "follow"
-            red_flat += kind == "flat"
-            if filled is not None:
-                red_fills.append(filled)
+            dec = decompose_dev(rec)
+            if dec:
+                fo, fi, rem, ratio, kind = dec
+                n_filled += kind == "filled"
+                n_partial += kind == "partial"
+                n_remained += kind == "remained"
+                n_open_expand += fo < -0.2
+                ratios.append(ratio)
+                fo_list.append(fo / abs(dev))
+                fi_list.append(fi / abs(dev))
     if n_all == 0:
         return '  <div class="qbox"><div class="q"><div class="qt">成績</div><div class="qs">蓄積中（翌朝から採点が始まります）</div></div></div>'
     caveat = "（サンプル少・傾向の目安）" if n_all < 20 else ""
@@ -411,26 +444,26 @@ def build_qbox(hist):
     q2 = (f'<div class="q"><div class="qt">問い2 赤（日本固有要因）の頻度</div>'
           f'<div class="qv">{n_red}/{n_all}日</div>'
           f'<div class="qs">日本買い {n_buy}日・日本売り {n_sell}日・理論通り {n_all - n_red}日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div>')
-    if n_red:
-        judged = red_revert + red_follow
+    if ratios:
+        n_dec = len(ratios)
         verdict = ""
-        if judged >= 3:
-            if red_revert > red_follow:
-                verdict = "→ いまのところ<b>逆張り寄り</b>（赤の朝は寄りで飛びつかず日中の戻りを待つ）"
-            elif red_follow > red_revert:
-                verdict = "→ いまのところ<b>順張り寄り</b>（赤の方向に日中も続く）"
+        if n_dec >= 3:
+            if n_filled > n_remained:
+                verdict = "→ いまのところ乖離は<b>埋まる</b>ことが多い＝ノイズ寄り。赤の朝は寄りで飛びつかず戻りを待つ（逆張り）"
+            elif n_remained > n_filled:
+                verdict = "→ いまのところ乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）"
             else:
                 verdict = "→ 五分五分"
-        fill_s = ""
-        if red_fills:
-            fill_s = f'　窓埋め率 {sum(red_fills)/len(red_fills)*100:.0f}%（窓あり{len(red_fills)}日）'
-            if all_fills:
-                fill_s += f'／全日 {sum(all_fills)/len(all_fills)*100:.0f}%'
-        q3 = (f'<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div>'
-              f'<div class="qv">戻す {red_revert} ／ 続く {red_follow} ／ 横 {red_flat}</div>'
-              f'<div class="qs">赤{n_red}日のうち、日中（寄→引）が乖離と逆方向（戻す）か同方向（続く）か。閾値±{READ_TH}%。{fill_s}<br>{verdict}{caveat}</div></div>')
+        avg_fo = sum(fo_list) / n_dec * 100
+        avg_fi = sum(fi_list) / n_dec * 100
+        avg_rem = sum(ratios) / n_dec * 100
+        expand_s = f'（うち寄りで拡大 {n_open_expand}日）' if n_open_expand else ""
+        q3 = (f'<div class="q"><div class="qt">問い3 乖離は埋まったか（赤の日）</div>'
+              f'<div class="qv">埋まった {n_filled} ／ 一部 {n_partial} ／ 残った {n_remained}</div>'
+              f'<div class="qs">赤{n_dec}日の乖離を100%として、平均で 寄り{avg_fo:+.0f}% → 日中{avg_fi:+.0f}% 埋め、引けの残り{avg_rem:.0f}%{expand_s}。'
+              f'<br>{verdict}{caveat}</div></div>')
     else:
-        q3 = '<div class="q"><div class="qt">問い3 赤の朝、日中はどうなった</div><div class="qs">赤の日がまだ無い</div></div>'
+        q3 = '<div class="q"><div class="qt">問い3 乖離は埋まったか（赤の日）</div><div class="qs">赤の日の採点がまだ無い</div></div>'
     return f'  <div class="qbox">{q1}{q2}{q3}</div>'
 
 
@@ -668,6 +701,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   thead th.grp.sep, td.sep {{ border-left: 1px solid #334155; }}
   td.read {{ text-align: left; color: #cbd5e1; white-space: normal; min-width: 220px; }}
   td.small {{ color: #64748b; font-size: 0.78rem; }}
+  table.compact {{ font-size: 0.8rem; }}
+  table.compact th, table.compact td {{ padding: 6px 8px; }}
+  table.compact td.read {{ min-width: 150px; }}
 </style>
 <script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
@@ -757,14 +793,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     7:15に出した①②の数字を、その日の実際の値動き（寄り付き・日中・引け）で翌朝に採点する。問いは3つ。<br>
     <b class="num">問い1（予告）</b> ①の夜間先物ギャップは、9:00の実際の寄り付きギャップをどれだけ当てたか。誤差=実際の寄り付きギャップ−夜間先物ギャップ（7:15〜9:00の間に動いた分）。<br>
     <b class="num">問い2（説明）</b> ②の乖離は赤だったか青だったか。赤=夜のうちに日本株固有の買い/売りが入った朝。<br>
-    <b class="num">問い3（その後）</b> 赤の朝は、日中（寄り→引け）に<b>同じ方向へ続く</b>のか、<b>逆に戻す</b>のか。
-    戻すなら「赤の朝は寄りで飛びつかない」、続くなら「赤は順張り」という実務ルールに昇格できる。溜まったら kasetsu（仮説検証）へ。
+    <b class="num">問い3（乖離は埋まったか）</b> 赤の朝の乖離（＝夜のうちに入った日本固有の買い/売り）は、<b>寄り付きでどれだけ埋まり、日中でどれだけ埋まり、引けにいくら残ったか</b>。
+    埋まるなら乖離はノイズ（需給・フロー）で「赤の朝は寄りで飛びつかず戻りを待つ」、残るなら乖離は本物の材料で「赤は順張り」という実務ルールに昇格できる。溜まったら kasetsu（仮説検証）へ。
   </div>
 {qbox}
-  <div class="table-wrap" style="max-width:1200px">
-  <table>
+  <div class="table-wrap" style="max-width:none">
+  <table class="compact">
     <thead>
-      <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="3">問い3 その後</th></tr>
+      <tr><th></th><th class="grp sep" colspan="3">問い1 予告</th><th class="grp sep" colspan="3">問い2 説明</th><th class="grp sep" colspan="4">問い3 乖離は埋まったか（乖離の向きに揃えて、＋＝埋めた／−＝拡大）</th></tr>
       <tr><th>日付</th>
         <th class="sep">①夜間先物ギャップ<br><span style="font-weight:normal">（7:15の先物−前日終値）</span></th>
         <th>実際の寄り付きギャップ<br><span style="font-weight:normal">（当日始値−前日終値）</span></th>
@@ -772,9 +808,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <th class="sep">②理論値<br><span style="font-weight:normal">（米株・ドル円から計算）</span></th>
         <th>乖離<br><span style="font-weight:normal">（①−②）</span></th>
         <th>判定<br><span style="font-weight:normal">（乖離±0.5%）</span></th>
-        <th class="sep">日中<br><span style="font-weight:normal">（引け−始値）</span></th>
-        <th>窓埋め<br><span style="font-weight:normal">（日中に前日終値まで戻った）</span></th>
-        <th>読み</th></tr>
+        <th class="sep">寄りで埋めた分<br><span style="font-weight:normal">（①−寄り付き）</span></th>
+        <th>日中で埋めた分<br><span style="font-weight:normal">（寄り付き−引け）</span></th>
+        <th>引けの残り<br><span style="font-weight:normal">（引け−②）</span></th>
+        <th>判定<br><span style="font-weight:normal">（残り÷乖離）</span></th></tr>
     </thead>
     <tbody>
 {history_rows}
@@ -785,9 +822,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>①夜間先物ギャップ</b>＝（7:15時点のCME日経先物の値 − 日経平均の前日終値）÷ 前日終値。CME先物は日本時間6:00〜7:00の休憩を挟んでほぼ24時間取引のため、7:15の値は夜間の最終値とほぼ同じ（大証ナイトセッション終値と同水準）。<br>
     ・<b>実際の寄り付きギャップ</b>＝（当日の日経平均の始値 − 前日終値）÷ 前日終値。9:00の寄り値＝始値。<br>
     ・<b>誤差</b>は夜間先物ギャップと実際の寄り付きギャップの差。大きい日は7:15以降のニュースか、寄り付きの板の偏り。<br>
-    ・<b>窓埋め</b>=寄り付きで前日終値から離れて始まった（窓が開いた）後、その日のうちに高値/安値が一度でも前日終値に届いたか（○/×）。寄り付きギャップ±0.2%以内は窓なしとして判定しない（−）。
-    「寄りで飛びつかず待った人に、前日終値で拾う/逃げる機会が日中に来たか」を見る指標。<br>
-    ・<b>読み</b>は乖離の方向と日中リターン（±0.3%を閾値）から機械的に付けた一言。「戻す」が多ければ逆張り、「続く」が多ければ順張りの根拠になる。<br>
+    ・<b>問い3の分解</b>: 乖離の向きに符号を揃えて（＋＝乖離を埋める方向、−＝乖離が広がる方向）、
+    <b>寄りで埋めた分</b>（①−寄り付きギャップ）＋<b>日中で埋めた分</b>（寄り付きギャップ−引けの全日ギャップ）＋<b>引けの残り</b>（引けの全日ギャップ−②理論値）＝乖離の大きさ、になる。<br>
+    ・<b>判定</b>は「引けの残り÷乖離」で、25%以下=<span class="ok">埋まった</span>（乖離はノイズ・需給）、25〜75%=一部残った、75%以上=<span class="warn">残った</span>（本物の材料だった可能性）。
+    「埋まった」が多ければ赤の朝は逆張り（寄りで飛びつかず戻りを待つ）、「残った」が多ければ順張りの根拠になる。青の日は乖離が小さいので分解しない。<br>
     ・前日終値の日足がYahooに無かった朝（8/31・9/1）は翌朝に正しい終値で再計算済み（<span class="small">※</span>印）。<br>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
   </p>
@@ -900,7 +938,7 @@ def generate_html(data, hist=None):
             f'<span class="num" style="font-size:0.75rem">◀ 今朝</span> <span class="small">休場日・記録なし</span></td>'
             f'<td class="sep">{fmt_pct(gap_pct)}</td><td>-</td><td>-</td>'
             f'<td class="sep">{fmt_pct(theo)}</td><td>{fmt_pct(dev_now)}</td><td>{judge_now}</td>'
-            f'<td class="sep">-</td><td>-</td><td class="read">休場日のため採点なし（次の営業日の朝から記録）</td></tr>')
+            f'<td class="sep">-</td><td>-</td><td>-</td><td class="read">休場日のため採点なし（次の営業日の朝から記録）</td></tr>')
     for k in sorted(hist["days"], reverse=True)[:30]:
         rec = hist["days"][k]
         og, intraday, filled = _answer_row(rec)
@@ -915,20 +953,31 @@ def generate_html(data, hist=None):
         else:
             judge_s = "-"
         err_s = f'{og - gap:+.2f}%' if (og is not None and gap is not None) else "-"   # 誤差は符号で色を付けない
-        fill_s = "-" if filled is None else ("○" if filled else "×")
-        reading, _ = build_reading(rec)
         mark = '<span class="small">※</span>' if rec.get("repaired") else ""
-        if k == datetime.date.today().isoformat():
+        is_today = (k == datetime.date.today().isoformat())
+        if is_today:
             mark += ' <span class="num" style="font-size:0.75rem" title="上のカード①②と同じ数字。実際の寄り付き以降は明朝に埋まる">◀ 今朝</span>'
-            if og is None:
-                reading = "採点待ち"
+        # 問い3: 乖離の分解（赤の日だけ意味がある。青の日は乖離が小さいので分解しない）
+        dec = decompose_dev(rec) if cls in ("buy", "sell") else None
+        if dec:
+            fo, fi, rem, ratio, kind = dec
+            label, lcls = DECOMP_LABEL[kind]
+            note = "（寄りで拡大）" if fo < -0.2 else ""
+            q3 = (f'<td class="sep">{fo:+.2f}%</td><td>{fi:+.2f}%</td><td>{rem:+.2f}%</td>'
+                  f'<td class="read"><span class="{lcls}">{label}</span> 残り{ratio*100:.0f}%{note}</td>')
+        elif cls == "neutral":
+            q3 = '<td class="sep">-</td><td>-</td><td>-</td><td class="read small">青（乖離なし・分解対象外）</td>'
+        elif og is None:
+            q3 = '<td class="sep">-</td><td>-</td><td>-</td><td class="read small">' + ("採点待ち（明朝）" if is_today else "採点待ち") + '</td>'
+        else:
+            q3 = '<td class="sep">-</td><td>-</td><td>-</td><td class="read">-</td>'
         history_rows.append(
             f'      <tr><td style="white-space:nowrap">{k[5:]}{mark}</td>'
             f'<td class="sep">{fmt_pct(gap)}</td><td>{fmt_pct(og)}</td><td>{err_s}</td>'
             f'<td class="sep">{fmt_pct(rec.get("theo"))}</td><td>{fmt_pct(dev)}</td><td>{judge_s}</td>'
-            f'<td class="sep">{fmt_pct(intraday)}</td><td>{fill_s}</td><td class="read">{reading}</td></tr>')
+            f'{q3}</tr>')
     if not history_rows:
-        history_rows.append('      <tr><td colspan="10" style="text-align:center; color:#64748b">蓄積中（毎朝の実行で1行ずつ増えます）</td></tr>')
+        history_rows.append('      <tr><td colspan="11" style="text-align:center; color:#64748b">蓄積中（毎朝の実行で1行ずつ増えます）</td></tr>')
 
     qbox = build_qbox(hist)
 
