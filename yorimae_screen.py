@@ -190,10 +190,76 @@ def finalize_days(hist):
                                 "low": round(float(row["Low"]), 1), "close": newc, "final": True})
 
 
+BASIS_DAYS = 3   # ベーシス（先物−現物）は直近この営業日数の中央値（15:15〜15:30の現物の動きによるノイズを平す）
+
+
+def sq_dates_around(today):
+    """直近のSQ日（3/6/9/12月の第2金曜）のうち today 以前で最新のもの"""
+    cands = []
+    for y in (today.year - 1, today.year):
+        for m in (3, 6, 9, 12):
+            d = datetime.date(y, m, 1)
+            fridays = [d + datetime.timedelta(days=i) for i in range(31)
+                       if (d + datetime.timedelta(days=i)).month == m and (d + datetime.timedelta(days=i)).weekday() == 4]
+            cands.append(fridays[1])
+    return max(x for x in cands if x <= today)
+
+
+def estimate_basis(today, fut5m=None, cash_daily=None):
+    """先物と現物の構造的な差（ベーシス）を推定する。
+    配当月（3月・9月）はSQ後の限月が配当落ち分を織り込んで現物より安く取引されるため、
+    夜間先物ギャップ⑤を「先物−前日終値」で取るとその分だけ下にズレる。
+    直近BASIS_DAYS営業日の（15:30の先物 − 現物終値）の中央値を使い、⑤は（②−ベーシス）で計算する。
+    限月交代（SQ日）をまたぐと契約が変わるので、直近SQ日より前の日は使わない。
+    返り値: (basis円 or None, 使った日数, 注記)"""
+    try:
+        if fut5m is None:
+            fut5m = yf.Ticker("NIY=F").history(period="1mo", interval="5m")
+            fut5m = fut5m.set_axis(fut5m.index.tz_convert("Asia/Tokyo"))["Close"].dropna()
+        if cash_daily is None:
+            cash_daily = daily_closes("^N225", period="3mo")
+    except Exception as e:
+        return None, 0, f"ベーシス推定不可（{e}）"
+    if fut5m is None or len(fut5m) == 0 or cash_daily.empty:
+        return None, 0, "ベーシス推定不可（データなし）"
+    last_sq = sq_dates_around(today)
+    vals = []
+    for d in sorted({t.date() for t in cash_daily.index if t.date() < today}, reverse=True):
+        if d < last_sq:            # 限月交代前の日は別の契約なので使わない
+            break
+        if d == last_sq and today == last_sq:
+            break
+        x = fut5m[(fut5m.index.date == d) & (fut5m.index.strftime("%H:%M") <= "15:25")]   # 15:25のバー＝15:30の値（現物の大引けと同時刻）
+        if x.empty:
+            continue
+        c = cash_daily[cash_daily.index.date == d]
+        if c.empty:
+            continue
+        vals.append(float(x.iloc[-1]) - float(c.iloc[-1]))
+        if len(vals) >= BASIS_DAYS:
+            break
+    if not vals:
+        if today == last_sq:
+            return None, 0, "SQ日（限月交代）のためベーシス未調整。配当月は新限月が配当落ち分だけ安く出る点に注意"
+        return None, 0, "ベーシス推定不可（SQ後のデータ不足）"
+    vals.sort()
+    med = vals[len(vals) // 2]
+    return round(med), len(vals), f"直近{len(vals)}営業日の中央値"
+
+
+def adj_gap(rec):
+    """⑤夜間先物ギャップ = (②夜間先物の終値 − ベーシス − ①前日終値) / ①前日終値。ベーシス無しなら未調整"""
+    fut, prev = rec.get("fut"), rec.get("prev_close")
+    if not fut or not prev:
+        return None
+    b = rec.get("basis") or 0
+    return round(((fut - b) / prev - 1) * 100, 3)
+
+
 def reanchor_futures(hist):
     """過去の②を「6:00直前の5分足バー」に揃える（旧方式は実行時刻の最新値を取っていて、遅延データで数百円ズレる日があった）。
     5分足は約1ヶ月分しか取れないので、取れる範囲だけ直し fut_anchored=True を付ける"""
-    targets = [k for k, v in hist["days"].items() if v.get("fut") and not v.get("fut_anchored")]
+    targets = [k for k, v in hist["days"].items() if v.get("fut") and (not v.get("fut_anchored") or not v.get("basis_checked"))]
     if not targets:
         return
     try:
@@ -201,6 +267,7 @@ def reanchor_futures(hist):
         if h.empty:
             return
         h = h.set_axis(h.index.tz_convert("Asia/Tokyo"))["Close"].dropna()
+        cash_d = daily_closes("^N225", period="3mo")
     except Exception:
         return
     jst = datetime.timezone(datetime.timedelta(hours=9))
@@ -208,16 +275,27 @@ def reanchor_futures(hist):
         d = datetime.date.fromisoformat(k)
         anchor = datetime.datetime.combine(d, ANCHOR, tzinfo=jst)
         x = h[(h.index < anchor) & (h.index > anchor - datetime.timedelta(days=3))]   # 月曜は土曜6:00のバー（金曜夜間の終値）
+        r = hist["days"][k]
         if x.empty:
+            if not r.get("basis_checked"):
+                b, n, note = estimate_basis(d, fut5m=h, cash_daily=cash_d)
+                r["basis"], r["basis_n"], r["basis_note"], r["basis_checked"] = b, n, note, True
+                if r.get("prev_close"):
+                    r["gap"] = adj_gap(r)
+                    if r.get("theo") is not None:
+                        r["dev"] = round(r["gap"] - r["theo"], 3)
             continue
         newf = float(x.iloc[-1])
-        r = hist["days"][k]
         if abs(newf - r["fut"]) >= 5:
             log(f"  {k}: ②夜間先物を6:00のバーに再固定 {r['fut']:,.0f} → {newf:,.0f}（{x.index[-1]:%m/%d %H:%M}）")
         r["fut"] = newf
         r["obs_time"] = "6:00"
+        # ベーシス（先物−現物）も同時に推定して ⑤ を現物換算で作り直す
+        if not r.get("basis_checked"):
+            b, n, note = estimate_basis(d, fut5m=h, cash_daily=cash_d)
+            r["basis"], r["basis_n"], r["basis_note"], r["basis_checked"] = b, n, note, True
         if r.get("prev_close"):
-            r["gap"] = round((newf / r["prev_close"] - 1) * 100, 3)
+            r["gap"] = adj_gap(r)
             if r.get("theo") is not None:
                 r["dev"] = round(r["gap"] - r["theo"], 3)
         r["fut_anchored"] = True
@@ -281,7 +359,7 @@ def repair_stale_prev(hist):
             old = r["prev_close"]
             r["prev_close"] = p["close"]
             if r.get("fut"):
-                r["gap"] = round((r["fut"] / r["prev_close"] - 1) * 100, 3)
+                r["gap"] = adj_gap(r)
                 if r.get("theo") is not None:
                     r["dev"] = round(r["gap"] - r["theo"], 3)
             r["repaired"] = True
@@ -446,7 +524,7 @@ def classify_dev(dev):
 #   問い3:  ⑪寄り時点の乖離=⑥-⑧  ⑫引け時点の乖離=(④/①-1)-⑧  ⑬判定=⑫÷⑨（残り率）
 def day_values(rec):
     """1日分の記録から①〜⑬を計算して辞書で返す。未確定（採点前）の値は None"""
-    v = {"p1": rec.get("prev_close"), "p2": rec.get("fut"), "p3": rec.get("open"), "p4": rec.get("close"),
+    v = {"p1": rec.get("prev_close"), "p2": rec.get("fut"), "p3": rec.get("open"), "p4": rec.get("close"), "basis": rec.get("basis"),
          "g5": rec.get("gap"), "g6": None, "g7": None, "t8": rec.get("theo"), "d9": rec.get("dev"),
          "cls": classify_dev(rec.get("dev")), "d11": None, "d12": None, "cls12": None, "k13": None}
     p1 = v["p1"]
@@ -851,7 +929,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="subtitle">最終更新: {updated} | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）{holiday_note}</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
-    <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ①前日終値）＝ 今朝の寄り付き目安。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
+    <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ベーシス − ①前日終値）＝ 今朝の寄り付き目安。ベーシス＝先物と現物の構造的な差（配当落ち・金利分）で、配当月のSQ後に大きくなる。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
     <b class="num">⑨ 乖離</b>（⑤ − ⑧理論値）＝ ⑤のうち<b>米株とドル円で説明できなかった分</b>。
     ⑧理論値は「米株とドル円だけ見たら本来こう動くはず」という計算値。
     ⑩判定: |⑨|が{dev_th}%以内なら<span class="ok">理論通り（青）</span>、超えたら<span class="warn">日本固有要因：買い／売り（赤）</span>＝夜のうちに日本株に固有の買い（上振れ）/売り（下振れ）が入った。<br>
@@ -910,7 +988,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <tr><th></th><th class="grp sep" colspan="4">前提（円）</th><th class="grp sep" colspan="3">問い1 夜間先物ギャップ（6:00）は、寄り付きを当てたか</th><th class="grp sep" colspan="6">問い2 理論値との乖離は、引けまでに埋まったか（⑨6:00 → ⑪9:00 → ⑫15:30）</th></tr>
       <tr><th>日付</th>
         <th class="sep">①前日終値</th><th>②夜間先物終値<br><span style="font-weight:normal">（6:00）</span></th><th>③当日始値</th><th>④当日終値</th>
-        <th class="sep">⑤夜間先物ギャップ<br><span style="font-weight:normal">（②−①）</span></th>
+        <th class="sep">⑤夜間先物ギャップ<br><span style="font-weight:normal">（②−ベーシス−①）</span></th>
         <th>⑥実際の寄り付きギャップ<br><span style="font-weight:normal">（③−①）</span></th>
         <th>⑦寄りまでの変化<br><span style="font-weight:normal">（⑥−⑤）</span></th>
         <th class="sep">⑧理論値<br><span style="font-weight:normal">（米株・ドル円から）</span></th>
@@ -928,6 +1006,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note" style="margin-top:8px">
     ・%の列はすべて「①前日終値に対する%」。②〜④は円。<br>
     ・<b>②夜間先物の終値</b>＝CME日経先物の6:00（日本時間）のバーの終値。CME先物は6:00〜7:00に休憩、大証ナイトセッションも6:00終了なので「夜間の終値」に相当。7:15の実行時刻ではなく6:00の値を取るため、PCの起動が遅れて8:50や10:00に走っても同じ値になる。<br>
+    ・<b>ベーシス</b>＝先物−現物の構造的な差（金利分と、限月内の配当落ち分）。特に3月・9月はSQで限月が替わった直後から、新限月が月末の配当落ち分（日経平均で200〜400円）を織り込んで現物より安く取引されるため、②をそのまま①と比べると⑤が下にズレる。直近3営業日の（15:30の先物−現物終値）の中央値をベーシスとして②から引き、現物換算で⑤を計算する。②の欄の「B±nn」がその値。SQ当日は限月交代のため未調整（注記が出る）。<br>
     ・<b>⑦寄りまでの変化</b>が大きい日は、6:00以降のニュース（7:00〜の先物再開・8:50の国内指標など）か寄り付きの板の偏り。<br>
     ・<b>⑧理論値</b>＝「米株とドル円だけを見たら本来こう動くはず」の値。b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰、ページ最下部に表示）。<br>
     ・<b>問い2の⑨⑪⑫</b>は同じ「乖離＝理論値との差」を3つの時点で追う: ⑨6:00時点（夜間終値） → ⑪9:00時点（寄り） → ⑫15:30時点（引け）。寄りで埋めた分＝⑨−⑪、日中で埋めた分＝⑪−⑫。<br>
@@ -1001,8 +1080,11 @@ def generate_html(data, hist=None):
     row1 = [card("①", "前日終値", val(f"{n225_prev:,.0f}円"), f'{data["n225_date"]} 大引け')]
     if fut is not None:
         obs = data.get("obs_time") or "6:00"
+        b = data.get("basis")
+        basis_line = (f'<br>ベーシス（先物−現物）{b:+,}円 → 現物換算 {fut - b:,.0f}円（{data.get("basis_note") or ""}）'
+                      if b is not None else f'<br><span class="warn">ベーシス未調整</span>: {data.get("basis_note") or ""}')
         row1.append(card("②", f"夜間先物の終値（CME日経先物・{obs}）", val(f"{fut:,.0f}円"),
-                         f'{data["fut_ticker"]}。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）', big=True))
+                         f'{data["fut_ticker"]}。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）{basis_line}', big=True))
     else:
         row1.append(card("②", "夜間先物の終値（CME日経先物）", val("取得失敗"), "yfinance側の一時的な問題の可能性", big=True))
     row1.append(card("③", "当日始値", pv("p3", "yen"), "9:00に確定 → 9:30の更新で入る"))
@@ -1013,7 +1095,7 @@ def generate_html(data, hist=None):
                      f'NY前日終値比 {fmt_pct(data["fx_chg"])}'))
 
     # ---- 問い1 ----
-    row2 = [card("⑤", "夜間先物ギャップ（②−①）＝ 今朝の寄り付き目安",
+    row2 = [card("⑤", "夜間先物ギャップ（②−ベーシス−①）＝ 今朝の寄り付き目安",
                  val(f'{fmt_pct(gap_pct)}') if gap_pct is not None else val("-"),
                  (f'{gap_yen:+,.0f}円。現物はこの水準に揃って寄り付きやすい' if gap_yen is not None else ""), big=True),
             card("⑥", "実際の寄り付きギャップ（③−①）", pv("g6"), "9:30の更新で入る"),
@@ -1105,6 +1187,8 @@ def generate_html(data, hist=None):
     for k in sorted(hist["days"], reverse=True)[:30]:
         rec = hist["days"][k]
         v = day_values(rec)
+        basis_s = (f'<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B{v["basis"]:+,}</span>'
+                   if v.get("basis") is not None and abs(v["basis"]) >= 30 else "")
         mark = '<span class="small">※</span>' if rec.get("repaired") else ""
         is_today = (k == today_key)
         if is_today:
@@ -1121,7 +1205,7 @@ def generate_html(data, hist=None):
             j13 = "-"
         history_rows.append(
             f'      <tr><td style="white-space:nowrap">{k[5:]}{mark}</td>'
-            f'<td class="sep">{yen(v["p1"])}</td><td>{yen(v["p2"])}</td><td>{yen(v["p3"])}</td><td>{yen(v["p4"])}</td>'
+            f'<td class="sep">{yen(v["p1"])}</td><td>{yen(v["p2"])}{basis_s}</td><td>{yen(v["p3"])}</td><td>{yen(v["p4"])}</td>'
             f'<td class="sep">{fmt_pct(v["g5"])}</td><td>{fmt_pct(v["g6"])}</td><td>{plain(v["g7"])}</td>'
             f'<td class="sep">{fmt_pct(v["t8"])}</td><td>{fmt_pct(v["d9"])}</td><td>{judge10(v["cls"])}</td>'
             f'<td class="sep">{fmt_pct(v["d11"])}</td><td>{fmt_pct(v["d12"])}</td><td class="read">{j13}</td></tr>')
@@ -1313,8 +1397,13 @@ def observe_morning(today):
                 fut_last, fut_ticker, fut_time = v, tk, datetime.datetime.now(jst)
                 log(f"  {tk}: 6:00のバーが取れず最新値で代用")
                 break
-    gap_pct = (fut_last / n225_prev - 1) * 100 if fut_last else None
-    gap_yen = fut_last - n225_prev if fut_last else None
+    basis, basis_n, basis_note = estimate_basis(today)
+    if basis is not None:
+        log(f"  ベーシス（先物−現物）{basis:+,}円（{basis_note}）→ ⑤は現物換算で計算")
+    else:
+        log(f"  ベーシス未調整: {basis_note}")
+    gap_pct = (((fut_last - (basis or 0)) / n225_prev - 1) * 100) if fut_last else None
+    gap_yen = (fut_last - (basis or 0) - n225_prev) if fut_last else None
     log(f"①前日終値 {n225_prev:,.0f}（{n225_date}） / ②先物 {fut_last} ({fut_ticker}, {fut_time:%H:%M} 時点) / ⑤ギャップ {gap_pct}"
         if fut_time else f"①前日終値 {n225_prev:,.0f} / ②先物 取得失敗")
 
@@ -1344,6 +1433,7 @@ def observe_morning(today):
         "prev_close": n225_prev, "n225_date": n225_date,
         "fut": fut_last, "fut_ticker": fut_ticker,
         "obs_time": (lambda t: f"{t.hour}:{t.minute:02d}")(fut_time + datetime.timedelta(minutes=5)) if fut_time else None,
+        "basis": basis, "basis_n": basis_n, "basis_note": basis_note, "basis_checked": True,
         "gap": None if gap_pct is None else round(gap_pct, 3),
         "theo": None if theo is None else round(theo, 3),
         "dev": None if dev is None else round(dev, 3),
@@ -1437,7 +1527,8 @@ def main():
     data = {
         "n225_prev": rec["prev_close"], "n225_date": rec.get("n225_date", ""),
         "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"),
-        "gap_pct": gap_pct, "gap_yen": (rec["fut"] - rec["prev_close"]) if rec.get("fut") else None,
+        "gap_pct": gap_pct, "gap_yen": (rec["fut"] - (rec.get("basis") or 0) - rec["prev_close"]) if rec.get("fut") else None,
+        "basis": rec.get("basis"), "basis_note": rec.get("basis_note"),
         "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
         "fx_now": rec.get("fx_now"), "fx_chg": rec.get("fx_chg"),
         "theo_gap": theo, "betas": rec.get("betas"),
@@ -1461,6 +1552,7 @@ def main():
                          **{k2: bt_by_tyo.get(r["tyo"], {}).get(k2) for k2 in ("up_win", "dn_win", "up_n", "dn_n", "match")})
                     for r in adr],
             "walls": walls,
+            "basis": rec.get("basis"), "basis_note": rec.get("basis_note"),
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
     except Exception as e:

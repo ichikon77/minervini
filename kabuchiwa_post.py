@@ -473,7 +473,7 @@ CARD_TEMPLATE = """<!DOCTYPE html>
 </div>
 <div class="right">
   <div class="big">
-    <div class="label">CME日経先物（夜間）→ 今朝の寄り付き目安　／　前日終値 {n225_prev}</div>
+    <div class="label">CME日経先物（夜間・6:00）→ 今朝の寄り付き目安　／　前日終値 {n225_prev}{basis_s}</div>
     <div class="value">{fut_s}<span class="{gap_cls}">{gap_s}</span></div>
     <div class="judge">理論値 {theo_s} ／ 乖離 {dev_s} <span class="badge {judge_cls}">{judge_label}</span></div>
   </div>
@@ -558,6 +558,7 @@ def build_card_html(d, events, today):
         date_s=f"{today:%Y-%m-%d}（{WEEKDAYS_JP[today.weekday()]}）",
         speech=speech,
         n225_prev=f'{d["n225_prev"]:,.0f}円' if d.get("n225_prev") else "-",
+        basis_s=(f'　／　ベーシス {d["basis"]:+,}円 調整済み' if d.get("basis") is not None and abs(d["basis"]) >= 30 else ""),
         fut_s=f"{fut:,.0f}円" if fut is not None else "取得失敗",
         gap_cls=_cls(gap), gap_s=(f"{gap:+.2f}%（{yen:+,.0f}円）" if gap is not None else ""),
         theo_s=fmt_signed(d.get("theo_gap")), dev_s=fmt_signed(d.get("dev")),
