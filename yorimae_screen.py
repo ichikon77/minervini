@@ -1108,7 +1108,10 @@ def generate_html(data, hist=None):
     row1.append(card("③", "当日始値", pv("p3", "yen"), "9:00に確定 → 9:30の更新で入る"))
     row1.append(card("④", "当日終値", pv("p4", "yen"), "15:30に確定 → 15:45の更新で入る"))
     # 参考（⑧理論値の材料）
-    row1.append(card("参考", "S&amp;P500（前日）", val(fmt_pct(data["spx_ret"])), f'NASDAQ {fmt_pct(data["ndx_ret"])}'))
+    if data.get("us_holiday"):
+        row1.append(card("参考", "S&amp;P500（前日）", val("休場"), "昨夜の米国市場は祝日で休み。⑧理論値は米株の変化0・ドル円のみで計算"))
+    else:
+        row1.append(card("参考", "S&amp;P500（前日）", val(fmt_pct(data["spx_ret"])), f'NASDAQ {fmt_pct(data["ndx_ret"])}'))
     row1.append(card("参考", "ドル円", val(f'{data["fx_now"]:.2f}円' if data.get("fx_now") else "-"),
                      f'NY前日終値比 {fmt_pct(data["fx_chg"])}'))
 
@@ -1122,7 +1125,9 @@ def generate_html(data, hist=None):
     # ---- 問い2 ----
     if data.get("betas") and theo is not None:
         b1, b2, _ = data["betas"]
-        theo_sub = (f'S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f} + ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}<br>'
+        spx_part = (f'S&amp;P500 休場（0%）×{b1:.2f}' if data.get("us_holiday")
+                    else f'S&amp;P500 {data["spx_ret"]:+.2f}%×{b1:.2f}')
+        theo_sub = (f'{spx_part} + ドル円 {data["fx_chg"]:+.2f}%×{b2:.2f}<br>'
                     f'「米株とドル円だけ見たら本来こう動くはず」の値')
     else:
         theo_sub = "データ不足で計算できず"
@@ -1428,6 +1433,17 @@ def observe_morning(today):
     fx = before_today(daily_closes("JPY=X"))
     spx_ret = float((spx.iloc[-1] / spx.iloc[-2] - 1) * 100) if len(spx) >= 2 else None
     ndx_ret = float((ndx.iloc[-1] / ndx.iloc[-2] - 1) * 100) if len(ndx) >= 2 else None
+    # 昨夜の米国市場が休場（祝日）だったか: 直近の米株日足の日付が「今日より前の直近平日」より古ければ休場。
+    # その場合、日足の最終2本は一昨日以前の変化＝東京は前日に織り込み済みなので、米株の変化は0として理論値を作る
+    us_holiday = False
+    if len(spx):
+        prev_wd = today - datetime.timedelta(days=1)
+        while prev_wd.weekday() >= 5:
+            prev_wd -= datetime.timedelta(days=1)
+        if spx.index[-1].date() < prev_wd:
+            us_holiday = True
+            spx_ret, ndx_ret = 0.0, 0.0
+            log(f"  昨夜の米国市場は休場（米株日足の最終日 {spx.index[-1].date()}）→ 米株の変化は0として理論値を計算")
     fx_now, _ = bar_close_at("JPY=X", anchor)
     if fx_now is None:
         fx_now = last_price("JPY=X") or (float(fx.iloc[-1]) if len(fx) else None)
@@ -1450,7 +1466,7 @@ def observe_morning(today):
         "gap": None if gap_pct is None else round(gap_pct, 3),
         "theo": None if theo is None else round(theo, 3),
         "dev": None if dev is None else round(dev, 3),
-        "spx_ret": spx_ret, "ndx_ret": ndx_ret,
+        "spx_ret": spx_ret, "ndx_ret": ndx_ret, "us_holiday": us_holiday,
         "fx_now": fx_now, "fx_chg": fx_chg,
         "betas": list(betas) if betas else None,
         "fut_anchored": anchored, "theo_recomputed": True,
@@ -1566,6 +1582,7 @@ def main():
                     for r in adr],
             "walls": walls,
             "basis": rec.get("basis"), "basis_note": rec.get("basis_note"),
+            "us_holiday": rec.get("us_holiday", False),
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
     except Exception as e:

@@ -225,7 +225,9 @@ def gap_phrase(d):
 def us_phrase(d):
     spx, ndx, fx, fxc = d.get("spx_ret"), d.get("ndx_ret"), d.get("fx_now"), d.get("fx_chg")
     parts = []
-    if spx is not None:
+    if d.get("us_holiday"):
+        parts.append("昨夜 米国株群は 休みじゃった（米株の変化は0として理論値を計算）")
+    elif spx is not None:
         if abs(spx) >= 1.5:
             verb = "大きく うごいた" if spx > 0 else "大きく くずれた"
         elif abs(spx) >= 0.5:
@@ -563,8 +565,10 @@ def build_card_html(d, events, today):
         gap_cls=_cls(gap), gap_s=(f"{gap:+.2f}%（{yen:+,.0f}円）" if gap is not None else ""),
         theo_s=fmt_signed(d.get("theo_gap")), dev_s=fmt_signed(d.get("dev")),
         judge_cls=judge_cls, judge_label=judge_label,
-        spx_cls=_cls(d.get("spx_ret")), spx_s=fmt_signed(d.get("spx_ret")),
-        ndx_cls=_cls(d.get("ndx_ret")), ndx_s=fmt_signed(d.get("ndx_ret")),
+        spx_cls=("flat" if d.get("us_holiday") else _cls(d.get("spx_ret"))),
+        spx_s=("休場" if d.get("us_holiday") else fmt_signed(d.get("spx_ret"))),
+        ndx_cls=("flat" if d.get("us_holiday") else _cls(d.get("ndx_ret"))),
+        ndx_s=("休場" if d.get("us_holiday") else fmt_signed(d.get("ndx_ret"))),
         fx_s=(f'{d["fx_now"]:.2f}円' if d.get("fx_now") else "-"),
         fxc_cls=_cls(d.get("fx_chg")), fxc_s=fmt_signed(d.get("fx_chg")),
         adr_up=adr_line("ADR つよい", ups, "up"), adr_dn=adr_line("ADR よわい", dns, "down"),
