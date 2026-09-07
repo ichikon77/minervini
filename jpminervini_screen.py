@@ -49,7 +49,11 @@ HEADERS = {
 # ─────────────────────────────────────────
 def get_topix_tickers():
     """JPX公式ファイルからTOPIX（プライム）銘柄を取得"""
-    url_xls = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
+    # JPXは2026-09-03の更新で data_j.xls → data_j.xlsx に変わった（旧URLは404）。新→旧の順で試す
+    url_candidates = [
+        "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xlsx",
+        "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls",
+    ]
 
     def parse_jpx_df(df):
         df.columns = df.columns.str.strip()
@@ -62,8 +66,15 @@ def get_topix_tickers():
         return [c + ".T" for c in codes if re.match(r'^[0-9]{3}[0-9A-Z]$', c)]
 
     try:
-        resp = requests.get(url_xls, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
+        resp = None
+        for url_xls in url_candidates:
+            r = requests.get(url_xls, headers=HEADERS, timeout=30)
+            if r.status_code == 200 and len(r.content) > 10000:
+                resp = r
+                break
+            print("  JPX一覧 取得失敗（次のURLを試す）: " + url_xls + " -> " + str(r.status_code))
+        if resp is None:
+            raise RuntimeError("JPX上場銘柄一覧をどのURLからも取得できません")
         try:
             df = pd.read_excel(io.BytesIO(resp.content), engine="openpyxl")
         except Exception:
