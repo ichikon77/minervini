@@ -10,7 +10,10 @@ S&P500 理論株価 自動記録 → HTML出力 → GitHub Pages公開
 2. 予想PER（週次・金曜更新）: https://www.barrons.com/market-data/stocks/us/pe-yields
    「S&P 500 Index」行の Estimate^（Forward 12 months, Birinyi Associates）
 3. 予想EPS（週次）: https://stock-marketdata.com/eps-nasdaq.html
-   表「日付|NASDAQ100実績|NASDAQ100予想|S&P500実績|S&P500予想|...」のS&P500予想EPS列
+   ※2026-09-14変更。9/8のサイト改修で表がPlotlyチャートに置き換わり9/8〜9/14の取得が失敗
+   （9/11の予想EPS 378.12が363.74のまま引き継がれる事故）。現在は
+   time-series/charts/us-indicator-eps-sp500-projected.html のPlotly JSONから
+   「S&P500（予想EPS）」トレース（yはbase64のfloat64）を読む。旧表パースはフォールバックとして残す
 
 - PER(予想EPSから) = S&P500終値 ÷ 予想EPS（毎日変動。週最終営業日のみ予想PERと一致）
 - 理論株価 = 予想EPS × [14.62, 16.37, 22.82, 24.00, 26.00]
@@ -34,6 +37,9 @@ import yfinance as yf
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PER_URL = "https://www.barrons.com/market-data/stocks/us/pe-yields"
 EPS_URL = "https://stock-marketdata.com/eps-nasdaq.html"
+# 2026-09-08のサイト改修で上記ページの表がPlotlyチャート(iframe)に置き換わった。
+# データ本体はこの時系列ページのPlotly JSON（x=日付, y=base64のfloat64配列）に埋め込まれている
+EPS_TS_URL = "https://stock-marketdata.com/time-series/charts/us-indicator-eps-sp500-projected.html"
 
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "spriron_history.json")
 REPORT_HTML = "spriron.html"
@@ -160,8 +166,56 @@ def fetch_forward_per():
 # -----------------------------------------
 # 3. 予想EPS（stock-marketdata, 週次）
 # -----------------------------------------
+def _decode_plotly_y(yobj):
+    """Plotlyのy配列をfloatリストに。{"dtype":"f8","bdata":"base64"} 形式と素のリスト両対応"""
+    if isinstance(yobj, list):
+        return [float(v) if v is not None else None for v in yobj]
+    if isinstance(yobj, dict) and "bdata" in yobj:
+        import base64, struct
+        raw = base64.b64decode(yobj["bdata"])
+        fmt = {"f8": "d", "f4": "f", "i4": "i", "i8": "q", "i2": "h", "u1": "B"}.get(yobj.get("dtype", "f8"), "d")
+        n = len(raw) // struct.calcsize(fmt)
+        return [float(v) for v in struct.unpack("<" + fmt * n, raw[:n * struct.calcsize(fmt)])]
+    raise ValueError("Plotlyのy配列を解釈できません")
+
+
+def fetch_forward_eps_plotly():
+    """新方式（2026-09-14〜）: 時系列チャートページに埋め込まれたPlotly JSONから
+    「S&P500（予想EPS）」トレースの x(日付)/y(値) を読む。全期間（2017年〜）を返す"""
+    html = fetch_with_retry(EPS_TS_URL)
+    out = {}
+    # トレースごとに name / x / y を拾う（名前は \uXXXX エスケープの可能性があるのでjsonで復号）
+    for m in re.finditer(r'"name":"((?:[^"\\]|\\.)*)"(?:(?!"x":\[).){0,600}?"x":\[((?:[^\]])*)\],"y":(\{[^{}]*\}|\[[^\]]*\])', html, re.S):
+        try:
+            name = json.loads('"' + m.group(1) + '"')
+        except Exception:
+            name = m.group(1)
+        if "予想EPS" not in name or "S&P500" not in name.replace("&amp;", "&"):
+            continue
+        xs = re.findall(r'"(\d{4}-\d{2}-\d{2})', m.group(2))
+        ys = _decode_plotly_y(json.loads(m.group(3)))
+        if not xs or len(xs) != len(ys):
+            raise ValueError(f"Plotlyトレースの長さ不一致 x={len(xs)} y={len(ys)}")
+        for d, v in zip(xs, ys):
+            if v is not None:
+                out[d] = round(v, 2)
+        break
+    if not out:
+        raise ValueError("Plotlyページに『S&P500（予想EPS）』トレースが見つかりません")
+    return out
+
+
 def fetch_forward_eps():
-    """{日付ISO: 予想EPS} 直近数週分を返す"""
+    """{日付ISO: 予想EPS} を返す。新方式（Plotly時系列ページ）→ 旧方式（eps-nasdaq.htmlの表）の順に試す"""
+    try:
+        return fetch_forward_eps_plotly()
+    except Exception as e:
+        log(f"予想EPS 新方式(Plotly)失敗: {e} → 旧方式の表パースを試す")
+    return fetch_forward_eps_table()
+
+
+def fetch_forward_eps_table():
+    """旧方式（〜2026-09-07）: eps-nasdaq.html の表。2026-09-08のサイト改修で表がPlotlyチャートに置き換わり動かなくなった"""
     html = fetch_with_retry(EPS_URL)
     text = re.sub(r'<[^>]+>', '|', html)
     text = re.sub(r'\|+', '|', text)
@@ -213,7 +267,9 @@ def recompute(hist):
             r["予想EPS"] = last_eps
         if r.get("SP500") and r.get("予想EPS"):
             r["PER計算"] = round(r["SP500"] / r["予想EPS"], 2)
-        r["前日差"] = round(r["SP500"] - hist[dates[i - 1]]["SP500"], 2) if i > 0 and hist[dates[i - 1]].get("SP500") else None
+        # 当日・前日いずれかの株価が無ければ前日差は出さない（EPS/PERだけの行、休場日など）
+        r["前日差"] = round(r["SP500"] - hist[dates[i - 1]]["SP500"], 2) \
+            if i > 0 and r.get("SP500") and hist[dates[i - 1]].get("SP500") else None
 
 
 # -----------------------------------------
@@ -529,11 +585,22 @@ def main():
     try:
         eps_map = fetch_forward_eps()
         log(f"予想EPS: {len(eps_map)}週分取得（最新 {max(eps_map)}: {eps_map[max(eps_map)]}）")
+        # 新方式は2017年以降の全期間を返すので、履歴の開始日より前は取り込まない（株価の無い行を作らない）
+        hist_start = min(hist) if hist else "2025-01-01"
+        recent_cut = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
         for d, v in eps_map.items():
+            if d < hist_start:
+                continue
             if d in hist:
                 hist[d]["予想EPS"] = v
-            else:
+            elif d >= recent_cut:
+                # 直近1週間で株価がまだ無い日（金曜のEPSを土曜に取る等）だけ株価なし行を作る
                 hist[d] = {"SP500": None, "予想EPS": v}
+            else:
+                # 過去の休場日付きEPS（例: グッドフライデー）は直前の取引日に紐付け、株価なし行を作らない
+                prev = max((x for x in hist if x < d and hist[x].get("SP500")), default=None)
+                if prev and hist[prev].get("予想EPS") is None:
+                    hist[prev]["予想EPS"] = v
     except Exception as e:
         errors.append(f"予想EPS: {e}")
         log(f"エラー: 予想EPS取得失敗: {e}")
