@@ -327,6 +327,7 @@ HTML_HEAD = """<!DOCTYPE html>
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
   td.weekly {{ color: #fbbf24; font-weight: bold; }}  /* 週次一致日（予想PER=PER計算） */
+  .stale {{ color: #f87171; font-size: 0.7rem; font-weight: normal; white-space: nowrap; cursor: help; }}  /* 取得失敗の引き継ぎ値 */
   td.below {{ background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }}
   td.above {{ background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }}
   td.month-low {{ background: rgba(56,189,248,0.22); color: #bae6fd; font-weight: bold; cursor: help; }}  /* 月間最安値 */
@@ -376,6 +377,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <span class="chip" style="background:rgba(14,116,144,0.55); color:#a5f3fc">現値のすぐ下の理論株価</span>
     <span class="chip" style="background:rgba(190,60,60,0.4); color:#fecaca">現値のすぐ上の理論株価</span>
     <span class="chip" style="color:#fbbf24">黄色 = 週次更新日（予想PERとPER計算が一致）</span>
+    <span class="chip" style="color:#f87171">※引き継ぎ値 = 取得失敗が3日続くか8日以上更新が無い（サイト改修の疑い）</span>
   </div>
   <div class="table-wrap">
   <table>
@@ -402,6 +404,7 @@ HTML_HEAD = """<!DOCTYPE html>
     ・理論株価 = 予想EPS × 各PER。現値を挟む2セルに色が付く（水色=すぐ下、薄赤=すぐ上）。<br>
     ・PER基準: 14.62=コロナショック底(2020/3/16)、16.37=ハイテク株底入れ(2022/10/10)、22.82=コロナ直前(2020/3/18)、24=かなり高い、26=過去最高水準。<br>
     ・予想PER(Barron's)と予想EPSは週1回（金曜）更新。平日は直近値を引き継ぐため、「PER:予想EPSから」と「予想PER」が一致するのは週次更新日のみ（黄色表示）。<br>
+    ・<span style="color:#f87171">※引き継ぎ値</span> = データ源の取得に3日連続で失敗、または8日以上値が変わっていないセル。引き継ぎは正常動作だが、この印が出たら外部サイトの改修で止まっている可能性が高い（2026年9月に予想EPSの表がチャートに置き換わり、6日間気づかず引き継いだ事故から追加）。印にマウスを乗せると理由と元の値の日付。<br>
     ・<a href="{price_url}" style="color:#60a5fa">S&P500株価 (Yahoo Finance ^GSPC)</a> /
     <a href="{per_url}" style="color:#60a5fa">Barron's P/E &amp; Yields</a> /
     <a href="{eps_url}" style="color:#60a5fa">stock-marketdata 予想EPS</a>
@@ -415,8 +418,48 @@ HTML_HEAD = """<!DOCTYPE html>
 SP_LOW_ATTR = ' class="month-low" title="この月の最安値（攻防の分岐点）"'
 
 
+STALE_FAIL_DAYS = 3   # 取得失敗がこの日数連続したら「※引き継ぎ値」
+STALE_AGE_DAYS = 8    # 値が変わらないままこの日数以上経ったら「※引き継ぎ値」（週次なので通常は最長7日）
+
+
+def _stale_info(hist, key, fail_key):
+    """表示行（株価あり）ごとに (取得失敗の連続日数, 値が最後に変わった日) を返す。
+    週次値は平日に引き継ぐのが正常なので、それだけでは印を付けない。
+    印を付けるのは「取得失敗が3日続いた」か「8日以上値が更新されていない」とき。"""
+    info = {}
+    streak = 0
+    src = None
+    prev_v = None
+    for d in sorted(hist.keys()):
+        r = hist[d]
+        if not r.get("SP500"):
+            continue
+        v = r.get(key)
+        if v is not None and v != prev_v:
+            src, prev_v = d, v
+        streak = streak + 1 if r.get(fail_key) else 0
+        info[d] = (streak, src)
+    return info
+
+
+def _stale_mark(d, info):
+    """(印を付けるか, title文) を返す"""
+    streak, src = info.get(d, (0, None))
+    age = (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(src)).days if src else 0
+    reasons = []
+    if streak >= STALE_FAIL_DAYS:
+        reasons.append(f"取得失敗が{streak}日連続")
+    if age >= STALE_AGE_DAYS:
+        reasons.append(f"{age}日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）")
+    if not reasons:
+        return False, ""
+    return True, f"引き継ぎ値: {'／'.join(reasons)}。元の値の日付 {src.replace('-', '/') if src else '-'}"
+
+
 def generate_html(hist):
     dates = sorted(hist.keys(), reverse=True)
+    eps_info = _stale_info(hist, "予想EPS", "EPS取得失敗")
+    per_info = _stale_info(hist, "予想PER", "PER取得失敗")
 
     theo_headers = "\n".join(
         f'        <th{" class=" + chr(34) + "sep" + chr(34) if i == 0 else ""}>PER{p:g}<span class="small">{note}</span></th>'
@@ -463,12 +506,17 @@ def generate_html(hist):
         weekly = per_w is not None and per_c is not None and abs(per_w - per_c) < 0.005
         w_attr = ' class="weekly"' if weekly else ''
 
+        per_stale, per_title = _stale_mark(d, per_info)
+        eps_stale, eps_title = _stale_mark(d, eps_info)
+        per_mark = f'<br><span class="stale" title="{per_title}">※引き継ぎ値</span>' if per_stale else ''
+        eps_mark = f'<br><span class="stale" title="{eps_title}">※引き継ぎ値</span>' if eps_stale else ''
+
         cells = [f'<td>{d.replace("-", "/")}</td>',
                  f'<td{sp_attr}>{sp:,.2f}</td>',
                  f'<td>{diff_s}</td>',
-                 f'<td{w_attr}>{per_w:.2f}</td>' if per_w is not None else '<td>-</td>',
+                 f'<td{w_attr}>{per_w:.2f}{per_mark}</td>' if per_w is not None else '<td>-</td>',
                  f'<td{w_attr}>{per_c:.2f}</td>' if per_c is not None else '<td>-</td>',
-                 f'<td>{eps:,.2f}</td>' if eps else '<td>-</td>']
+                 f'<td>{eps:,.2f}{eps_mark}</td>' if eps else '<td>-</td>']
         for i, t in enumerate(theos):
             cls = []
             if i == 0:
@@ -608,6 +656,17 @@ def main():
     if len(errors) == 3:
         log("全データ源の取得に失敗しました")
         sys.exit(1)
+
+    # 取得失敗フラグを「今日の表示行」（株価がある最新日）に記録。成功したら消す。
+    # generate_html が連続失敗日数を数えて「※引き継ぎ値」の印を付ける
+    today_key = max((d for d in hist if hist[d].get("SP500")), default=None)
+    if today_key:
+        for flag, prefix in (("PER取得失敗", "予想PER"), ("EPS取得失敗", "予想EPS")):
+            if any(e.startswith(prefix) for e in errors):
+                hist[today_key][flag] = True
+                log(f"{prefix}: 取得失敗を {today_key} の行に記録")
+            else:
+                hist[today_key].pop(flag, None)
 
     recompute(hist)
     save_history(hist)
