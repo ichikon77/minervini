@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>S&P500 理論株価 - 2026/09/11</title>
+<title>S&P500 理論株価 - 2026/09/14</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -50,6 +50,7 @@
   .pos { color: #4ade80; }
   .neg { color: #f87171; }
   td.weekly { color: #fbbf24; font-weight: bold; }  /* 週次一致日（予想PER=PER計算） */
+  .stale { color: #f87171; font-size: 0.7rem; font-weight: normal; white-space: nowrap; cursor: help; }  /* 取得失敗の引き継ぎ値 */
   td.below { background: rgba(14,116,144,0.55); color: #a5f3fc; font-weight: bold; }
   td.above { background: rgba(190,60,60,0.4); color: #fecaca; font-weight: bold; }
   td.month-low { background: rgba(56,189,248,0.22); color: #bae6fd; font-weight: bold; cursor: help; }  /* 月間最安値 */
@@ -94,11 +95,12 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>S&P500 理論株価（予想PER・予想EPS）</h1>
-  <p class="subtitle">最終更新: 2026-09-14 22:21 | 株価: Yahoo Finance (^GSPC) / 予想PER: Barron's (Birinyi, 金曜更新) / 予想EPS: stock-marketdata.com</p>
+  <p class="subtitle">最終更新: 2026-09-15 08:15 | 株価: Yahoo Finance (^GSPC) / 予想PER: Barron's (Birinyi, 金曜更新) / 予想EPS: stock-marketdata.com</p>
   <div class="legend">
     <span class="chip" style="background:rgba(14,116,144,0.55); color:#a5f3fc">現値のすぐ下の理論株価</span>
     <span class="chip" style="background:rgba(190,60,60,0.4); color:#fecaca">現値のすぐ上の理論株価</span>
     <span class="chip" style="color:#fbbf24">黄色 = 週次更新日（予想PERとPER計算が一致）</span>
+    <span class="chip" style="color:#f87171">※引き継ぎ値 = 取得失敗が3日続くか8日以上更新が無い（サイト改修の疑い）</span>
   </div>
   <div class="table-wrap">
   <table>
@@ -118,6 +120,7 @@
       </tr>
     </thead>
     <tbody>
+      <tr><td>2026/09/14</td><td>7,619.98</td><td><span class="neg">-37.00</span></td><td>20.25</td><td>20.15</td><td>378.12</td><td class="sep">5,528.11</td><td class="below">6,189.82</td><td class="above">8,628.70</td><td>9,074.88</td><td>9,831.12</td></tr>
       <tr><td>2026/09/11</td><td>7,656.98</td><td><span class="pos">+65.28</span></td><td class="weekly">20.25</td><td class="weekly">20.25</td><td>378.12</td><td class="sep">5,528.11</td><td class="below">6,189.82</td><td class="above">8,628.70</td><td>9,074.88</td><td>9,831.12</td></tr>
       <tr><td>2026/09/10</td><td class="month-low" title="この月の最安値（攻防の分岐点）">7,591.70</td><td><span class="neg">-44.66</span></td><td>21.22</td><td>20.87</td><td>363.74</td><td class="sep">5,317.88</td><td class="below">5,954.42</td><td class="above">8,300.55</td><td>8,729.76</td><td>9,457.24</td></tr>
       <tr><td>2026/09/09</td><td>7,636.36</td><td><span class="neg">-37.16</span></td><td>21.22</td><td>20.99</td><td>363.74</td><td class="sep">5,317.88</td><td class="below">5,954.42</td><td class="above">8,300.55</td><td>8,729.76</td><td>9,457.24</td></tr>
@@ -413,10 +416,10 @@
       <tr><td>2025/07/15</td><td>6,243.76</td><td><span class="neg">-24.80</span></td><td>23.72</td><td>23.66</td><td>263.90</td><td class="sep">3,858.22</td><td>4,320.04</td><td class="below">6,022.20</td><td class="above">6,333.60</td><td>6,861.40</td></tr>
       <tr><td>2025/07/14</td><td>6,268.56</td><td><span class="pos">+8.81</span></td><td>23.72</td><td>23.75</td><td>263.90</td><td class="sep">3,858.22</td><td>4,320.04</td><td class="below">6,022.20</td><td class="above">6,333.60</td><td>6,861.40</td></tr>
       <tr><td>2025/07/11</td><td>6,259.75</td><td><span class="neg">-20.71</span></td><td class="weekly">23.72</td><td class="weekly">23.72</td><td>263.90</td><td class="sep">3,858.22</td><td>4,320.04</td><td class="below">6,022.20</td><td class="above">6,333.60</td><td>6,861.40</td></tr>
-      <tr><td>2025/07/10</td><td>6,280.46</td><td><span class="pos">+17.20</span></td><td>23.17</td><td>23.84</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
-      <tr><td>2025/07/09</td><td>6,263.26</td><td><span class="pos">+37.74</span></td><td>23.17</td><td>23.78</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
-      <tr><td>2025/07/08</td><td>6,225.52</td><td><span class="neg">-4.46</span></td><td>23.17</td><td>23.63</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
-      <tr><td>2025/07/07</td><td>6,229.98</td><td><span class="neg">-49.37</span></td><td>23.17</td><td>23.65</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
+      <tr><td>2025/07/10</td><td>6,280.46</td><td><span class="pos">+17.20</span></td><td>23.17<br><span class="stale" title="引き継ぎ値: 13日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/06/27">※引き継ぎ値</span></td><td>23.84</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
+      <tr><td>2025/07/09</td><td>6,263.26</td><td><span class="pos">+37.74</span></td><td>23.17<br><span class="stale" title="引き継ぎ値: 12日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/06/27">※引き継ぎ値</span></td><td>23.78</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
+      <tr><td>2025/07/08</td><td>6,225.52</td><td><span class="neg">-4.46</span></td><td>23.17<br><span class="stale" title="引き継ぎ値: 11日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/06/27">※引き継ぎ値</span></td><td>23.63</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
+      <tr><td>2025/07/07</td><td>6,229.98</td><td><span class="neg">-49.37</span></td><td>23.17<br><span class="stale" title="引き継ぎ値: 10日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/06/27">※引き継ぎ値</span></td><td>23.65</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
       <tr><td>2025/07/03</td><td>6,279.35</td><td><span class="pos">+51.93</span></td><td>23.17</td><td>23.84</td><td>263.42</td><td class="sep">3,851.20</td><td>4,312.19</td><td class="below">6,011.24</td><td class="above">6,322.08</td><td>6,848.92</td></tr>
       <tr><td>2025/07/02</td><td>6,227.42</td><td><span class="pos">+29.41</span></td><td>23.17</td><td>23.37</td><td>266.43</td><td class="sep">3,895.21</td><td>4,361.46</td><td class="below">6,079.93</td><td class="above">6,394.32</td><td>6,927.18</td></tr>
       <tr><td>2025/07/01</td><td class="month-low" title="この月の最安値（攻防の分岐点）">6,198.01</td><td><span class="neg">-6.94</span></td><td>23.17</td><td>23.26</td><td>266.43</td><td class="sep">3,895.21</td><td>4,361.46</td><td class="below">6,079.93</td><td class="above">6,394.32</td><td>6,927.18</td></tr>
@@ -441,9 +444,9 @@
       <tr><td>2025/06/03</td><td>5,970.37</td><td><span class="pos">+34.43</span></td><td>22.37</td><td>22.59</td><td>264.27</td><td class="sep">3,863.63</td><td class="below">4,326.10</td><td class="above">6,030.64</td><td>6,342.48</td><td>6,871.02</td></tr>
       <tr><td>2025/06/02</td><td class="month-low" title="この月の最安値（攻防の分岐点）">5,935.94</td><td><span class="pos">+24.25</span></td><td>22.37</td><td>22.46</td><td>264.27</td><td class="sep">3,863.63</td><td class="below">4,326.10</td><td class="above">6,030.64</td><td>6,342.48</td><td>6,871.02</td></tr>
       <tr><td>2025/05/30</td><td>5,911.69</td><td><span class="neg">-0.48</span></td><td class="weekly">22.37</td><td class="weekly">22.37</td><td>264.27</td><td class="sep">3,863.63</td><td class="below">4,326.10</td><td class="above">6,030.64</td><td>6,342.48</td><td>6,871.02</td></tr>
-      <tr><td>2025/05/29</td><td>5,912.17</td><td><span class="pos">+23.62</span></td><td>22.12</td><td>22.54</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
-      <tr><td>2025/05/28</td><td>5,888.55</td><td><span class="neg">-32.99</span></td><td>22.12</td><td>22.45</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
-      <tr><td>2025/05/27</td><td>5,921.54</td><td><span class="pos">+118.72</span></td><td>22.12</td><td>22.57</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
+      <tr><td>2025/05/29</td><td>5,912.17</td><td><span class="pos">+23.62</span></td><td>22.12<br><span class="stale" title="引き継ぎ値: 13日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/05/16">※引き継ぎ値</span></td><td>22.54</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
+      <tr><td>2025/05/28</td><td>5,888.55</td><td><span class="neg">-32.99</span></td><td>22.12<br><span class="stale" title="引き継ぎ値: 12日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/05/16">※引き継ぎ値</span></td><td>22.45</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
+      <tr><td>2025/05/27</td><td>5,921.54</td><td><span class="pos">+118.72</span></td><td>22.12<br><span class="stale" title="引き継ぎ値: 11日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/05/16">※引き継ぎ値</span></td><td>22.57</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
       <tr><td>2025/05/23</td><td>5,802.82</td><td><span class="neg">-39.19</span></td><td class="weekly">22.12</td><td class="weekly">22.12</td><td>262.33</td><td class="sep">3,835.26</td><td class="below">4,294.34</td><td class="above">5,986.37</td><td>6,295.92</td><td>6,820.58</td></tr>
       <tr><td>2025/05/22</td><td>5,842.01</td><td><span class="neg">-2.60</span></td><td>22.12</td><td>21.69</td><td>269.37</td><td class="sep">3,938.19</td><td class="below">4,409.59</td><td class="above">6,147.02</td><td>6,464.88</td><td>7,003.62</td></tr>
       <tr><td>2025/05/21</td><td>5,844.61</td><td><span class="neg">-95.85</span></td><td>22.12</td><td>21.70</td><td>269.37</td><td class="sep">3,938.19</td><td class="below">4,409.59</td><td class="above">6,147.02</td><td>6,464.88</td><td>7,003.62</td></tr>
@@ -523,8 +526,8 @@
       <tr><td>2025/02/04</td><td>6,037.88</td><td><span class="pos">+43.31</span></td><td>22.33</td><td>22.32</td><td>270.51</td><td class="sep">3,954.86</td><td class="below">4,428.25</td><td class="above">6,173.04</td><td>6,492.24</td><td>7,033.26</td></tr>
       <tr><td>2025/02/03</td><td>5,994.57</td><td><span class="neg">-45.96</span></td><td>22.33</td><td>22.16</td><td>270.51</td><td class="sep">3,954.86</td><td class="below">4,428.25</td><td class="above">6,173.04</td><td>6,492.24</td><td>7,033.26</td></tr>
       <tr><td>2025/01/31</td><td>6,040.53</td><td><span class="neg">-30.64</span></td><td class="weekly">22.33</td><td class="weekly">22.33</td><td>270.51</td><td class="sep">3,954.86</td><td class="below">4,428.25</td><td class="above">6,173.04</td><td>6,492.24</td><td>7,033.26</td></tr>
-      <tr><td>2025/01/30</td><td>6,071.17</td><td><span class="pos">+31.86</span></td><td>22.56</td><td>22.19</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
-      <tr><td>2025/01/29</td><td>6,039.31</td><td><span class="neg">-28.39</span></td><td>22.56</td><td>22.07</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
+      <tr><td>2025/01/30</td><td>6,071.17</td><td><span class="pos">+31.86</span></td><td>22.56<br><span class="stale" title="引き継ぎ値: 9日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/01/21">※引き継ぎ値</span></td><td>22.19</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
+      <tr><td>2025/01/29</td><td>6,039.31</td><td><span class="neg">-28.39</span></td><td>22.56<br><span class="stale" title="引き継ぎ値: 8日間更新なし（取得は成功しているがサイト側が未更新、または同値の週の可能性）。元の値の日付 2025/01/21">※引き継ぎ値</span></td><td>22.07</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
       <tr><td>2025/01/28</td><td>6,067.70</td><td><span class="pos">+55.42</span></td><td>22.56</td><td>22.18</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
       <tr><td>2025/01/27</td><td>6,012.28</td><td><span class="neg">-88.96</span></td><td>22.56</td><td>21.97</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
       <tr><td>2025/01/24</td><td>6,101.24</td><td><span class="neg">-17.47</span></td><td>22.56</td><td>22.30</td><td>273.60</td><td class="sep">4,000.03</td><td class="below">4,478.83</td><td class="above">6,243.55</td><td>6,566.40</td><td>7,113.60</td></tr>
@@ -553,10 +556,11 @@
     ・理論株価 = 予想EPS × 各PER。現値を挟む2セルに色が付く（水色=すぐ下、薄赤=すぐ上）。<br>
     ・PER基準: 14.62=コロナショック底(2020/3/16)、16.37=ハイテク株底入れ(2022/10/10)、22.82=コロナ直前(2020/3/18)、24=かなり高い、26=過去最高水準。<br>
     ・予想PER(Barron's)と予想EPSは週1回（金曜）更新。平日は直近値を引き継ぐため、「PER:予想EPSから」と「予想PER」が一致するのは週次更新日のみ（黄色表示）。<br>
+    ・<span style="color:#f87171">※引き継ぎ値</span> = データ源の取得に3日連続で失敗、または8日以上値が変わっていないセル。引き継ぎは正常動作だが、この印が出たら外部サイトの改修で止まっている可能性が高い（2026年9月に予想EPSの表がチャートに置き換わり、6日間気づかず引き継いだ事故から追加）。印にマウスを乗せると理由と元の値の日付。<br>
     ・<a href="https://finance.yahoo.com/quote/%5EGSPC/" style="color:#60a5fa">S&P500株価 (Yahoo Finance ^GSPC)</a> /
     <a href="https://www.barrons.com/market-data/stocks/us/pe-yields" style="color:#60a5fa">Barron's P/E &amp; Yields</a> /
     <a href="https://stock-marketdata.com/eps-nasdaq.html" style="color:#60a5fa">stock-marketdata 予想EPS</a>
   </p>
-  <p class="updated">最終更新: 2026-09-14 22:21</p>
+  <p class="updated">最終更新: 2026-09-15 08:15</p>
 </body>
 </html>
