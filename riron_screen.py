@@ -233,10 +233,15 @@ def load_fx(dates):
     return out
 
 
-def build_ladder_html(nikkei, eps, etf_price):
-    """2624買い下がりラダー表のHTMLを生成（毎日EPS/現値から再計算）"""
+def build_ladder_html(nikkei, eps, etf_price, as_of=None):
+    """2624買い下がりラダー表のHTMLを生成（毎日EPS/現値から再計算）。
+    as_of: 基準日（日経・EPS・2624終値の日付）。見出しに材料3つを日付付きで出し、
+    「今日の値で再計算されたか」を表から確かめられるようにする（2026-09-15ユーザー指摘:
+    日経がほぼ横ばいの日はEPS+0.4%でも2624目安は20円台しか動かず、更新されていないように見えた）"""
     if etf_price is None:
         return ""
+    basis = (f'基準 {as_of.replace("-", "/")} 終値: 日経{nikkei:,.0f}円・EPS {eps:,.2f}円・2624 {etf_price:,.0f}円'
+             if as_of else f'2624現値 {etf_price:,.0f}円')
     # 出口価格: PER20戻り時の2624換算値（現値からの変化率を1倍で適用）
     exit_n = eps * LADDER_EXIT_PER
     exit_etf = etf_price * (exit_n / nikkei)
@@ -274,7 +279,9 @@ def build_ladder_html(nikkei, eps, etf_price):
   <h2 style="font-size:1.05rem; color:#cbd5e1; margin:26px 0 8px;">【実験】2624 買い下がりラダー（毎日自動再計算）</h2>
   <p style="font-size:0.78rem; color:#94a3b8; margin-bottom:10px;">
     仮説⑭（暴落の底=直前1年高値PERの67〜75%）に基づく買い下がり目安。本命PER15.5。
-    iFreeETF日経225(2624・現値{etf_price:,.0f}円)を1倍連動と仮定してEPS×PERから換算。指値の置き直しに使う。</p>
+    iFreeETF日経225(2624)を1倍連動と仮定してEPS×PERから換算。指値の置き直しに使う。<br>
+    <span style="color:#cbd5e1">{basis}</span>
+    （2624目安 = 2624終値 × EPS×PER ÷ 日経終値。日経が横ばいの日はEPSの変化分だけ動く＝ETFは日経の約1/10なので数十円）</p>
   <div class="table-wrap" style="max-height:none; max-width:980px;">
   <table>
     <thead>
@@ -604,7 +611,7 @@ def generate_html(hist, fx=None):
 
     # 2624買い下がりラダー表（最新日のEPS/日経現値から再計算）
     latest = hist[dates[0]]
-    ladder = build_ladder_html(latest["日経平均"], latest["EPS"], fetch_ladder_price(as_of=dates[0]))
+    ladder = build_ladder_html(latest["日経平均"], latest["EPS"], fetch_ladder_price(as_of=dates[0]), as_of=dates[0])
 
     html = HTML_HEAD.format(
         latest_date=dates[0].replace("-", "/") if dates else "-",
