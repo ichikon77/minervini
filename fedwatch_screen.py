@@ -28,7 +28,11 @@ import yfinance as yf
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "fedwatch_history.json")
+EFFR_JSON = os.path.join(SCRIPT_DIR, "fedwatch_effr.json")   # 実効FF金利(EFFR)の日次キャッシュ
 REPORT_HTML = "fedwatch.html"
+# NY連銀の公開API（キー不要）。FRED(EFFR)は予備
+EFFR_API = "https://markets.newyorkfed.org/api/rates/unsecured/effr/search.json"
+EFFR_FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EFFR"
 
 # FOMC決定日（2日目）。翌営業日から新レート適用とみなす。
 # ※年8回の標準スケジュール。新しい年の日程が公表されたらここに追記する。
@@ -91,9 +95,67 @@ def fetch_futures():
 
 
 # -----------------------------------------
+# 実効FF金利（EFFR）: チェーンの土台（2026-09-16追加）
+# -----------------------------------------
+def fetch_effr():
+    """{日付ISO: EFFR%} を返す。NY連銀API → FRED → キャッシュ の順。取れた分はキャッシュにマージ保存。
+
+    背景: Yahooは期限切れのFF先物（ZQN26=7月限、ZQQ26=8月限）を満期後に丸ごと消す。
+    直近会合の「会合後レート」を8月限から取っていたため、8月限が消えた9/1以降、
+    9月会合の確率が計算できず表から消えた（10月以降は10月限から逆算できるので残った）。
+    再計算で過去日も上書きされ、8月の9月会合列まで消えた。
+    → 直前会合の実現レートは先物ではなく実際のEFFR（NY連銀公表）を土台にする。
+      CME FedWatchも現行の実効FF金利を起点にしており、同じ考え方。"""
+    cache = {}
+    if os.path.exists(EFFR_JSON):
+        try:
+            with open(EFFR_JSON, encoding="utf-8") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+    start = (datetime.date.today() - datetime.timedelta(days=400 if not cache else 45)).isoformat()
+    got = {}
+    try:
+        import requests
+        r = requests.get(EFFR_API, params={"startDate": start}, timeout=20,
+                         headers={"User-Agent": "Mozilla/5.0"})
+        r.raise_for_status()
+        for x in r.json().get("refRates", []):
+            if x.get("type") == "EFFR" and x.get("percentRate") is not None:
+                got[x["effectiveDate"]] = float(x["percentRate"])
+    except Exception as e:
+        log(f"  EFFR(NY連銀)取得失敗: {e} → FREDを試す")
+        try:
+            import requests
+            r = requests.get(EFFR_FRED, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+            r.raise_for_status()
+            for line in r.text.splitlines()[1:]:
+                d, v = (line.split(",") + [""])[:2]
+                if d >= start and v not in ("", "."):
+                    got[d] = float(v)
+        except Exception as e2:
+            log(f"  EFFR(FRED)取得失敗: {e2} → キャッシュ{len(cache)}日で継続")
+    if got:
+        cache.update(got)
+        with open(EFFR_JSON, "w", encoding="utf-8") as f:
+            json.dump(dict(sorted(cache.items())), f)
+        log(f"  EFFR: {len(got)}日分取得（キャッシュ計{len(cache)}日、最新 {max(cache)} = {cache[max(cache)]}%）")
+    return cache
+
+
+def effr_on(effr, date_iso):
+    """その日以前の最新EFFR（無ければNone）"""
+    best = None
+    for d in effr:
+        if d <= date_iso and (best is None or d > best):
+            best = d
+    return effr[best] if best else None
+
+
+# -----------------------------------------
 # 会合ごとの織り込み確率を計算
 # -----------------------------------------
-def calc_probs_for_date(rates_at, date_iso):
+def calc_probs_for_date(rates_at, date_iso, effr_now=None):
     """ある日付時点の各会合の変化織り込み確率 {会合ラベル: prob%} を返す
 
     rates_at: {(y,m): レート%} その日時点で分かっている各限月の織り込みレート
@@ -125,6 +187,12 @@ def calc_probs_for_date(rates_at, date_iso):
         w_before = (eff - 1) / n_days
         w_after = (n_days - eff + 1) / n_days
 
+        # 直前会合のレートがチェーンから取れない（期限切れ限月がYahooから消えた等）とき、
+        # 次に来る会合の土台は「その日時点の実効FF金利(EFFR)」で置く。
+        # 過去会合は表に出さないのでスキップでよいが、未来会合はここで必ず土台を持たせる
+        if r_prev is None and d > date_iso and effr_now is not None:
+            r_prev = effr_now
+
         try:
             if next_clean and r_next is not None:
                 r_after = r_next
@@ -151,7 +219,7 @@ def calc_probs_for_date(rates_at, date_iso):
     return result
 
 
-def build_history(futures):
+def build_history(futures, effr=None):
     """全取引日について確率を計算 {日付: {会合: prob}}
 
     各限月の先物は、その月が過ぎる（会合が確定する）と出来高が細り、
@@ -172,7 +240,7 @@ def build_history(futures):
             if d in series:
                 last_known[ym] = series[d]
         rates_at = dict(last_known)  # その日までに分かっている全限月（forward-fill済み）
-        probs = calc_probs_for_date(rates_at, d)
+        probs = calc_probs_for_date(rates_at, d, effr_on(effr, d) if effr else None)
         if probs:
             hist[d] = probs
     return hist
@@ -312,6 +380,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・FF金利先物価格 = 100 − その月の平均FF金利。FOMCがある月は会合前後の日割り加重平均になる性質を使い、
     会合ごとのレート変化の織り込みを逆算（CME FedWatchと同じ原理の簡易版）。<br>
     ・確率 = 織り込まれたレート変化 ÷ 25bp。+100%なら25bp利上げを完全織り込み、+50%なら五分五分。<br>
+    ・次の会合の起点（会合前レート）は、期限切れの先物ではなくNY連銀公表の実効FF金利（EFFR）を使う（CME FedWatchと同じ起点。2026-09-16から）。<br>
     ・FOMC日程は標準スケジュールに基づく仮置き。日程変更時はスクリプトのFOMC_DATESを更新。<br>
     ・<a href="totan.html" style="color:#60a5fa">日銀利上げ確率</a>と並べて見ると日米金利差の方向（→ドル円 → 日経EPS）が読める。
   </p>
@@ -422,9 +491,11 @@ def main():
         log(f"エラー: 取得できた限月が少なすぎます（{len(futures)}本）")
         sys.exit(1)
 
-    log(f"FF先物: {len(futures)}限月取得")
+    log(f"FF先物: {len(futures)}限月取得（{', '.join(f'{y}/{m:02d}' for y, m in sorted(futures))}）")
 
-    new_hist = build_history(futures)
+    effr = fetch_effr()
+
+    new_hist = build_history(futures, effr)
     if not new_hist:
         log("エラー: 確率を計算できませんでした")
         sys.exit(1)
@@ -432,8 +503,13 @@ def main():
     hist = load_history()
     added = 0
     for d, rec in new_hist.items():
-        if d not in hist or hist[d] != rec:
-            hist[d] = rec
+        # 既存レコードに再計算結果を重ねる（上書きではなくマージ）。
+        # 限月がYahooから消えて計算できなくなった会合は、過去に計算済みの値を残す
+        # （2026-09: 8月限消滅の再計算で8月分の「2026/09会合」列まで消えた事故の再発防止）
+        merged = dict(hist.get(d, {}))
+        merged.update(rec)
+        if hist.get(d) != merged:
+            hist[d] = merged
             added += 1
     save_history(hist)
 
