@@ -155,7 +155,7 @@ def effr_on(effr, date_iso):
 # -----------------------------------------
 # 会合ごとの織り込み確率を計算
 # -----------------------------------------
-def calc_probs_for_date(rates_at, date_iso, effr_now=None):
+def calc_probs_for_date(rates_at, date_iso, effr=None):
     """ある日付時点の各会合の変化織り込み確率 {会合ラベル: prob%} を返す
 
     rates_at: {(y,m): レート%} その日時点で分かっている各限月の織り込みレート
@@ -172,6 +172,7 @@ def calc_probs_for_date(rates_at, date_iso, effr_now=None):
     """
     result = {}
     r_prev = None  # 直前会合の会合後レート（実現 or 織り込み）
+    effr_now = effr_on(effr, date_iso) if effr else None
 
     for d in sorted(FOMC_DATES):
         y, m = int(d[:4]), int(d[5:7])
@@ -188,10 +189,16 @@ def calc_probs_for_date(rates_at, date_iso, effr_now=None):
         w_after = (n_days - eff + 1) / n_days
 
         # 直前会合のレートがチェーンから取れない（期限切れ限月がYahooから消えた等）とき、
-        # 次に来る会合の土台は「その日時点の実効FF金利(EFFR)」で置く。
-        # 過去会合は表に出さないのでスキップでよいが、未来会合はここで必ず土台を持たせる
-        if r_prev is None and d > date_iso and effr_now is not None:
-            r_prev = effr_now
+        # 実効FF金利(EFFR)を土台にする。
+        #  ・まだ来ていない会合（当日を含む）: その日時点のEFFR
+        #  ・もう終わった会合: その会合「前日」のEFFR（会合前レート）。会合月の限月が
+        #    まだ取れていれば分解で会合後レートが出て、チェーンが次の会合へつながる。
+        #    ※ここを「その日時点のEFFR」にすると、終わった会合の分まで次の会合に
+        #      二重計上される（2026-09-16行の10月会合が+138%になった事故）
+        is_future = d >= date_iso   # 会合当日の行は決定前の織り込みも含むので未来扱い
+        if r_prev is None and effr:
+            r_prev = effr_now if is_future else effr_on(
+                effr, (datetime.date.fromisoformat(d) - datetime.timedelta(days=1)).isoformat())
 
         try:
             if next_clean and r_next is not None:
@@ -205,16 +212,21 @@ def calc_probs_for_date(rates_at, date_iso, effr_now=None):
                     continue
             else:
                 if r_prev is None or avg_m is None or w_after <= 0:
+                    # この会合は計算不能。土台(r_prev)は会合前のレートなので、
+                    # そのまま次へ渡すと「この会合の変化分」が次の会合に混入する。
+                    # 必ず捨てて、次の会合でEFFRから再アンカーさせる
+                    r_prev = None
                     continue
                 r_before = r_prev
                 r_after = (avg_m - w_before * r_before) / w_after
 
             prob = (r_after - r_before) / 0.25 * 100
             r_prev = r_after
-            if d > date_iso:
+            if is_future:
                 label = f"{y}/{m:02d}"
                 result[label] = round(prob)
         except Exception:
+            r_prev = None
             continue
     return result
 
@@ -240,7 +252,7 @@ def build_history(futures, effr=None):
             if d in series:
                 last_known[ym] = series[d]
         rates_at = dict(last_known)  # その日までに分かっている全限月（forward-fill済み）
-        probs = calc_probs_for_date(rates_at, d, effr_on(effr, d) if effr else None)
+        probs = calc_probs_for_date(rates_at, d, effr)
         if probs:
             hist[d] = probs
     return hist
@@ -511,6 +523,16 @@ def main():
         if hist.get(d) != merged:
             hist[d] = merged
             added += 1
+    # Yahooは日曜夜のセッション開始直後に「日曜日付」の仮バーを出し、週が明けると月曜に吸収して消す。
+    # 08:25実行がその仮バーを拾って日曜行が履歴に残り、以後は再計算対象外＝古い列構成のまま
+    # （2026/09会合列だけ「-」の日曜行）。再計算窓の中で新データに無い週末行は取り除く
+    window_start = min(new_hist)
+    stale = sorted(d for d in hist if d >= window_start and d not in new_hist
+                   and datetime.date.fromisoformat(d).weekday() >= 5)
+    for d in stale:
+        del hist[d]
+    if stale:
+        log(f"  週末の仮バー行を削除: {len(stale)}行（{stale[0]}〜{stale[-1]}）")
     save_history(hist)
 
     latest = max(hist)
