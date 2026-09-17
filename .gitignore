@@ -61,3 +61,5 @@ margin_mcap_cache.json
 
 # 還流ウォッチの超長期入札キャッシュ（財務省33ヶ月分の巡回が重いためpushして共有）
 !kanryu_history.json
+# 並び転換の段階到達日（答え合わせ用の蓄積データ）はバックアップのためpush
+!tenkan_history.json

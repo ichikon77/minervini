@@ -146,7 +146,14 @@ def fetch_daily():
             pbr = float(row[13])
             if per <= 0 or pbr <= 0:
                 continue
-            out[d.isoformat()] = {"日経平均": nikkei, "PER": per, "PBR": pbr}
+            rec = {"日経平均": nikkei, "PER": per, "PBR": pbr}
+            # col14 = 日本225 配当利回り(%)。yorimae のベーシス内訳（配当分の突き合わせ）で使う（2026-09-18追加）
+            try:
+                if len(row) > 14 and row[14] is not None and float(row[14]) > 0:
+                    rec["配当利回り"] = float(row[14])
+            except (TypeError, ValueError):
+                pass
+            out[d.isoformat()] = rec
         except (TypeError, ValueError):
             continue
     return out
@@ -423,6 +430,7 @@ HTML_HEAD = """<!DOCTYPE html>
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="tenkan.html" style="border-color:#db2777">並び転換</a>
     <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
     <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
@@ -681,6 +689,8 @@ def main():
     added = 0
     for d, rec in daily.items():
         if d in hist:
+            if "配当利回り" in rec and "配当利回り" not in hist[d]:
+                hist[d]["配当利回り"] = rec["配当利回り"]      # 既存日にも配当利回りを補う
             continue
         hist[d] = rec
         added += 1
