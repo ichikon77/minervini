@@ -1164,8 +1164,12 @@ def generate_html(data, hist=None):
 
     # 採点対象の日付（今日が休場日なら次の平日）。③④以降はその日の場が終わるまで「（−）」
     target = datetime.date.today()
-    while target.weekday() >= 5:
-        target += datetime.timedelta(days=1)
+    try:
+        from jp_market_holidays import next_business_day
+        target = next_business_day(target)
+    except Exception:
+        while target.weekday() >= 5:
+            target += datetime.timedelta(days=1)
     tlabel = f"{target.month}/{target.day}"
     pending_big = f'<div class="value" style="color:#64748b">{tlabel}（−）</div>'
 
@@ -1300,7 +1304,7 @@ def generate_html(data, hist=None):
         return f"{v:+.2f}%" if v is not None else "-"
 
     if today_key not in hist["days"] and gap_pct is not None:
-        # 休場日（土日など）は履歴に記録しないが、カードと表の対応が見えるように「今朝」の行だけ表示する
+        # 休場日（土日・祝日）は履歴に記録しないが、カードと表の対応が見えるように「今朝」の行だけ表示する
         dev_now = (gap_pct - theo) if theo is not None else None
         history_rows.append(
             f'      <tr style="opacity:0.75"><td style="white-space:nowrap">{today_key[5:]} '
@@ -1374,7 +1378,7 @@ def generate_html(data, hist=None):
     if not adr_bt_rows:
         adr_bt_rows.append('      <tr><td colspan="12" style="text-align:center; color:#64748b">計算失敗（yfinance側の一時的な問題の可能性）</td></tr>')
 
-    is_holiday = datetime.date.today().weekday() >= 5
+    is_holiday = not is_trading_day(datetime.date.today())
     holiday_note = (' | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から'
                     if is_holiday else "")
     html = HTML_TEMPLATE.format(
@@ -1408,7 +1412,7 @@ def push_to_github():
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
                     "yorimae_screen.py", "yorimae_run.bat",
                     "yorimae_history.json", ".gitignore",
-                    "kabuchiwa_post.py", "x_config.example.json"], check=True)
+                    "kabuchiwa_post.py", "x_config.example.json", "jp_market_holidays.py"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update yorimae report " + today],
         capture_output=True)
@@ -1607,10 +1611,20 @@ def fill_intraday(rec, today, now):
     return "intraday"
 
 
+def is_trading_day(d):
+    """東証の営業日か（土日・祝日・年末年始を除く）"""
+    try:
+        from jp_market_holidays import is_market_holiday
+        return not is_market_holiday(d)
+    except Exception:
+        return d.weekday() < 5
+
+
 def main():
     now = datetime.datetime.now()
     today = now.date()
-    log(f"寄り前チェック 開始（{now:%H:%M} 実行）")
+    trading = is_trading_day(today)
+    log(f"寄り前チェック 開始（{now:%H:%M} 実行{'' if trading else '・休場日'}）")
 
     hist = load_history()
     key = today.isoformat()
@@ -1637,7 +1651,7 @@ def main():
             for k2 in ("open", "high", "low", "close", "adr", "final"):
                 if k2 in rec:
                     obs[k2] = rec[k2]           # 日中に追記された値があれば引き継ぐ
-        if today.weekday() < 5 and not before_anchor:
+        if trading and not before_anchor:
             hist["days"][key] = obs
             rec = obs
             created = True
@@ -1661,7 +1675,7 @@ def main():
     # ADR（米国終値ベースなので実行時刻に依存しない）
     adr = calc_adr_gaps()
     adr_bt = backtest_adr_follow()
-    if today.weekday() < 5 and not before_anchor and adr and "adr" not in hist["days"].get(key, {}):
+    if trading and not before_anchor and adr and "adr" not in hist["days"].get(key, {}):
         hist["days"][key]["adr"] = {
             r["tyo"]: {"gap": round(r["gap"], 2), "prev": r["tyo_prev"], "mkt": r["mkt"]} for r in adr}
 
@@ -1669,7 +1683,7 @@ def main():
     phase = "morning"
     if before_anchor:
         phase = "night"        # 6:00前: 投稿しない・記録しない
-    elif today.weekday() < 5:
+    elif trading:
         phase = fill_intraday(hist["days"][key], today, now)
 
     # 過去分の答え合わせ・修復

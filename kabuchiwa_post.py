@@ -108,16 +108,12 @@ def load_data(path):
 
 
 def is_market_holiday(today):
-    """土日は休み。祝日は jpholiday があれば判定（無ければ土日のみ）。年末年始も休み"""
-    if today.weekday() >= 5:
-        return True
-    if (today.month == 12 and today.day == 31) or (today.month == 1 and today.day <= 3):
-        return True
+    """東証の休業日（土日・祝日・年末年始）。jp_market_holidays.py の表で判定（jpholidayがあれば併用）"""
     try:
-        import jpholiday
-        return bool(jpholiday.is_holiday(today))
+        from jp_market_holidays import is_market_holiday as _h
+        return _h(today)
     except Exception:
-        return False
+        return today.weekday() >= 5
 
 
 # -----------------------------------------
