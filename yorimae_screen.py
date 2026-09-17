@@ -205,6 +205,22 @@ def sq_dates_around(today):
     return max(x for x in cands if x <= today)
 
 
+def exdiv_dates_around(today):
+    """直近の権利落ち日（3月末・9月末決算の配当）のうち today 以前で最新のもの。
+    権利確定日＝月末最終営業日、権利落ち日＝その1営業日前（祝日は未考慮の近似）"""
+    cands = []
+    for y in (today.year - 1, today.year):
+        for m in (3, 9):
+            last = datetime.date(y, m + 1, 1) - datetime.timedelta(days=1)
+            while last.weekday() >= 5:
+                last -= datetime.timedelta(days=1)
+            ex = last - datetime.timedelta(days=1)
+            while ex.weekday() >= 5:
+                ex -= datetime.timedelta(days=1)
+            cands.append(ex)
+    return max(x for x in cands if x <= today)
+
+
 def estimate_basis(today, fut5m=None, cash_daily=None):
     """先物と現物の構造的な差（ベーシス）を推定する。
     配当月（3月・9月）はSQ後の限月が配当落ち分を織り込んで現物より安く取引されるため、
@@ -223,9 +239,17 @@ def estimate_basis(today, fut5m=None, cash_daily=None):
     if fut5m is None or len(fut5m) == 0 or cash_daily.empty:
         return None, 0, "ベーシス推定不可（データなし）"
     last_sq = sq_dates_around(today)
+    last_ex = exdiv_dates_around(today)
+    # 区切り: 限月交代（SQ日）と権利落ち日。どちらも前後でベーシスの性質が変わるので、区切りより前の日は使わない。
+    #   SQ日当日: 新限月の15:30データがまだ無い → 未調整
+    #   権利落ち日当日: 前日終値はまだ配当込みなので、権利落ち前の（配当を織り込んだ）ベーシスをそのまま使う
+    #   権利落ち日の翌日以降: 権利落ち日以降の（配当が抜けた）ベーシスだけを使う
+    cut = last_sq
+    if last_ex > cut and today > last_ex:
+        cut = last_ex
     vals = []
     for d in sorted({t.date() for t in cash_daily.index if t.date() < today}, reverse=True):
-        if d < last_sq:            # 限月交代前の日は別の契約なので使わない
+        if d < cut:                # 区切り前の日は別の性質（別限月／配当込み）なので使わない
             break
         if d == last_sq and today == last_sq:
             break
@@ -241,10 +265,81 @@ def estimate_basis(today, fut5m=None, cash_daily=None):
     if not vals:
         if today == last_sq:
             return None, 0, "SQ日（限月交代）のためベーシス未調整。配当月は新限月が配当落ち分だけ安く出る点に注意"
-        return None, 0, "ベーシス推定不可（SQ後のデータ不足）"
+        return None, 0, "ベーシス推定不可（区切り後のデータ不足）"
     vals.sort()
     med = vals[len(vals) // 2]
+    if cut == last_ex and len(vals) < BASIS_DAYS:
+        return round(med), len(vals), f"権利落ち後{len(vals)}営業日の値（配当分が抜けた新しいベーシス）"
     return round(med), len(vals), f"直近{len(vals)}営業日の中央値"
+
+
+_JGB1Y_CACHE = {}
+
+
+def fetch_jgb_1y():
+    """財務省CSVから直近の1年国債金利(%)を取る（先物の金利分の計算用）。失敗時は None"""
+    if "v" in _JGB1Y_CACHE:
+        return _JGB1Y_CACHE["v"]
+    val = None
+    try:
+        import requests
+        import kinri_screen as ks
+        r = requests.get(ks.MOF_CUR_URL, headers=ks.HEADERS, timeout=30)
+        r.raise_for_status()
+        for line in r.content.decode("shift_jis", errors="replace").splitlines():
+            cols = line.split(",")
+            if len(cols) < 3 or ks.wareki_to_date(cols[0]) is None:
+                continue
+            try:
+                val = float(cols[1].strip())      # 列1 = 1年
+            except ValueError:
+                continue
+    except Exception as e:
+        log(f"  1年国債金利の取得失敗（内訳の金利分は省略）: {e}")
+    _JGB1Y_CACHE["v"] = val
+    return val
+
+
+def next_sq_after(today):
+    """today より後の直近SQ日（限月の満期）"""
+    d = today
+    for _ in range(0, 130):
+        d += datetime.timedelta(days=1)
+        if d.month in (3, 6, 9, 12):
+            first = d.replace(day=1)
+            fridays = [first + datetime.timedelta(days=i) for i in range(31)
+                       if (first + datetime.timedelta(days=i)).month == d.month and (first + datetime.timedelta(days=i)).weekday() == 4]
+            if d == fridays[1]:
+                return d
+    return None
+
+
+def basis_breakdown(basis, ref, today):
+    """ベーシス = 金利分 − 配当分 として、金利分を1年国債金利×残存期間で計算し、配当分を逆算する。
+    返り値: dict(rate, days, carry, div, div_pct) または None"""
+    if basis is None or not ref:
+        return None
+    rate = fetch_jgb_1y()
+    sq = next_sq_after(today)
+    if rate is None or sq is None:
+        return None
+    days = (sq - today).days
+    carry = ref * (rate / 100) * days / 365
+    div = carry - basis                       # 配当分（正なら「満期までに落ちる配当ポイント」）
+    out = {"rate": rate, "days": days, "sq": sq.isoformat(), "carry": round(carry), "div": round(div),
+           "div_pct": round(div / ref * 100, 2)}
+    # 突き合わせ: rironデッキ（nikkei225jp.com）の年間配当利回り → 年間配当ポイント。9月末は中間配当なので年間の一部
+    try:
+        rh = json.load(open(RIRON_JSON, encoding="utf-8"))
+        for k in sorted(rh, reverse=True):
+            if rh[k].get("配当利回り"):
+                out["yield"] = rh[k]["配当利回り"]
+                out["annual_div"] = round(ref * rh[k]["配当利回り"] / 100)
+                out["div_share"] = round(div / out["annual_div"] * 100) if out["annual_div"] else None
+                break
+    except Exception:
+        pass
+    return out
 
 
 def adj_gap(rec):
@@ -934,6 +1029,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="tenkan.html" style="border-color:#db2777">並び転換</a>
     <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
     <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
@@ -1099,7 +1195,15 @@ def generate_html(data, hist=None):
     if fut is not None:
         obs = data.get("obs_time") or "6:00"
         b = data.get("basis")
-        basis_line = (f'<br>ベーシス（先物−現物）{b:+,}円 → 現物換算 {fut - b:,.0f}円（{data.get("basis_note") or ""}）'
+        bd = data.get("basis_bd")
+        bd_line = ""
+        if bd:
+            bd_line = (f'<br>内訳（推定）: 金利分 +{bd["carry"]:,}円（1年国債 {bd["rate"]:.2f}%×{bd["days"]}日, SQ {bd["sq"][5:].replace("-", "/")}まで）'
+                       f' − 配当分 {bd["div"]:,}円（現物比 {bd["div_pct"]:.2f}%。満期までに落ちる配当ポイントの市場推定）')
+            if bd.get("yield"):
+                bd_line += (f'<br>突き合わせ: 日経225の年間配当利回り {bd["yield"]:.2f}%（rironデッキ）＝年間 約{bd["annual_div"]:,}円 → '
+                            f'先物が織り込む配当分はその{bd["div_share"]}%（9月末は中間配当なので年間の3〜4割が目安）')
+        basis_line = (f'<br>ベーシス（先物−現物）{b:+,}円 → 現物換算 {fut - b:,.0f}円（{data.get("basis_note") or ""}）{bd_line}'
                       if b is not None else f'<br><span class="warn">ベーシス未調整</span>: {data.get("basis_note") or ""}')
         row1.append(card("②", f"夜間先物の終値（CME日経先物・{obs}）", val(f"{fut:,.0f}円"),
                          f'{data["fut_ticker"]}。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）{basis_line}', big=True))
@@ -1463,6 +1567,7 @@ def observe_morning(today):
         "fut": fut_last, "fut_ticker": fut_ticker,
         "obs_time": (lambda t: f"{t.hour}:{t.minute:02d}")(fut_time + datetime.timedelta(minutes=5)) if fut_time else None,
         "basis": basis, "basis_n": basis_n, "basis_note": basis_note, "basis_checked": True,
+        "basis_bd": basis_breakdown(basis, fut_last, today),
         "gap": None if gap_pct is None else round(gap_pct, 3),
         "theo": None if theo is None else round(theo, 3),
         "dev": None if dev is None else round(dev, 3),
@@ -1522,6 +1627,8 @@ def main():
             rec = obs      # 休場日は記録しないが表示には使う
     else:
         log(f"  本日の6:00観測は記録済み（②先物 {rec.get('fut')} / ⑤ {rec.get('gap')}%）→ 追記モード")
+        if "basis_bd" not in rec:
+            rec["basis_bd"] = basis_breakdown(rec.get("basis"), rec.get("fut"), today)
         # 旧形式（参考値なし）のレコードは参考値だけ補う
         if "spx_ret" not in rec:
             obs = observe_morning(today)
@@ -1581,7 +1688,7 @@ def main():
                          **{k2: bt_by_tyo.get(r["tyo"], {}).get(k2) for k2 in ("up_win", "dn_win", "up_n", "dn_n", "match")})
                     for r in adr],
             "walls": walls,
-            "basis": rec.get("basis"), "basis_note": rec.get("basis_note"),
+            "basis": rec.get("basis"), "basis_note": rec.get("basis_note"), "basis_bd": rec.get("basis_bd"),
             "us_holiday": rec.get("us_holiday", False),
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
