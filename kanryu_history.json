@@ -1068,6 +1068,19 @@
    "date": "2026-07-22",
    "name": "40年利付国債 (第19回)",
    "url": "https://www.mof.go.jp/jgbs/auction/calendar/nyusatsu/resul20260722.htm"
+  },
+  "https://www.mof.go.jp/jgbs/auction/calendar/nyusatsu/resul20260915.htm": {
+   "bid": 21313.0,
+   "accepted": 5321.0,
+   "low_price": 98.1,
+   "high_yield": 3.869,
+   "avg_price": 98.25,
+   "avg_yield": 3.856,
+   "tenor": "20年",
+   "series": 197,
+   "date": "2026-09-15",
+   "name": "20年利付国債 (第197回)",
+   "url": "https://www.mof.go.jp/jgbs/auction/calendar/nyusatsu/resul20260915.htm"
   }
  },
  "months_done": {
