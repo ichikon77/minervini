@@ -718,7 +718,7 @@ def main():
     if "--date" in args:
         today = datetime.date.fromisoformat(args[args.index("--date") + 1])
 
-    if any(a in args for a in ("--enable", "--disable", "--link-on", "--link-off", "--status")):
+    if any(a in args for a in ("--enable", "--disable", "--link-on", "--link-off", "--premium-on", "--premium-off", "--status")):
         # 投稿のオン/オフ・URL返信のオン/オフをコマンドで切り替える（x_config.json を手で編集しなくていいように）
         cfg = load_config()
         if "--enable" in args:
@@ -729,6 +729,10 @@ def main():
             cfg["reply_with_link"] = True
         if "--link-off" in args:
             cfg["reply_with_link"] = False
+        if "--premium-on" in args:
+            cfg["premium"] = True
+        if "--premium-off" in args:
+            cfg["premium"] = False
         cfg.pop("_comment", None)
         if "--status" not in args or len(args) > 1:
             json.dump(cfg, open(CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
