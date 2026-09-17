@@ -1616,15 +1616,35 @@ def main():
     key = today.isoformat()
     rec = hist["days"].get(key)
     created = False
-    if rec is None:
-        # 今日の観測がまだ無い → 6:00時点の値を作る（何時に実行しても同じ値になる）
+    # 6:00（夜間セッション終了）より前の実行は「今朝の観測」にならない（0:35に走らせると0:35の先物が②になってしまう）。
+    # → 記録は作らず表示だけ。記録は7:15以降の実行に任せる
+    before_anchor = now.time() < datetime.time(ANCHOR.hour, ANCHOR.minute + 5)
+
+    def obs_before_anchor(r):
+        """既存レコードの観測時刻が6:00より前なら True（夜中の手動実行で作られた不完全な記録）"""
+        t = r.get("obs_time")
+        try:
+            hh, mm = t.split(":")
+            return (int(hh), int(mm)) < (ANCHOR.hour, ANCHOR.minute)
+        except Exception:
+            return False
+
+    if rec is None or (obs_before_anchor(rec) and not before_anchor):
+        if rec is not None:
+            log(f"  本日の記録は6:00より前（{rec.get('obs_time')}）の実行で作られたもの → 6:00の値で作り直す")
         obs = observe_morning(today)
-        if today.weekday() < 5:
+        if rec is not None:
+            for k2 in ("open", "high", "low", "close", "adr", "final"):
+                if k2 in rec:
+                    obs[k2] = rec[k2]           # 日中に追記された値があれば引き継ぐ
+        if today.weekday() < 5 and not before_anchor:
             hist["days"][key] = obs
             rec = obs
             created = True
         else:
-            rec = obs      # 休場日は記録しないが表示には使う
+            rec = obs      # 休場日・6:00前は記録しないが表示には使う
+            if before_anchor:
+                log(f"  6:00前の実行（{now:%H:%M}）のため記録しない。7:15の定時実行で記録・投稿される")
     else:
         log(f"  本日の6:00観測は記録済み（②先物 {rec.get('fut')} / ⑤ {rec.get('gap')}%）→ 追記モード")
         if "basis_bd" not in rec:
@@ -1641,13 +1661,15 @@ def main():
     # ADR（米国終値ベースなので実行時刻に依存しない）
     adr = calc_adr_gaps()
     adr_bt = backtest_adr_follow()
-    if today.weekday() < 5 and adr and "adr" not in hist["days"].get(key, {}):
+    if today.weekday() < 5 and not before_anchor and adr and "adr" not in hist["days"].get(key, {}):
         hist["days"][key]["adr"] = {
             r["tyo"]: {"gap": round(r["gap"], 2), "prev": r["tyo_prev"], "mkt": r["mkt"]} for r in adr}
 
     # 当日の③④を時刻に応じて追記
     phase = "morning"
-    if today.weekday() < 5:
+    if before_anchor:
+        phase = "night"        # 6:00前: 投稿しない・記録しない
+    elif today.weekday() < 5:
         phase = fill_intraday(hist["days"][key], today, now)
 
     # 過去分の答え合わせ・修復
