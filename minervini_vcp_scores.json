@@ -9,10 +9,12 @@
   "AMD": 1,
   "STX": 3,
   "PSX": 2,
+  "ILMN": 3,
   "INTC": 3,
   "HPE": 0,
   "MRVL": 1,
   "CRL": 3,
+  "BE": 2,
   "TER": 1,
   "CRWD": 2,
   "APA": 2,
@@ -29,6 +31,7 @@
   "TRGP": 2,
   "JNJ": 2,
   "DGX": 3,
+  "P": 3,
   "EXPD": 2,
   "ZBRA": 2,
   "INCY": 2,
@@ -68,6 +71,5 @@
   "ELV": 1,
   "NWSA": 2,
   "EBAY": 3,
-  "NVDA": 3,
-  "GOOGL": 3
+  "NVDA": 3
 }
