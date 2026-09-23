@@ -221,8 +221,11 @@ def gap_phrase(d):
 def us_phrase(d):
     spx, ndx, fx, fxc = d.get("spx_ret"), d.get("ndx_ret"), d.get("fx_now"), d.get("fx_chg")
     parts = []
-    if d.get("us_holiday"):
+    ns = d.get("us_sessions") or 1
+    if d.get("us_holiday") and ns == 0:
         parts.append("昨夜 米国株群は 休みじゃった（米株の変化は0として理論値を計算）")
+    elif spx is not None and ns > 1:
+        parts.append(f"連休のあいだに 米国株群は 累計 {spx:+.2f}% うごいた（{ns}日分）")
     elif spx is not None:
         if abs(spx) >= 1.5:
             verb = "大きく うごいた" if spx > 0 else "大きく くずれた"

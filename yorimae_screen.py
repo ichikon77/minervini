@@ -414,22 +414,37 @@ def recompute_theo(hist, betas):
         return
     jst = datetime.timezone(datetime.timedelta(hours=9))
     b1, b2 = betas[0], betas[1]
+    keys_sorted = sorted(hist["days"])
+    prev_key_map = {k2: keys_sorted[i - 1] for i, k2 in enumerate(keys_sorted) if i > 0}
     for k in targets:
         d = datetime.date.fromisoformat(k)
         r = hist["days"][k]
         s_ = spx[spx.index.date < d]
         n_ = ndx[ndx.index.date < d]
         f_ = fxd[fxd.index.date < d]
-        if len(s_) < 2 or len(f_) < 1:
+        # 起点＝その日の①（前日終値）の日付より前の米国終値（連休明けは累計、普通の日は1日分）
+        tp = None
+        try:
+            tp = datetime.date.fromisoformat(prev_key_map[k]) if k in prev_key_map else None
+        except Exception:
+            tp = None
+        if tp is None:
+            tp = d - datetime.timedelta(days=1)
+            while tp.weekday() >= 5:
+                tp -= datetime.timedelta(days=1)
+        s_ref = s_[s_.index.date < tp]
+        n_ref = n_[n_.index.date < tp]
+        f_ref = f_[f_.index.date < tp]
+        if len(s_ref) < 1 or len(s_) < 1 or len(f_ref) < 1:
             continue
         anchor = datetime.datetime.combine(d, ANCHOR, tzinfo=jst)
         x = fx5[(fx5.index < anchor) & (fx5.index > anchor - datetime.timedelta(days=3))] if len(fx5) else fx5
         if x.empty:
             continue
-        spx_ret = float((s_.iloc[-1] / s_.iloc[-2] - 1) * 100)
-        ndx_ret = float((n_.iloc[-1] / n_.iloc[-2] - 1) * 100) if len(n_) >= 2 else None
+        spx_ret = float((s_.iloc[-1] / s_ref.iloc[-1] - 1) * 100)
+        ndx_ret = float((n_.iloc[-1] / n_ref.iloc[-1] - 1) * 100) if len(n_ref) and len(n_) else None
         fx_now = float(x.iloc[-1])
-        fx_chg = (fx_now / float(f_.iloc[-1]) - 1) * 100
+        fx_chg = (fx_now / float(f_ref.iloc[-1]) - 1) * 100
         theo = round(b1 * spx_ret + b2 * fx_chg, 3)
         if r.get("theo") is None or abs(theo - r["theo"]) >= 0.05:
             log(f"  {k}: ⑧理論値を材料から再計算 {r.get('theo')} → {theo}（S&P500 {spx_ret:+.2f}% / ドル円 {fx_chg:+.2f}%）")
@@ -1216,8 +1231,12 @@ def generate_html(data, hist=None):
     row1.append(card("③", "当日始値", pv("p3", "yen"), "9:00に確定 → 9:30の更新で入る"))
     row1.append(card("④", "当日終値", pv("p4", "yen"), "15:30に確定 → 15:45の更新で入る"))
     # 参考（⑧理論値の材料）
-    if data.get("us_holiday"):
+    ns = data.get("us_sessions") or 1
+    if data.get("us_holiday") and ns == 0:
         row1.append(card("参考", "S&amp;P500（前日）", val("休場"), "昨夜の米国市場は祝日で休み。⑧理論値は米株の変化0・ドル円のみで計算"))
+    elif ns > 1:
+        row1.append(card("参考", f"S&amp;P500（東京の前営業日以降 {ns}セッション累計）", val(fmt_pct(data["spx_ret"])),
+                         f'NASDAQ {fmt_pct(data["ndx_ret"])}。連休中の米国の動きを合計して⑧を計算'))
     else:
         row1.append(card("参考", "S&amp;P500（前日）", val(fmt_pct(data["spx_ret"])), f'NASDAQ {fmt_pct(data["ndx_ret"])}'))
     row1.append(card("参考", "ドル円", val(f'{data["fx_now"]:.2f}円' if data.get("fx_now") else "-"),
@@ -1539,10 +1558,22 @@ def observe_morning(today):
     spx = before_today(daily_closes("^GSPC"))
     ndx = before_today(daily_closes("^IXIC"))
     fx = before_today(daily_closes("JPY=X"))
-    spx_ret = float((spx.iloc[-1] / spx.iloc[-2] - 1) * 100) if len(spx) >= 2 else None
-    ndx_ret = float((ndx.iloc[-1] / ndx.iloc[-2] - 1) * 100) if len(ndx) >= 2 else None
+    # 米株・ドル円の「起点」＝東京が最後に取引した日（①の日付）より前の最後の米国終値。
+    # 東京の①の日の米国セッションは東京の引け後に始まるので、①の日以降の米国の動きは全部まだ東京に織り込まれていない。
+    # 普通の日は前日1日分、連休明けは休み中の累計、月曜は金曜1日分になる（2026-09-23 修正: 以前は常に直近1日分だった）
+    tokyo_prev = n225.index[-1].date()
+    spx_ret, ndx_ret, us_sessions = None, None, 0
+    ref_s = spx[spx.index.date < tokyo_prev]
+    if len(ref_s) and len(spx):
+        spx_ret = float((spx.iloc[-1] / ref_s.iloc[-1] - 1) * 100)
+        us_sessions = int((spx.index.date >= tokyo_prev).sum())
+    ref_n = ndx[ndx.index.date < tokyo_prev]
+    if len(ref_n) and len(ndx):
+        ndx_ret = float((ndx.iloc[-1] / ref_n.iloc[-1] - 1) * 100)
+    if us_sessions > 1:
+        log(f"  東京の前営業日 {tokyo_prev} 以降、米国は {us_sessions} セッション → 米株・ドル円の変化はその累計で理論値を計算")
     # 昨夜の米国市場が休場（祝日）だったか: 直近の米株日足の日付が「今日より前の直近平日」より古ければ休場。
-    # その場合、日足の最終2本は一昨日以前の変化＝東京は前日に織り込み済みなので、米株の変化は0として理論値を作る
+    # その場合、東京の前営業日以降に米国セッションが無ければ米株の変化は0（東京は前日に織り込み済み）
     us_holiday = False
     if len(spx):
         prev_wd = today - datetime.timedelta(days=1)
@@ -1550,12 +1581,15 @@ def observe_morning(today):
             prev_wd -= datetime.timedelta(days=1)
         if spx.index[-1].date() < prev_wd:
             us_holiday = True
-            spx_ret, ndx_ret = 0.0, 0.0
-            log(f"  昨夜の米国市場は休場（米株日足の最終日 {spx.index[-1].date()}）→ 米株の変化は0として理論値を計算")
+            if us_sessions == 0:
+                spx_ret, ndx_ret = 0.0, 0.0
+            log(f"  昨夜の米国市場は休場（米株日足の最終日 {spx.index[-1].date()}）"
+                + ("→ 米株の変化は0として理論値を計算" if us_sessions == 0 else f"→ 東京の前営業日以降の{us_sessions}セッション分を使用"))
     fx_now, _ = bar_close_at("JPY=X", anchor)
     if fx_now is None:
         fx_now = last_price("JPY=X") or (float(fx.iloc[-1]) if len(fx) else None)
-    fx_chg = (fx_now / float(fx.iloc[-1]) - 1) * 100 if fx_now and len(fx) else None
+    ref_f = fx[fx.index.date < tokyo_prev]
+    fx_chg = (fx_now / float(ref_f.iloc[-1]) - 1) * 100 if fx_now and len(ref_f) else None
 
     # ⑧理論値
     betas = estimate_betas(n225, spx, fx)
@@ -1575,7 +1609,7 @@ def observe_morning(today):
         "gap": None if gap_pct is None else round(gap_pct, 3),
         "theo": None if theo is None else round(theo, 3),
         "dev": None if dev is None else round(dev, 3),
-        "spx_ret": spx_ret, "ndx_ret": ndx_ret, "us_holiday": us_holiday,
+        "spx_ret": spx_ret, "ndx_ret": ndx_ret, "us_holiday": us_holiday, "us_sessions": us_sessions,
         "fx_now": fx_now, "fx_chg": fx_chg,
         "betas": list(betas) if betas else None,
         "fut_anchored": anchored, "theo_recomputed": True,
@@ -1725,7 +1759,7 @@ def main():
                     for r in adr],
             "walls": walls,
             "basis": rec.get("basis"), "basis_note": rec.get("basis_note"), "basis_bd": rec.get("basis_bd"),
-            "us_holiday": rec.get("us_holiday", False),
+            "us_holiday": rec.get("us_holiday", False), "us_sessions": rec.get("us_sessions", 1),
         }, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         log(f"投稿用JSON出力: {POST_JSON}（phase={phase}）")
     except Exception as e:
