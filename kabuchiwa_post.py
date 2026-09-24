@@ -36,6 +36,7 @@ yorimae_screen.py の直後に走り、今朝の数値（yorimae_post.json）と
 import os
 import re
 import sys
+import time
 import json
 import glob
 import shutil
@@ -598,19 +599,31 @@ def render_card(html_path, png_path):
     if exe:
         # 別プロファイルを使う: 通常の Edge が起動中でも新規プロセスとして動かすため
         profile = os.path.join(tempfile.gettempdir(), "kabuchiwa_headless_profile")
+        # --do-not-de-elevate: タスクスケジューラ（/RL HIGHEST＝管理者権限）から起動されると、
+        # Edge/Chrome は自分を非昇格で再起動して元プロセスが即終了する（de-elevation）。
+        # その結果 subprocess.run が 1 秒で戻り、PNG ができる前に「失敗」と判定していた（2026-09-07〜09-24 の全自動実行）。
         cmd = [exe, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
-               "--disable-extensions", "--mute-audio",
+               "--disable-extensions", "--mute-audio", "--do-not-de-elevate",
                f"--user-data-dir={profile}",
                f"--window-size={CARD_W},{CARD_H}",
                "--virtual-time-budget=5000",        # Webフォントの読み込みを待つ
                f"--screenshot={png_path}",
                "file:///" + html_path.replace("\\", "/")]
         try:
-            subprocess.run(cmd, capture_output=True, timeout=90)
+            if os.path.exists(png_path):
+                os.remove(png_path)
+            r = subprocess.run(cmd, capture_output=True, timeout=90)
+            # 万一 de-elevation で親が先に抜けても、子が PNG を書き終えるのを少し待つ
+            for _ in range(20):
+                if os.path.exists(png_path) and os.path.getsize(png_path) > 1000:
+                    break
+                time.sleep(0.5)
             if os.path.exists(png_path) and os.path.getsize(png_path) > 1000:
                 _crop(png_path)
                 return True
-            log(f"ブラウザのスクリーンショットが出ませんでした: {exe}")
+            err = (r.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+            log(f"ブラウザのスクリーンショットが出ませんでした: {exe} (rc={r.returncode}) "
+                + (" | ".join(err[-3:]) if err else "(stderr なし)"))
         except Exception as e:
             log(f"ブラウザ起動失敗 {exe}: {e}")
     try:
