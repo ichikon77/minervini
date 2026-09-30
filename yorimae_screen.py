@@ -805,6 +805,29 @@ def compute_walls(ref, today):
         rh = json.load(open(RIRON_JSON, encoding="utf-8"))
         last_k = sorted(rh)[-1]
         eps = float(rh[last_k]["EPS"])
+        # 手元のEPSが「東京の前営業日」より古ければ、参照元から最新行を取り直す（rironの19:30実行が
+        # サイトの更新より早くて1日遅れることがある。2026-09-29→30で発生: 前々日のEPSで壁を計算した）
+        try:
+            from jp_market_holidays import prev_business_day
+            need = prev_business_day(today).isoformat()
+        except Exception:
+            need = None
+        if need and last_k < need:
+            try:
+                import riron_screen as rs
+                fresh = rs.fetch_daily()
+                fk = sorted(fresh)[-1]
+                if fk > last_k and fresh[fk].get("PER"):
+                    eps = round(float(fresh[fk]["日経平均"]) / float(fresh[fk]["PER"]), 2)
+                    last_k = fk
+                    log(f"  EPSが古かった（{sorted(rh)[-1]}）→ 参照元から {fk} の値を取り直し EPS {eps:,.0f}")
+                    # 履歴にも足しておく（rironの次回実行で enrich され正式な行になる）
+                    rh[fk] = dict(fresh[fk], EPS=eps, BPS=round(float(fresh[fk]["日経平均"]) / float(fresh[fk]["PBR"]), 2))
+                    json.dump(rh, open(RIRON_JSON, "w", encoding="utf-8"), ensure_ascii=False)
+                else:
+                    log(f"  EPSが古い（{last_k}）が参照元にも新しい行が無い → そのまま使用（サイト未更新）")
+            except Exception as e:
+                log(f"  EPSの取り直し失敗（{last_k} の値を使用）: {e}")
         out["eps"], out["eps_date"] = eps, last_k
         levels = [(round(eps * per), f"PER{per:.1f}倍") for per in PER_STEPS]
     except Exception as e:

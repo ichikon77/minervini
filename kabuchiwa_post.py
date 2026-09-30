@@ -520,7 +520,8 @@ def build_walls_html(d):
     rows.append(f'<div class="row ref"><span>●</span><span>{w["ref"]:,.0f}</span><span>夜間先物の終値（6:00）</span></div>')
     for x in (w.get("down") or []):
         rows.append(f'<div class="row dn"><span>▼</span><span>{x["price"]:,}</span><span>{x["name"]}（{x["pct"]:+.1f}%）</span></div>')
-    eps = f'　EPS {w["eps"]:,.0f}×PER' if w.get("eps") else ""
+    eps = (f'　EPS {w["eps"]:,.0f}（{w["eps_date"][5:].replace("-", "/")}）×PER' if w.get("eps") and w.get("eps_date") else
+           (f'　EPS {w["eps"]:,.0f}×PER' if w.get("eps") else ""))
     return f'<div class="walls"><div class="label">壁の目安（▲抵抗 ▼支持）{eps}・前月高安</div>{"".join(rows)}</div>'
 
 
