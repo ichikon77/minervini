@@ -37,8 +37,8 @@ REPORT_HTML = "shinyou.html"
 SELL_ALERT = 800_000      # 売り残金額（百万円）: 超えたら安心系
 BUY_ALERT = 5_000_000     # 買い残金額（百万円）: 超えたら警戒系
 
-# 1570(日経レバ) 制度信用倍率 = 制度信用買残 / 制度信用売残（JPX週次PDF）
-JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
+# 1570(日経レバ) 制度信用倍率 = 制度信用買残 / 制度信用売残（JPX PDF。2026-09-25分から日次公表、パーサは jpx_margin.py）
+JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/01.html"
 JPX_BASE = "https://www.jpx.co.jp"
 LEV_LOW = 1.0    # これ未満 = 売り方過多 → 踏み上げが起こりやすい（青）
 LEV_HIGH = 5.0   # これ以上 = 信用買い過熱 → 急落時に追証連鎖の警戒（赤）
@@ -175,61 +175,65 @@ def fetch_weekly_data():
 
 
 def fetch_lev_ratios(hist):
-    """JPX「銘柄別信用取引週末残高」PDFから1570の制度信用倍率を取得して履歴に追記。
+    """1570（日経レバ）の制度信用倍率を履歴に追記する。
 
-    毎週第3営業日頃に前週金曜分が公表される。ページには直近5週分のPDFリンクが
-    あるので、履歴に「レバ倍率」が無い週だけダウンロードしてパースする。
-    行の形式(p48付近): ＮＥＸＴ ＦＵＮＤＳ 日経平均レバレッジ・… 数値12個
-    （売残計,前週比,買残計,前週比,一般売,前週比,制度売,前週比,一般買,前週比,制度買,前週比）
+    2026-09-25分からJPXが「銘柄別信用取引週末残高」(週次) を「銘柄別信用取引残高」(日次) に改定した
+    （URL・PDF名・行構造が変わり旧パーサは動かない）。パーサは jpx_margin.py に共通化。
+    1) まず margin_screen.py（毎朝08:55）が蓄積する margin_all_history.json から同じ日付の1570を引く
+    2) 無ければ JPX の PDF一覧（新旧両対応）に同じ日付があればパース（1本100秒ほど）
+    信用評価損益率は金曜基準の週次なので、日次化以降も「同じ金曜日」の残高を使えば従来と同じ意味になる。
     """
-    import pdfplumber
-
     added = 0
     try:
-        html = fetch_with_retry(JPX_MARGIN_PAGE, tries=2, wait=10)
+        import jpx_margin
+    except ImportError as e:
+        log(f"  jpx_margin.py が見つかりません（レバ倍率はスキップ）: {e}")
+        return 0
+
+    def _put(d, sell, buy):
+        nonlocal added
+        if sell and buy is not None:
+            hist[d]["レバ倍率"] = round(buy / sell, 2)
+            hist[d]["レバ制度売残"] = sell
+            hist[d]["レバ制度買残"] = buy
+            added += 1
+            log(f"  レバ倍率 {d}: 制度買 {buy:,} / 制度売 {sell:,} = {buy/sell:.2f}")
+            return True
+        return False
+
+    need = [d for d in sorted(hist) if "レバ倍率" not in hist[d]]
+    if not need:
+        return 0
+
+    # 1) margin_all_history.json
+    try:
+        if os.path.exists(jpx_margin.HISTORY_JSON):
+            with open(jpx_margin.HISTORY_JSON, encoding="utf-8") as f:
+                mh = json.load(f)
+            for d in list(need):
+                rec = mh.get("weeks", {}).get(d, {}).get("1570")
+                if rec and _put(d, int(rec[0]), int(rec[1])):
+                    need.remove(d)
+    except Exception as e:
+        log(f"  margin_all_history.json 読込失敗: {e}")
+
+    if not need:
+        return added
+
+    # 2) JPX 直接
+    try:
+        pdfs = {d: url for d, url, _fmt in jpx_margin.list_pdfs()}
     except Exception as e:
         log(f"  JPX残高ページの取得に失敗（レバ倍率はスキップ）: {e}")
-        return 0
-    links = re.findall(r'href="([^"]*syumatsu(\d{8})\d{2}\.pdf)"', html)
-    for path, ymd in links:
-        d = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:8]}"
-        if d in hist and "レバ倍率" in hist[d]:
-            continue
-        if d not in hist:
-            continue  # 信用評価率のデータがまだ無い週は次回に回す
-        url = JPX_BASE + path
+        return added
+    for d in need:
+        if d not in pdfs:
+            continue  # その日付のPDFはもうサイトに無い
         try:
-            import tempfile
-            r = requests.get(url, headers=HEADERS, timeout=60)
-            r.raise_for_status()
-            tmp = os.path.join(tempfile.gettempdir(), "_jpx_margin_tmp.pdf")
-            with open(tmp, "wb") as f:
-                f.write(r.content)
-            sell = buy = None
-            with pdfplumber.open(tmp) as pdf:
-                for pno in range(30, len(pdf.pages)):
-                    txt = pdf.pages[pno].extract_text() or ""
-                    for line in txt.splitlines():
-                        if "ＮＥＸＴ" in line and "日経平均レバレッジ" in line:
-                            seg = line[line.rfind("券") + 1:]
-                            seg = seg.replace("▲ ", "-").replace("▲", "-")
-                            toks = re.findall(r"-?[\d,]+", seg)
-                            if len(toks) >= 12:
-                                sell = int(toks[6].replace(",", ""))
-                                buy = int(toks[10].replace(",", ""))
-                            break
-                    if sell is not None:
-                        break
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-            if sell and buy is not None:
-                hist[d]["レバ倍率"] = round(buy / sell, 2)
-                hist[d]["レバ制度売残"] = sell
-                hist[d]["レバ制度買残"] = buy
-                added += 1
-                log(f"  レバ倍率 {d}: 制度買 {buy:,} / 制度売 {sell:,} = {buy/sell:.2f}")
+            data = jpx_margin.parse_pdf(pdfs[d])
+            rec = data.get("1570")
+            if rec:
+                _put(d, rec["std_sell"], rec["std_buy"])
             else:
                 log(f"  レバ倍率 {d}: 1570の行が見つかりませんでした")
         except Exception as e:
@@ -389,11 +393,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・信用評価率 = 信用買いをしている人たちの平均含み損益率（%）。含み損が小さい（-2超）＝天井圏で調整警戒、-15%割れで底値圏とされる。<br>
     ・売り残が多い（80万超）＝将来の買い戻し（買い圧力）が積み上がっている状態。<br>
-    ・1570制度信用倍率 = 日経レバETFの制度信用買残÷売残（JPX銘柄別信用取引週末残高、毎週第3営業日頃公表）。
+    ・1570制度信用倍率 = 日経レバETFの制度信用買残÷売残（JPX銘柄別信用取引残高。2026-09-25分から日次公表、それ以前は週次で毎週第3営業日頃公表。ここでは信用評価損益率と同じ金曜日の残高を使う）。
     <span style="color:#93c5fd">1未満=売り方過多で踏み上げが起こりやすい</span>、
     <span style="color:#fca5a5">数値が大きく膨らむと急落時に追証連鎖のきっかけになりやすい</span>。セルにカーソルで残高内訳。<br>
     ・<a href="{src_url}" style="color:#60a5fa">nikkei225jp.com 信用評価損益率</a> /
-    <a href="https://www.jpx.co.jp/markets/statistics-equities/margin/05.html" style="color:#60a5fa">JPX 銘柄別信用取引週末残高</a>
+    <a href="https://www.jpx.co.jp/markets/statistics-equities/margin/01.html" style="color:#60a5fa">JPX 銘柄別信用取引残高</a>
   </p>
   <p class="updated">最終更新: {updated}</p>
 </body>

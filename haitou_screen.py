@@ -367,33 +367,49 @@ def get_company_name(ticker):
         return ticker
 
 # ─────────────────────────────────────────
-# JPX 銘柄別信用取引週末残高（制度信用倍率）
+# JPX 銘柄別信用取引残高（制度信用倍率）※2026-09-25分から日次公表
 # ─────────────────────────────────────────
-JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
+JPX_MARGIN_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/01.html"  # 2026-09-25〜 日次「銘柄別信用取引残高」（旧05.htmlは週次・廃止）
 JPX_BASE = "https://www.jpx.co.jp"
 MARGIN_CACHE = os.path.join(SCRIPT_DIR, "jpx_margin_cache.json")
 
 
 def fetch_margin_ratios():
-    """JPX週次PDFから全銘柄の制度信用倍率 {code: (倍率, 売残, 買残, 基準日)} を返す。
+    """全銘柄の制度信用倍率 {code: (倍率, 制度売残, 制度買残, 基準日)} を返す。
 
-    PDFは週1更新なので、基準日ごとにJSONへキャッシュして再パースを避ける。
-    行形式: ... 新証券コード5桁 ISIN(JP+10桁) 数値12個
-    （売残計,前週比,買残計,前週比,一般売,前週比,制度売,前週比,一般買,前週比,制度買,前週比）
+    2026-09-25分からJPXが週次→日次公表に改定（URL/PDF形式も変更）。パーサは jpx_margin.py に共通化。
+    1) まず margin_screen.py（毎朝08:55）が蓄積した margin_all_history.json の最新日付分を使う（100秒のPDFパースを省く）
+    2) 無い/古い場合は JPX から最新PDFを直接パース（新旧両対応）し jpx_margin_cache.json にキャッシュ
     """
-    import re as _re
     try:
-        html = requests.get(JPX_MARGIN_PAGE, headers=HEADERS, timeout=30).text
-        links = _re.findall(r'href="([^"]*syumatsu(\d{8})\d{2}\.pdf)"', html)
-        if not links:
+        import jpx_margin
+    except ImportError as e:
+        print("  jpx_margin.py が見つかりません（信用倍率カラムは-表示）: " + str(e))
+        return {}, None
+
+    # 1) margin_all_history.json の近道
+    try:
+        d, data, _names = jpx_margin.latest_from_history()
+        if d and len(data) >= 3000:
+            out = {}
+            for c, v in data.items():
+                sell, buy = int(v[0]), int(v[1])
+                out[c] = (round(buy / sell, 2) if sell > 0 else None, sell, buy, d)
+            print("  制度信用倍率: margin_all_history.json 利用 (" + d + ", " + str(len(out)) + "銘柄)")
+            return out, d
+    except Exception as e:
+        print("  margin_all_history.json 読込失敗、JPXから直接取得します: " + str(e))
+
+    # 2) JPX 直接
+    try:
+        pdfs = jpx_margin.list_pdfs()
+        if not pdfs:
             raise RuntimeError("PDFリンクが見つかりません")
-        path, ymd = max(links, key=lambda x: x[1])  # 最新週
-        date_str = ymd[:4] + "-" + ymd[4:6] + "-" + ymd[6:8]
+        date_str, url, _fmt = pdfs[-1]
     except Exception as e:
         print("  JPX残高ページ取得失敗（信用倍率カラムは-表示）: " + str(e))
         return {}, None
 
-    # キャッシュ確認
     if os.path.exists(MARGIN_CACHE):
         try:
             with open(MARGIN_CACHE, encoding="utf-8") as f:
@@ -405,41 +421,11 @@ def fetch_margin_ratios():
             pass
 
     try:
-        import io as _io
-        import tempfile
-        import pdfplumber
-        r = requests.get(JPX_BASE + path, headers=HEADERS, timeout=90)
-        r.raise_for_status()
-        tmp = os.path.join(tempfile.gettempdir(), "_jpx_margin_tmp.pdf")
-        with open(tmp, "wb") as f:
-            f.write(r.content)
+        data = jpx_margin.parse_pdf(url)
         out = {}
-        with pdfplumber.open(tmp) as pdf:
-            for page in pdf.pages:
-                txt = page.extract_text() or ""
-                for line in txt.splitlines():
-                    nospace = line.replace(" ", "")
-                    m = _re.search(r"JP[A-Z0-9]{10}", nospace)
-                    if not m:
-                        continue
-                    mc = _re.search(r"(\d{4})0$", nospace[:nospace.find(m.group(0))])
-                    if not mc:
-                        continue
-                    code = mc.group(1)
-                    post = line[line.find("JP"):].replace("▲ ", "-").replace("▲", "-")
-                    toks = _re.findall(r"-?[\d,]+", post[12:])
-                    if len(toks) >= 12:
-                        try:
-                            sell = int(toks[6].replace(",", ""))
-                            buy = int(toks[10].replace(",", ""))
-                        except ValueError:
-                            continue
-                        ratio = round(buy / sell, 2) if sell > 0 else None
-                        out[code] = (ratio, sell, buy, date_str)
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+        for c, v in data.items():
+            sell, buy = v["std_sell"], v["std_buy"]
+            out[c] = (round(buy / sell, 2) if sell > 0 else None, sell, buy, date_str)
         print("  制度信用倍率: " + date_str + "分 " + str(len(out)) + "銘柄をパース")
         with open(MARGIN_CACHE, "w", encoding="utf-8") as f:
             json.dump({"date": date_str, "data": out}, f, ensure_ascii=False)
@@ -671,7 +657,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
   </table>
   <div class="cond-legend">
     条件: 配当利回り """ + str(DIVIDEND_YIELD_MIN) + """% 以上 ／ 現在PBR &lt; (2年最高PBR－2年最低PBR)×0.3＋2年最低PBR ／ 時価総額 """ + str(MARKET_CAP_MIN_OKUYEN) + """億円以上<br>
-    制度信用倍率 = 制度信用買残÷売残（JPX銘柄別信用取引週末残高、週次）。1未満=売り方過多で踏み上げが起こりやすい／大きく膨らむと急落時に追証連鎖の警戒。セルにカーソルで残高内訳。
+    制度信用倍率 = 制度信用買残÷売残（JPX銘柄別信用取引残高。2026-09-25分から日次公表、それ以前は週次）。1未満=売り方過多で踏み上げが起こりやすい／大きく膨らむと急落時に追証連鎖の警戒。セルにカーソルで残高内訳。
   </div>
   <p class="updated">Generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M") + """</p>
 """ + ("""

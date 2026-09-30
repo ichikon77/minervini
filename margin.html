@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>銘柄チェッカー - 2026-09-28</title>
+<title>銘柄チェッカー - 2026-10-01</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -97,7 +97,7 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>銘柄チェッカー</h1>
-  <p class="subtitle">最終更新: 2026-09-28 08:55 | 出所: JPX 銘柄別信用取引週末残高（週次） | 収録: 3803銘柄 × 15週分</p>
+  <p class="subtitle">最終更新: 2026-10-01 01:58 | 出所: JPX 銘柄別信用取引残高（2026-09-25分から日次、それ以前は週次） | 収録: 4288銘柄 × 18日付分</p>
   <div class="searchbox">
     <input type="text" id="codes" placeholder="証券コード（例: 5411 または 5411,7203,1570）"
            onkeydown="if(event.key==='Enter')search()">
@@ -106,16 +106,17 @@
   <p class="hint">カンマ区切りで複数銘柄を同時比較できます。倍率 = 制度信用買残 ÷ 制度信用売残。<span style="color:#7dd3fc">1未満 = 売り方過多（踏み上げ期待）</span> / <span style="color:#fca5a5">20以上 = 信用買い過熱</span></p>
   <div id="result"></div>
   <p class="note">
-    ・JPX「銘柄別信用取引週末残高」（毎週金曜申込時点、翌週第3営業日頃公表）から制度信用の残高を毎週自動で蓄積。<br>
-    ・収録開始は2026-06-12分から。以降、毎週自動で積み上がっていく。<br>
-    ・単位は株（ETFは口）。<a href="https://www.jpx.co.jp/markets/statistics-equities/margin/05.html" style="color:#60a5fa">JPX 銘柄別信用取引週末残高</a><br>
-    ・<b>倍率の信頼度</b>: 売り残が1万株未満、または買残の1/50未満の週は「売り残僅少」としてグレー表示（※印）。分母が小さいと倍率が暴れるため、その銘柄では倍率ではなく買残の推移を見る。<br>
-    　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点）。<br>
-    ・<b>買残10週比</b>: 制度買残が10週前から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
-    ・<b>膨張率</b>: 直近の倍率 ÷ 直近10週の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
-    ・買残10週比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
+    ・JPX「銘柄別信用取引残高」から制度信用（と一般信用）の残高を毎日自動で蓄積。<a href="https://www.jpx.co.jp/markets/statistics-equities/margin/01.html" style="color:#60a5fa">JPX 銘柄別信用取引残高</a><br>
+    ・<b>2026-09-25分からJPXが週次→日次公表に改定</b>。2026-06-12〜09-18分は週次（毎週金曜申込時点）、09-25分以降は営業日ごとの申込時点（翌日16:00頃公表）。表の1行が「1週」から「1営業日」に変わっているので、行数で期間を数えないこと。<br>
+    ・日次化以降は一般信用の売残・買残も収録（週次期間は「-」）。権利確定日前に一般信用売残が急増し翌日消えるのは優待クロス（つなぎ売り）で、株価への売り圧力ではない。<br>
+    ・単位は株（ETFは口）。<br>
+    ・<b>倍率の信頼度</b>: 売り残が1万株未満、または買残の1/50未満の日は「売り残僅少」としてグレー表示（※印）。分母が小さいと倍率が暴れるため、その銘柄では倍率ではなく買残の推移を見る。<br>
+    　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点・週次データ）。<br>
+    ・<b>買残10期比</b>: 制度買残が10期前（10行前。週次期間は10週、日次期間は10営業日≒2週）から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
+    ・<b>膨張率</b>: 直近の倍率 ÷ 直近10期の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
+    ・買残10期比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
   </p>
-  <p class="updated">最終更新: 2026-09-28 08:55</p>
+  <p class="updated">最終更新: 2026-10-01 01:58</p>
 <script>
 let DATA = null;
 let FUND = null;
@@ -123,7 +124,7 @@ let FUND = null;
 //   根拠: 2026-09-27 時点の全3,769銘柄で、売り残下位25%の倍率10週変動係数は0.73、上位25%は0.31（分母が小さいほど倍率が暴れる）
 const THIN_SELL_ABS = 10000;
 const THIN_SELL_RATIO = 50;
-// 10週トレンド指標（買残10週比・膨張率）の窓幅と、中央値を出すのに必要な最低週数
+// 10期トレンド指標（買残10期比・膨張率）の窓幅と、中央値を出すのに必要な最低期数（1期=1行。週次期間は1週、日次期間は1営業日）
 const TREND_WEEKS = 10;
 const TREND_MIN = 6;
 
@@ -240,16 +241,17 @@ async function search() {
     }
     html += '<h2>' + code + ' ' + name + '</h2>';
     html += fundHtml(code, fund);
-    html += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">制度信用倍率（週次）</h3>';
+    html += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">制度信用倍率の推移（2026-09-25分から日次、それ以前は週次）</h3>';
     const rows = [];
     for (const w of weeks) {
       const rec = data.weeks[w][code];
       if (!rec) { rows.push({w: w, none: true}); continue; }
       const sell = rec[0], buy = rec[1];
+      const gsell = rec.length >= 4 ? rec[2] : null, gbuy = rec.length >= 4 ? rec[3] : null;
       const ratio = sell > 0 ? buy / sell : null;
       // 売り残僅少 = 倍率の分母が小さく数字が暴れる → 倍率は参考外扱い
       const thin = (sell < THIN_SELL_ABS) || (sell * THIN_SELL_RATIO < buy);
-      rows.push({w: w, sell: sell, buy: buy, ratio: ratio, thin: thin});
+      rows.push({w: w, sell: sell, buy: buy, ratio: ratio, thin: thin, gsell: gsell, gbuy: gbuy});
     }
     // 前週比・10週指標は古い順で計算してから新しい順で表示（rows は新しい順）
     for (let i = rows.length - 1; i >= 0; i--) {
@@ -283,15 +285,15 @@ async function search() {
     const latest = rows.find(r => !r.none && r.ratio !== null);
     if (latest) {
       let s = '倍率 <b>' + latest.ratio.toFixed(2) + 'x</b>';
-      if (latest.med10 !== null) s += '（' + TREND_WEEKS + '週中央値 ' + latest.med10.toFixed(2) + 'x → 膨張率 <b>' + latest.exp10.toFixed(2) + '倍</b>）';
-      if (latest.buy10 !== null) s += '　／　買い残 ' + TREND_WEEKS + '週で <b>' + (latest.buy10 > 0 ? '+' : '') + latest.buy10.toFixed(0) + '%</b>';
+      if (latest.med10 !== null) s += '（' + TREND_WEEKS + '期中央値 ' + latest.med10.toFixed(2) + 'x → 膨張率 <b>' + latest.exp10.toFixed(2) + '倍</b>）';
+      if (latest.buy10 !== null) s += '　／　買い残 ' + TREND_WEEKS + '期で <b>' + (latest.buy10 > 0 ? '+' : '') + latest.buy10.toFixed(0) + '%</b>';
       if (latest.thin) s += '　／　<span class="thin-note">売り残僅少（' + fmt(latest.sell) + '株）のため倍率は参考外</span>';
       html += '<p class="summary">' + s + '</p>';
     }
-    html += '<table><thead><tr><th>週（申込日）</th><th>制度買残</th><th>買残' + TREND_WEEKS + '週比</th><th>制度売残</th><th>制度信用倍率</th><th>前週比</th><th>膨張率<br><span style="font-weight:400">÷' + TREND_WEEKS + '週中央値</span></th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>申込日</th><th>制度買残</th><th>買残' + TREND_WEEKS + '期比</th><th>制度売残</th><th>制度信用倍率</th><th>前期比</th><th>膨張率<br><span style="font-weight:400">÷' + TREND_WEEKS + '期中央値</span></th><th>一般売残</th><th>一般買残</th></tr></thead><tbody>';
     for (const r of rows) {
       if (r.none) {
-        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>';
+        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>';
         continue;
       }
       let cls = 'ratio';
@@ -308,7 +310,7 @@ async function search() {
       const buy10Str = (r.buy10 !== null) ? ((r.buy10 > 0 ? '+' : '') + r.buy10.toFixed(0) + '%') : '-';
       const expStr = (r.exp10 !== null) ? r.exp10.toFixed(2) + '倍' : '-';
       html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>' + fmt(r.buy) + '</td><td class="calc">' + buy10Str + '</td><td>'
-            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td></tr>';
+            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td><td class="calc">' + (r.gsell !== null ? fmt(r.gsell) : '-') + '</td><td class="calc">' + (r.gbuy !== null ? fmt(r.gbuy) : '-') + '</td></tr>';
     }
     html += '</tbody></table>';
   }

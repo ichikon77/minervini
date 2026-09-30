@@ -2,11 +2,15 @@
 """
 銘柄別 制度信用倍率 検索ページ → HTML出力 → GitHub Pages公開
 
-JPX「銘柄別信用取引週末残高」PDF（毎週第3営業日頃公表、サイトには直近5週分）
-から全銘柄の制度信用の売残・買残をパースし、margin_all_history.json に週次で
-蓄積する。margin.html は証券コードを入力して過去の制度信用倍率の推移を
-ブラウザ内検索（JS）で表示する。カンマ区切りで複数銘柄の比較も可能。
+JPX「銘柄別信用取引残高」PDF から全銘柄の信用売残・買残をパースし、
+margin_all_history.json に蓄積する。margin.html は証券コードを入力して過去の
+制度信用倍率の推移をブラウザ内検索（JS）で表示する。カンマ区切りで複数銘柄の比較も可能。
 
+- 2026-09-18分まで: 週次「銘柄別信用取引週末残高」(syumatsuYYYYMMDD00.pdf) → [制度売残, 制度買残]
+- 2026-09-25分から: 日次「銘柄別信用取引残高」(YYYYMMDD_mtall.pdf, 毎日16:00目安) → [制度売残, 制度買残, 一般売残, 一般買残]
+  JPXのフォーマット改定でURL・ファイル名・行構造が変わった。パーサは jpx_margin.py に共通化
+  （haitou / jpminervini / shinyou も同じモジュールを使う）
+- JSONのキー名 "weeks" は互換のため据え置き（中身は日付キー。日次化以降は営業日ごと）
 - 倍率 = 制度信用買残 ÷ 制度信用売残
 - 1未満 = 売り方過多（踏み上げ期待・水色） / 20以上 = 信用買い過熱（赤）
 - データはJSONを margin.html と同時にpush（GitHub Pagesから fetch で読む）
@@ -41,77 +45,20 @@ def log(msg):
 
 
 # -----------------------------------------
-# JPX PDF パース
+# JPX PDF パース（jpx_margin.py に共通化）
 # -----------------------------------------
+import jpx_margin
+
+
 def list_pdfs():
-    """(日付ISO, URL) のリスト（古い順）"""
-    r = requests.get(JPX_MARGIN_PAGE, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    links = re.findall(r'href="([^"]*syumatsu(\d{8})\d{2}\.pdf)"', r.text)
-    out = {}
-    for path, ymd in links:
-        d = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:8]}"
-        out[d] = JPX_BASE + path
-    return sorted(out.items())
+    """[(日付ISO, URL, fmt)] 古い順。fmt = "daily"(新) / "weekly"(旧)"""
+    return jpx_margin.list_pdfs()
 
 
 def parse_pdf(url):
-    """全銘柄をパースして {code: [name, sell, buy]} を返す"""
-    import pdfplumber
-
-    r = requests.get(url, headers=HEADERS, timeout=90)
-    r.raise_for_status()
-    tmp = os.path.join(tempfile.gettempdir(), "_jpx_margin_all_tmp.pdf")
-    with open(tmp, "wb") as f:
-        f.write(r.content)
-
-    def parse_line(line):
-        """(code, name, toks) を返す。通常行はISIN基準、ETF交錯行はフォールバック"""
-        nospace = line.replace(" ", "")
-        m = re.search(r"JP[A-Z0-9]{10}", nospace)
-        if m:
-            pre = nospace[:nospace.find(m.group(0))]
-            mc = re.search(r"(\d{4})0$", pre)
-            if mc:
-                code = mc.group(1)
-                name = re.sub(r"^[AB]?", "", pre[:mc.start()])
-                name = re.sub(r"(普通株式|受益証券|優先株式|外国株).*$", "", name)
-                seg = line[line.find("JP"):].replace("▲ ", "-").replace("▲", "-")
-                return code, name, re.findall(r"-?[\d,]+", seg[12:])
-        # ETF行は「受益証券」「新証券コード」の文字が銘柄名と交錯してISINが壊れることがある
-        if re.search(r"受.{0,8}益|投.{0,8}信", line) and "券" in line:
-            anchor = line.rfind("券")
-            head = nospace[:nospace.rfind("券") + 1]
-            digits = "".join(re.findall(r"\d", head))
-            if len(digits) >= 5 and digits[4] == "0":
-                code = digits[:4]
-                nm = re.sub(r"[A-Za-z0-9]", "", head)
-                nm = re.sub(r"^[AB]?", "", nm)
-                nm = re.sub(r"(受益証券|連動型|上場投信|受益|証券|投信).*$", "", nm)
-                nm = re.sub(r"[・、]$", "", nm)
-                seg = line[anchor + 1:].replace("▲ ", "-").replace("▲", "-")
-                return code, nm, re.findall(r"-?[\d,]+", seg)
-        return None, None, None
-
-    out = {}
-    with pdfplumber.open(tmp) as pdf:
-        for page in pdf.pages:
-            txt = page.extract_text() or ""
-            for line in txt.splitlines():
-                code, name, toks = parse_line(line)
-                if not code or not toks or len(toks) < 12:
-                    continue
-                try:
-                    sell = int(toks[6].replace(",", ""))
-                    buy = int(toks[10].replace(",", ""))
-                except ValueError:
-                    continue
-                out[code] = [name, sell, buy]
-    try:
-        os.remove(tmp)
-    except OSError:
-        pass
-    return out
+    """全銘柄をパースして {code: [name, 制度売残, 制度買残, 一般売残, 一般買残]} を返す（新旧両対応）"""
+    data = jpx_margin.parse_pdf(url)
+    return {c: [v["name"], v["std_sell"], v["std_buy"], v["gen_sell"], v["gen_buy"]] for c, v in data.items()}
 
 
 # -----------------------------------------
@@ -231,7 +178,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>銘柄チェッカー</h1>
-  <p class="subtitle">最終更新: {updated} | 出所: JPX 銘柄別信用取引週末残高（週次） | 収録: {n_codes}銘柄 × {n_weeks}週分</p>
+  <p class="subtitle">最終更新: {updated} | 出所: JPX 銘柄別信用取引残高（2026-09-25分から日次、それ以前は週次） | 収録: {n_codes}銘柄 × {n_weeks}日付分</p>
   <div class="searchbox">
     <input type="text" id="codes" placeholder="証券コード（例: 5411 または 5411,7203,1570）"
            onkeydown="if(event.key==='Enter')search()">
@@ -240,14 +187,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="hint">カンマ区切りで複数銘柄を同時比較できます。倍率 = 制度信用買残 ÷ 制度信用売残。<span style="color:#7dd3fc">1未満 = 売り方過多（踏み上げ期待）</span> / <span style="color:#fca5a5">20以上 = 信用買い過熱</span></p>
   <div id="result"></div>
   <p class="note">
-    ・JPX「銘柄別信用取引週末残高」（毎週金曜申込時点、翌週第3営業日頃公表）から制度信用の残高を毎週自動で蓄積。<br>
-    ・収録開始は2026-06-12分から。以降、毎週自動で積み上がっていく。<br>
-    ・単位は株（ETFは口）。<a href="https://www.jpx.co.jp/markets/statistics-equities/margin/05.html" style="color:#60a5fa">JPX 銘柄別信用取引週末残高</a><br>
-    ・<b>倍率の信頼度</b>: 売り残が1万株未満、または買残の1/50未満の週は「売り残僅少」としてグレー表示（※印）。分母が小さいと倍率が暴れるため、その銘柄では倍率ではなく買残の推移を見る。<br>
-    　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点）。<br>
-    ・<b>買残10週比</b>: 制度買残が10週前から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
-    ・<b>膨張率</b>: 直近の倍率 ÷ 直近10週の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
-    ・買残10週比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
+    ・JPX「銘柄別信用取引残高」から制度信用（と一般信用）の残高を毎日自動で蓄積。<a href="https://www.jpx.co.jp/markets/statistics-equities/margin/01.html" style="color:#60a5fa">JPX 銘柄別信用取引残高</a><br>
+    ・<b>2026-09-25分からJPXが週次→日次公表に改定</b>。2026-06-12〜09-18分は週次（毎週金曜申込時点）、09-25分以降は営業日ごとの申込時点（翌日16:00頃公表）。表の1行が「1週」から「1営業日」に変わっているので、行数で期間を数えないこと。<br>
+    ・日次化以降は一般信用の売残・買残も収録（週次期間は「-」）。権利確定日前に一般信用売残が急増し翌日消えるのは優待クロス（つなぎ売り）で、株価への売り圧力ではない。<br>
+    ・単位は株（ETFは口）。<br>
+    ・<b>倍率の信頼度</b>: 売り残が1万株未満、または買残の1/50未満の日は「売り残僅少」としてグレー表示（※印）。分母が小さいと倍率が暴れるため、その銘柄では倍率ではなく買残の推移を見る。<br>
+    　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点・週次データ）。<br>
+    ・<b>買残10期比</b>: 制度買残が10期前（10行前。週次期間は10週、日次期間は10営業日≒2週）から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
+    ・<b>膨張率</b>: 直近の倍率 ÷ 直近10期の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
+    ・買残10期比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
   </p>
   <p class="updated">最終更新: {updated}</p>
 <script>
@@ -257,7 +205,7 @@ let FUND = null;
 //   根拠: 2026-09-27 時点の全3,769銘柄で、売り残下位25%の倍率10週変動係数は0.73、上位25%は0.31（分母が小さいほど倍率が暴れる）
 const THIN_SELL_ABS = 10000;
 const THIN_SELL_RATIO = 50;
-// 10週トレンド指標（買残10週比・膨張率）の窓幅と、中央値を出すのに必要な最低週数
+// 10期トレンド指標（買残10期比・膨張率）の窓幅と、中央値を出すのに必要な最低期数（1期=1行。週次期間は1週、日次期間は1営業日）
 const TREND_WEEKS = 10;
 const TREND_MIN = 6;
 
@@ -374,16 +322,17 @@ async function search() {{
     }}
     html += '<h2>' + code + ' ' + name + '</h2>';
     html += fundHtml(code, fund);
-    html += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">制度信用倍率（週次）</h3>';
+    html += '<h3 style="font-size:0.92rem; color:#cbd5e1; margin:14px 0 6px;">制度信用倍率の推移（2026-09-25分から日次、それ以前は週次）</h3>';
     const rows = [];
     for (const w of weeks) {{
       const rec = data.weeks[w][code];
       if (!rec) {{ rows.push({{w: w, none: true}}); continue; }}
       const sell = rec[0], buy = rec[1];
+      const gsell = rec.length >= 4 ? rec[2] : null, gbuy = rec.length >= 4 ? rec[3] : null;
       const ratio = sell > 0 ? buy / sell : null;
       // 売り残僅少 = 倍率の分母が小さく数字が暴れる → 倍率は参考外扱い
       const thin = (sell < THIN_SELL_ABS) || (sell * THIN_SELL_RATIO < buy);
-      rows.push({{w: w, sell: sell, buy: buy, ratio: ratio, thin: thin}});
+      rows.push({{w: w, sell: sell, buy: buy, ratio: ratio, thin: thin, gsell: gsell, gbuy: gbuy}});
     }}
     // 前週比・10週指標は古い順で計算してから新しい順で表示（rows は新しい順）
     for (let i = rows.length - 1; i >= 0; i--) {{
@@ -417,15 +366,15 @@ async function search() {{
     const latest = rows.find(r => !r.none && r.ratio !== null);
     if (latest) {{
       let s = '倍率 <b>' + latest.ratio.toFixed(2) + 'x</b>';
-      if (latest.med10 !== null) s += '（' + TREND_WEEKS + '週中央値 ' + latest.med10.toFixed(2) + 'x → 膨張率 <b>' + latest.exp10.toFixed(2) + '倍</b>）';
-      if (latest.buy10 !== null) s += '　／　買い残 ' + TREND_WEEKS + '週で <b>' + (latest.buy10 > 0 ? '+' : '') + latest.buy10.toFixed(0) + '%</b>';
+      if (latest.med10 !== null) s += '（' + TREND_WEEKS + '期中央値 ' + latest.med10.toFixed(2) + 'x → 膨張率 <b>' + latest.exp10.toFixed(2) + '倍</b>）';
+      if (latest.buy10 !== null) s += '　／　買い残 ' + TREND_WEEKS + '期で <b>' + (latest.buy10 > 0 ? '+' : '') + latest.buy10.toFixed(0) + '%</b>';
       if (latest.thin) s += '　／　<span class="thin-note">売り残僅少（' + fmt(latest.sell) + '株）のため倍率は参考外</span>';
       html += '<p class="summary">' + s + '</p>';
     }}
-    html += '<table><thead><tr><th>週（申込日）</th><th>制度買残</th><th>買残' + TREND_WEEKS + '週比</th><th>制度売残</th><th>制度信用倍率</th><th>前週比</th><th>膨張率<br><span style="font-weight:400">÷' + TREND_WEEKS + '週中央値</span></th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>申込日</th><th>制度買残</th><th>買残' + TREND_WEEKS + '期比</th><th>制度売残</th><th>制度信用倍率</th><th>前期比</th><th>膨張率<br><span style="font-weight:400">÷' + TREND_WEEKS + '期中央値</span></th><th>一般売残</th><th>一般買残</th></tr></thead><tbody>';
     for (const r of rows) {{
       if (r.none) {{
-        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>';
+        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>';
         continue;
       }}
       let cls = 'ratio';
@@ -442,7 +391,7 @@ async function search() {{
       const buy10Str = (r.buy10 !== null) ? ((r.buy10 > 0 ? '+' : '') + r.buy10.toFixed(0) + '%') : '-';
       const expStr = (r.exp10 !== null) ? r.exp10.toFixed(2) + '倍' : '-';
       html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>' + fmt(r.buy) + '</td><td class="calc">' + buy10Str + '</td><td>'
-            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td></tr>';
+            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td><td class="calc">' + (r.gsell !== null ? fmt(r.gsell) : '-') + '</td><td class="calc">' + (r.gbuy !== null ? fmt(r.gbuy) : '-') + '</td></tr>';
     }}
     html += '</tbody></table>';
   }}
@@ -478,7 +427,7 @@ def push_to_github():
     today = datetime.date.today().isoformat()
     subprocess.run(["git", "-C", SCRIPT_DIR, "add", REPORT_HTML,
                     "margin_all_history.json", ".gitignore",
-                    "margin_screen.py", "margin_run.bat"], check=True)
+                    "margin_screen.py", "margin_run.bat", "jpx_margin.py"], check=True)
     result = subprocess.run(
         ["git", "-C", SCRIPT_DIR, "commit", "-m", "update margin report " + today],
         capture_output=True,
@@ -516,13 +465,16 @@ def main():
     except Exception as e:
         log(f"エラー: JPXページの取得に失敗しました: {e}")
         sys.exit(1)
-    log(f"JPXサイト上のPDF: {len(pdfs)}週分 ({pdfs[0][0]} ～ {pdfs[-1][0]})")
+    if not pdfs:
+        log("エラー: JPXページにPDFリンクが見つかりません（サイト改定の可能性。jpx_margin.list_pdfs を確認）")
+        sys.exit(1)
+    log(f"JPXサイト上のPDF: {len(pdfs)}本 ({pdfs[0][0]} ～ {pdfs[-1][0]})")
 
     added = 0
-    for d, url in pdfs:
+    for d, url, fmt in pdfs:
         if d in hist["weeks"]:
             continue
-        log(f"  {d} 分をパース中...")
+        log(f"  {d} 分（{fmt}）をパース中...")
         try:
             data = parse_pdf(url)
         except Exception as e:
@@ -531,17 +483,19 @@ def main():
         if len(data) < 3000:
             log(f"  {d}: 銘柄数が少なすぎるためスキップ（{len(data)}）")
             continue
-        hist["weeks"][d] = {c: [v[1], v[2]] for c, v in data.items()}
+        hist["weeks"][d] = {c: [v[1], v[2], v[3], v[4]] for c, v in data.items()}
         for c, v in data.items():
-            hist["names"][c] = v[0]
+            # 新フォーマットはETF等の銘柄名が列交錯で壊れることがあるので、既知の名前を優先
+            if c not in hist["names"] or (fmt == "weekly"):
+                hist["names"][c] = v[0]
         added += 1
-        save_history(hist)  # 週ごとに保存（途中で落ちても再開できる）
+        save_history(hist)  # 1本ごとに保存（途中で落ちても再開できる）
         log(f"  {d}: {len(data)}銘柄を追加・保存")
 
     if added:
-        log(f"履歴: {len(hist['weeks'])}週分 / {len(hist['names'])}銘柄")
+        log(f"履歴: {len(hist['weeks'])}日付分 / {len(hist['names'])}銘柄")
     else:
-        log("新しい週はありませんでした")
+        log("新しいデータはありませんでした")
 
     if not hist["weeks"]:
         log("データがないためHTMLは生成しません")
