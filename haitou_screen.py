@@ -378,7 +378,7 @@ def fetch_margin_ratios():
     """全銘柄の制度信用倍率 {code: (倍率, 制度売残, 制度買残, 基準日)} を返す。
 
     2026-09-25分からJPXが週次→日次公表に改定（URL/PDF形式も変更）。パーサは jpx_margin.py に共通化。
-    1) まず margin_screen.py（毎朝08:55）が蓄積した margin_all_history.json の最新日付分を使う（100秒のPDFパースを省く）
+    1) まず margin_screen.py（毎日16:40）が蓄積した margin_all_history.json の最新日付分を使う（100秒のPDFパースを省く）
     2) 無い/古い場合は JPX から最新PDFを直接パース（新旧両対応）し jpx_margin_cache.json にキャッシュ
     """
     try:
