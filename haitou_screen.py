@@ -623,6 +623,7 @@ def generate_html(results, output_path, removed_tickers=None, margin=None):
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
     <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
+    <a href="roei.html" style="border-color:#db2777">情報漏洩銘柄検証</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>配当スクリーニング <span class="badge">""" + str(count) + """ passed</span></h1>

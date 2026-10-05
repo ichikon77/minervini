@@ -864,6 +864,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
     <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
+    <a href="roei.html" style="border-color:#db2777">情報漏洩銘柄検証</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>還流ウォッチ（構造的な円キャリー解消の監視）</h1>

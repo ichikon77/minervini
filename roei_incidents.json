@@ -1,0 +1,14 @@
+{
+  "_説明": "情報漏洩銘柄検証の事案リスト（手動管理）。date=公表日(YYYY-MM-DD)。time=公表が引け前(before)/引け後(after)/不明(?)。不明は公表日当日を『1営業日後』として扱う。type=不正アクセス/委託先/ランサム/内部不正/設定不備。scale=公表された規模（文字列）。note=続報など。url=一次情報",
+  "incidents": [
+    {"date": "2026-09-25", "time": "?", "code": "4666", "name": "パーク24", "service": "タイムズカー会員システム", "type": "不正アクセス", "scale": "約660万件（9/28確定）・免許証画像160万", "note": "9/25第1報→9/28第2報→9/29第3報", "url": "https://www.park24.co.jp/"},
+    {"date": "2026-09-29", "time": "?", "code": "6178", "name": "日本郵政", "service": "郵便局アプリ・ゆうID（日本郵便）", "type": "不正アクセス", "scale": "19人・69件（不正取得確認）", "note": "9/25国際郵便の調査請求Webも不正アクセスの可能性", "url": "https://www.japanpost.jp/"},
+    {"date": "2026-09-29", "time": "?", "code": "9064", "name": "ヤマトHD", "service": "クロネコ代金後払いサービス（ヤマト運輸）", "type": "不正アクセス", "scale": "件数調査中（請求額・商品明細含む）", "note": "9/28検知・サービス停止、10/2第2報", "url": "https://www.yamato-hd.co.jp/"},
+    {"date": "2026-09-30", "time": "?", "code": "9143", "name": "SGホールディングス", "service": "お荷物問い合わせサービス（佐川急便）", "type": "不正アクセス", "scale": "約100日分の送り主・届け先、件数調査中", "note": "10/1続報で流出の可能性", "url": "https://www.sg-hldgs.co.jp/"},
+    {"date": "2026-10-01", "time": "?", "code": "7849", "name": "スターツ出版", "service": "OZmall会員情報", "type": "不正アクセス", "scale": "最大442,779人（メアド等）", "note": "9/26検知", "url": "https://starts-pub.jp/"},
+    {"date": "2026-10-01", "time": "?", "code": "9861", "name": "吉野家HD", "service": "外部採用システム（ApplyNow）", "type": "委託先", "scale": "5,784アカウント（応募者・従業員）", "note": "はなまる含む", "url": "https://www.yoshinoya-holdings.com/"},
+    {"date": "2026-10-02", "time": "?", "code": "8750", "name": "第一生命HD", "service": "人事システム", "type": "不正アクセス", "scale": "約12万人（退職者約7万人含む）", "note": "9/24検知", "url": "https://www.dai-ichi-life-hd.com/"},
+    {"date": "2026-10-02", "time": "?", "code": "9023", "name": "東京地下鉄", "service": "メトポ会員", "type": "不正アクセス", "scale": "約5.9万メールアドレス", "note": "9/25検知・海外から", "url": "https://www.tokyometro.jp/"},
+    {"date": "2026-10-05", "time": "before", "code": "8601", "name": "大和証券G", "service": "問い合わせ管理の業務委託先サーバー", "type": "委託先", "scale": "約22万件（個人情報約11万人）", "note": "10/2夜〜10/3朝に不正アクセス、10/5 14時台に報道", "url": "https://www.daiwa-grp.jp/"}
+  ]
+}
