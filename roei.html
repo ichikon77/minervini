@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>情報漏洩銘柄検証 - 2026-10-05</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.05rem; color: #cbd5e1; margin: 22px 0 10px; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a { color: #60a5fa; text-decoration: none; background: #1e293b; padding: 5px 14px; border-radius: 6px; border: 1px solid #334155; }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .evidence { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; line-height: 1.8; max-width: 1200px; margin-bottom: 16px; }
+  .evidence b { color: #93c5fd; }
+  .num { color: #fbbf24; font-weight: 700; }
+  .table-wrap { overflow-x: auto; max-width: 1400px; }
+  table { border-collapse: collapse; font-size: 0.8rem; }
+  thead th { background: #1e293b; color: #94a3b8; padding: 6px 8px; text-align: right; font-weight: 600; white-space: nowrap; vertical-align: bottom; }
+  thead th.l { text-align: left; }
+  thead th.grp { text-align: center; color: #fbbf24; border-bottom: 1px solid #334155; }
+  td { padding: 6px 8px; border-bottom: 1px solid #1e293b; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; }
+  td.l { text-align: left; }
+  td.wrap { white-space: normal; max-width: 260px; color: #cbd5e1; }
+  tr:hover td { background: #16213a; }
+  .pos { color: #4ade80; } .neg { color: #f87171; }
+  .ex { font-size: 0.72rem; color: #94a3b8; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 0.72rem; border: 1px solid #475569; color: #cbd5e1; }
+  .tag.t1 { border-color: #f87171; color: #fca5a5; } .tag.t2 { border-color: #fbbf24; color: #fde68a; } .tag.t3 { border-color: #a78bfa; color: #c4b5fd; } .tag.t4 { border-color: #60a5fa; color: #93c5fd; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.9; max-width: 1200px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 12px; }
+  .bar { display: inline-block; height: 8px; background: #3b82f6; vertical-align: middle; }
+  .total td { border-top: 1px solid #475569; font-weight: 700; }
+</style>
+<script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;"><svg width="16" height="18" viewBox="0 0 32 36" style="vertical-align:-4px; margin-right:3px"><polygon points="3,1 13,9 2,15" fill="#262626"/><polygon points="29,1 19,9 30,15" fill="#262626"/><polygon points="5,4 11,9 4.5,12.5" fill="#c98f52"/><polygon points="27,4 21,9 27.5,12.5" fill="#c98f52"/><ellipse cx="6.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><ellipse cx="25.5" cy="21" rx="3.2" ry="5" fill="#e8d5b7"/><circle cx="16" cy="17" r="11" fill="#262626"/><circle cx="10.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="21.5" cy="12.5" r="1.7" fill="#c98f52"/><circle cx="11" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="21" cy="16" r="1.6" fill="#0a0a0a"/><circle cx="11.5" cy="15.4" r="0.55" fill="#e2e8f0"/><circle cx="21.5" cy="15.4" r="0.55" fill="#e2e8f0"/><ellipse cx="16" cy="23" rx="6" ry="4.5" fill="#c98f52"/><ellipse cx="16" cy="21" rx="2.1" ry="1.5" fill="#1a1a1a"/><path d="M12.8,25.5 Q12.3,33 16,35 Q19.7,33 19.2,25.5 Z" fill="#f06292"/><path d="M16,27 L16,33" stroke="#d81b60" stroke-width="0.9" fill="none"/></svg>かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="yorimae.html" style="border-color:#94a3b8">寄り前</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="kanryu.html" style="border-color:#7c3aed">還流ウォッチ</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="sns.html" style="border-color:#d97706">SNS恐怖温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="tenkan.html" style="border-color:#db2777">並び転換</a>
+    <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
+    <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
+    <a href="buffett.html" style="border-color:#db2777">バフェット</a>
+    <a href="cramer.html" style="border-color:#db2777">クレイマー</a>
+    <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
+    <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
+    <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
+    <a href="roei.html" class="active" style="border-color:#db2777">情報漏洩銘柄検証</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
+  </nav>
+  <h1>情報漏洩銘柄検証 — 不正アクセス・情報漏洩を公表した企業の株価は、その後どう動いたか</h1>
+  <p class="subtitle">最終更新: 2026-10-05 23:43（毎日16:30） | 対象: 国内上場企業、2026年9月以降の公表事案 15件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
+  <div class="evidence">
+    <b>見方:</b>
+    <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。
+    <b class="num">②</b> 公表時刻で起点を変える。<b>引け後</b>公表＝基準は公表日の終値、1営業日後は翌営業日。<b>寄り前</b>公表＝基準は前営業日の終値、1営業日後は公表日当日。<b>場中</b>公表＝基準は前営業日の終値、公表日の引けまでの反応を「当日」列に出し、1営業日後は翌営業日（当日分を含む）。時刻不明は場中扱いで <span class="num">?</span>。
+    <b class="num">③</b> 上の集計表は<b>超過リターン</b>の中央値／平均／マイナス率（TOPIXより弱かった事案の割合）。「全事案」行が土台、種別行は内訳。N が小さいうちは目安。
+    <b class="num">④</b> 下のXの投稿数は Yahooリアルタイム検索の日次件数。直近7日の合計を、その前3週間の平均（7日換算）と比べた倍率。ニュースの熱量の目安で、株価との因果は主張しない。
+  </div>
+
+  <h2>③ 種別ごとの超過リターン（銘柄 − TOPIX、%）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th class="l">種別</th><th>N</th><th>1営業日後</th><th>3営業日後</th><th>5営業日後</th><th>10営業日後</th><th>15営業日後</th><th>30営業日後</th></tr>
+      <tr><th class="l"></th><th></th><th class="ex">中央値 / 平均 / マイナス率</th><th class="ex">中央値 / 平均 / マイナス率</th><th class="ex">中央値 / 平均 / マイナス率</th><th class="ex">中央値 / 平均 / マイナス率</th><th class="ex">中央値 / 平均 / マイナス率</th><th class="ex">中央値 / 平均 / マイナス率</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="l">不正アクセス</td><td>10</td><td><span class="neg">-0.6</span> / <span class="neg">-0.9</span> / <span class="ex">80%</span><br><span class="ex">N=10</span></td><td><span class="neg">-2.6</span> / <span class="neg">-3.1</span> / <span class="ex">89%</span><br><span class="ex">N=9</span></td><td><span class="neg">-3.5</span> / <span class="neg">-4.5</span> / <span class="ex">100%</span><br><span class="ex">N=6</span></td><td><span class="neg">-0.9</span> / <span class="neg">-0.9</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td class="ex">-</td><td class="ex">-</td></tr>
+      <tr><td class="l">紛失</td><td>1</td><td><span class="neg">-1.7</span> / <span class="neg">-1.7</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td><span class="neg">-4.1</span> / <span class="neg">-4.1</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td><span class="neg">-1.7</span> / <span class="neg">-1.7</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td></tr>
+      <tr><td class="l">設定不備</td><td>1</td><td><span class="neg">-3.8</span> / <span class="neg">-3.8</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td><span class="neg">-4.3</span> / <span class="neg">-4.3</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td></tr>
+      <tr><td class="l">委託先</td><td>1</td><td><span class="pos">+1.6</span> / <span class="pos">+1.6</span> / <span class="ex">0%</span><br><span class="ex">N=1</span></td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td><td class="ex">-</td></tr>
+      <tr class="total"><td class="l">全事案</td><td>13</td><td><span class="neg">-0.8</span> / <span class="neg">-1.0</span> / <span class="ex">77%</span><br><span class="ex">N=13</span></td><td><span class="neg">-2.7</span> / <span class="neg">-3.3</span> / <span class="ex">91%</span><br><span class="ex">N=11</span></td><td><span class="neg">-2.9</span> / <span class="neg">-4.1</span> / <span class="ex">100%</span><br><span class="ex">N=7</span></td><td><span class="neg">-0.9</span> / <span class="neg">-0.9</span> / <span class="ex">100%</span><br><span class="ex">N=1</span></td><td class="ex">-</td><td class="ex">-</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>①② 事案別マトリクス（上段: 株価騰落%、下段: TOPIX比の超過%）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th class="l">公表日</th><th class="l">時刻</th><th class="l">企業（コード）</th><th class="l">種別</th><th class="l">対象・規模</th><th>当日<br><span class="ex">（場中公表のみ）</span></th><th>1営業日後</th><th>3日後</th><th>5日後</th><th>10日後</th><th>15日後</th><th>30日後</th><th>直近</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="l">10/05</td><td class="l">場中</td><td class="l">大和証券G（8601）</td><td class="l"><span class="tag t3">委託先</span></td><td class="l wrap">問い合わせ管理の業務委託先サーバー<br><span class="ex">約22万件（個人情報約11万人）</span><br><span class="ex">10/2夜〜10/3朝に不正アクセス、10/5公表（報道12:58〜、場中）</span></td><td><span class="pos">+0.3</span><br><span class="ex">-1.2</span></td><td colspan="7" class="ex">翌営業日がまだ来ていない</td></tr>
+      <tr><td class="l">10/05</td><td class="l">引け後</td><td class="l">物語コーポレーション（3097）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">焼肉きんぐ公式アプリ会員管理システム<br><span class="ex">1,078万8,963件（登録のほぼ全件）</span><br><span class="ex">10/2不正アクセス確認→10/3漏えい判明→10/5公表（報道17:25〜、推定引け後）</span></td><td class="ex">—</td><td colspan="7" class="ex">翌営業日がまだ来ていない</td></tr>
+      <tr><td class="l">10/02</td><td class="l">引け後</td><td class="l">第一生命HD（8750）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">人事システム<br><span class="ex">約12万人（退職者約7万人含む）</span><br><span class="ex">9/24検知→10/2公表（報道16:52〜、引け後）</span></td><td class="ex">—</td><td><span class="pos">+1.7</span><br><span class="ex">+0.2</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="pos">+1.7</span><br><span class="ex">1日目 10-05</span></td></tr>
+      <tr><td class="l">10/01</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">吉野家HD（9861）</td><td class="l"><span class="tag t3">委託先</span></td><td class="l wrap">外部採用システム（ApplyNow）<br><span class="ex">5,784アカウント（応募者・従業員）</span><br><span class="ex">はなまる含む</span></td><td><span class="pos">+1.3</span><br><span class="ex">+0.6</span></td><td><span class="pos">+1.3</span><br><span class="ex">+1.6</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="pos">+0.2</span><br><span class="ex">2日目 10-05</span></td></tr>
+      <tr><td class="l">09/30</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">SGホールディングス（9143）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">お荷物問い合わせサービス（佐川急便）<br><span class="ex">約100日分の送り主・届け先、件数調査中</span><br><span class="ex">9/30第1報（不正アクセス確認・一部制限、流出有無は非公表）→10/1第2報（流出の可能性）・第3報コールセンター</span></td><td><span class="pos">+0.0</span><br><span class="ex">-1.4</span></td><td><span class="neg">-1.9</span><br><span class="ex">-4.1</span></td><td><span class="neg">-2.4</span><br><span class="ex">-4.9</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-2.4</span><br><span class="ex">3日目 10-05</span></td></tr>
+      <tr><td class="l">09/30</td><td class="l">引け後</td><td class="l">第一生命HD（8750）</td><td class="l"><span class="tag t4">設定不備</span></td><td class="l wrap">ベネワン・プラットフォーム（子会社ベネフィット・ワン）<br><span class="ex">2,322団体・13,460人</span><br><span class="ex">2025年6月改修の設定不備、同10月に把握も未修正→2026/7/30判明→9/30公表（報道21:08〜、引け後）</span></td><td class="ex">—</td><td><span class="neg">-3.1</span><br><span class="ex">-3.8</span></td><td><span class="neg">-3.2</span><br><span class="ex">-4.3</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-3.2</span><br><span class="ex">3日目 10-05</span></td></tr>
+      <tr><td class="l">09/29</td><td class="l">引け後</td><td class="l">ヤマトHD（9064）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">クロネコ代金後払いサービス（ヤマト運輸）<br><span class="ex">件数調査中（請求額・商品明細含む）</span><br><span class="ex">9/28 22:28サービス停止（通販各社が障害案内）→9/29公表（報道17:55〜、推定引け後）→10/2第2報</span></td><td class="ex">—</td><td><span class="pos">+1.4</span><br><span class="ex">-0.0</span></td><td><span class="neg">-1.6</span><br><span class="ex">-2.7</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-2.4</span><br><span class="ex">4日目 10-05</span></td></tr>
+      <tr><td class="l">09/29</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">日本郵政（6178）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">郵便局アプリ・ゆうID（日本郵便）<br><span class="ex">19人・69件（不正取得確認）</span><br><span class="ex">9/25国際郵便の調査請求Webも不正アクセスの可能性</span></td><td><span class="neg">-2.3</span><br><span class="ex">-1.7</span></td><td><span class="neg">-0.7</span><br><span class="ex">-1.5</span></td><td><span class="neg">-3.5</span><br><span class="ex">-4.0</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-3.5</span><br><span class="ex">4日目 10-05</span></td></tr>
+      <tr><td class="l">09/28</td><td class="l">引け後</td><td class="l">りそなHD（8308）</td><td class="l"><span class="tag ">紛失</span></td><td class="l wrap">旧羽村支店の解約顧客索引簿（コムフィッシュ）<br><span class="ex">約9,000人（1992〜2001年解約分）</span><br><span class="ex">誤廃棄の可能性が高い・サイバーではない（報道20:00〜、引け後）</span></td><td class="ex">—</td><td><span class="neg">-2.3</span><br><span class="ex">-1.7</span></td><td><span class="neg">-2.7</span><br><span class="ex">-4.1</span></td><td><span class="pos">+0.2</span><br><span class="ex">-1.7</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="pos">+0.2</span><br><span class="ex">5日目 10-05</span></td></tr>
+      <tr><td class="l">09/28</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">手間いらず（2477）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">宿泊予約サイトコントローラー TEMAIRAZU<br><span class="ex">件数調査中（利用ホテル17施設以上が告知、予約者にWhatsApp等で詐欺メッセージ）</span><br><span class="ex">9/21深夜〜不審メッセージ→9/28公表。本業そのものの事故</span></td><td><span class="pos">+0.2</span><br><span class="ex">+0.6</span></td><td><span class="neg">-2.1</span><br><span class="ex">-1.0</span></td><td><span class="neg">-1.1</span><br><span class="ex">-2.0</span></td><td><span class="neg">-1.5</span><br><span class="ex">-2.9</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-1.5</span><br><span class="ex">5日目 10-05</span></td></tr>
+      <tr><td class="l">09/27</td><td class="l">休場日</td><td class="l">東京地下鉄（9023）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">メトポ会員<br><span class="ex">約5.9万メールアドレス</span><br><span class="ex">9/20不具合→9/25検知・海外から→9/27(土)第1報（報道18:35〜）</span></td><td class="ex">—</td><td><span class="neg">-1.3</span><br><span class="ex">-0.8</span></td><td><span class="neg">-2.3</span><br><span class="ex">-2.6</span></td><td><span class="neg">-4.9</span><br><span class="ex">-4.9</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-5.9</span><br><span class="ex">6日目 10-05</span></td></tr>
+      <tr><td class="l">09/27</td><td class="l">休場日</td><td class="l">スターツ出版（7849）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">OZmall会員情報<br><span class="ex">最大442,779人（メアド等）</span><br><span class="ex">9/26検知→9/27(土)第1報 447,610人→10/1第2報 442,779人</span></td><td class="ex">—</td><td><span class="neg">-0.7</span><br><span class="ex">-0.2</span></td><td><span class="neg">-0.5</span><br><span class="ex">-0.8</span></td><td><span class="neg">-0.7</span><br><span class="ex">-0.6</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-0.7</span><br><span class="ex">6日目 10-05</span></td></tr>
+      <tr><td class="l">09/26</td><td class="l">休場日</td><td class="l">東京センチュリー（8439）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">ニッポンレンタカーアプリ（子会社ニッポンレンタカーサービス）<br><span class="ex">41人（9/26）＋別手法55人（10/1）</span><br><span class="ex">免許証番号・カード下4桁含む。規模は小さい</span></td><td class="ex">—</td><td><span class="neg">-0.9</span><br><span class="ex">-0.4</span></td><td><span class="neg">-2.0</span><br><span class="ex">-2.3</span></td><td><span class="neg">-4.1</span><br><span class="ex">-4.0</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-2.8</span><br><span class="ex">6日目 10-05</span></td></tr>
+      <tr><td class="l">09/25</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">パーク24（4666）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">タイムズカー会員システム<br><span class="ex">約660万件（9/28確定）・免許証画像160万</span><br><span class="ex">9/25第1報（9:07検知）→9/28第2報→9/29第3報</span></td><td><span class="pos">+0.2</span><br><span class="ex">-1.0</span></td><td><span class="neg">-2.8</span><br><span class="ex">-3.6</span></td><td><span class="neg">-7.2</span><br><span class="ex">-8.8</span></td><td><span class="neg">-11.8</span><br><span class="ex">-13.1</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-13.4</span><br><span class="ex">6日目 10-05</span></td></tr>
+      <tr><td class="l">09/11</td><td class="l"><span class="num" title="公表時刻が不明。場中扱いで計算">?</span></td><td class="l">ロート製薬（4527）</td><td class="l"><span class="tag t2">不正アクセス</span></td><td class="l wrap">通信販売システム・顧客管理システム<br><span class="ex">件数非公表（通話音声データ等、攻撃者は約4TB取得を主張）</span><br><span class="ex">9/10検知→9/11第1報→9/15第2報（通話音声・顧客管理も取得の可能性）</span></td><td><span class="neg">-0.5</span><br><span class="ex">+0.2</span></td><td><span class="pos">+2.4</span><br><span class="ex">+2.3</span></td><td><span class="pos">+0.8</span><br><span class="ex">+0.5</span></td><td><span class="neg">-0.6</span><br><span class="ex">-1.5</span></td><td><span class="pos">+1.1</span><br><span class="ex">-0.9</span></td><td class="ex">（未到達）</td><td class="ex">（未到達）</td><td><span class="neg">-1.9</span><br><span class="ex">13日目 10-05</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>④ Xの投稿数（Yahooリアルタイム検索、直近7日 vs その前3週間の平均）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th class="l">語</th><th>直近7日 合計</th><th>前3週の平均（7日換算）</th><th>倍率</th><th>直近7日のピーク</th><th class="l">直近14日の推移</th></tr></thead>
+    <tbody>
+      <tr><td class="l">個人情報流出<br><span class="ex">個人情報流出 OR 個人情報漏えい</span></td><td>6,379</td><td>539</td><td class="num">11.8倍</td><td>09-29 1,693</td><td class="l"><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-21: 42"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-22: 39"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-23: 47"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-24: 70"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-25: 57"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-26: 58"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-27: 82"></span><span class="bar" style="width:10px; margin-right:2px; opacity:1" title="2026-09-28: 431"></span><span class="bar" style="width:40px; margin-right:2px; opacity:1" title="2026-09-29: 1,693"></span><span class="bar" style="width:24px; margin-right:2px; opacity:1" title="2026-09-30: 1,017"></span><span class="bar" style="width:27px; margin-right:2px; opacity:1" title="2026-10-01: 1,151"></span><span class="bar" style="width:27px; margin-right:2px; opacity:1" title="2026-10-02: 1,150"></span><span class="bar" style="width:15px; margin-right:2px; opacity:1" title="2026-10-03: 638"></span><span class="bar" style="width:7px; margin-right:2px; opacity:1" title="2026-10-04: 299"></span></td></tr>
+      <tr><td class="l">情報漏洩<br><span class="ex">情報漏洩 OR 情報漏えい</span></td><td>28,800</td><td>3,748</td><td class="num">7.7倍</td><td>09-29 8,234</td><td class="l"><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-21: 442"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-22: 367"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-23: 335"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-24: 374"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-25: 513"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-26: 427"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-27: 491"></span><span class="bar" style="width:10px; margin-right:2px; opacity:1" title="2026-09-28: 2,081"></span><span class="bar" style="width:40px; margin-right:2px; opacity:1" title="2026-09-29: 8,234"></span><span class="bar" style="width:24px; margin-right:2px; opacity:1" title="2026-09-30: 5,106"></span><span class="bar" style="width:20px; margin-right:2px; opacity:1" title="2026-10-01: 4,229"></span><span class="bar" style="width:18px; margin-right:2px; opacity:1" title="2026-10-02: 3,754"></span><span class="bar" style="width:18px; margin-right:2px; opacity:1" title="2026-10-03: 3,805"></span><span class="bar" style="width:7px; margin-right:2px; opacity:1" title="2026-10-04: 1,591"></span></td></tr>
+      <tr><td class="l">不正アクセス<br><span class="ex">不正アクセス</span></td><td>16,419</td><td>2,438</td><td class="num">6.7倍</td><td>09-29 4,780</td><td class="l"><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-21: 142"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-22: 127"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-23: 109"></span><span class="bar" style="width:3px; margin-right:2px; opacity:0.5" title="2026-09-24: 378"></span><span class="bar" style="width:2px; margin-right:2px; opacity:0.5" title="2026-09-25: 311"></span><span class="bar" style="width:3px; margin-right:2px; opacity:0.5" title="2026-09-26: 387"></span><span class="bar" style="width:3px; margin-right:2px; opacity:0.5" title="2026-09-27: 411"></span><span class="bar" style="width:10px; margin-right:2px; opacity:1" title="2026-09-28: 1,268"></span><span class="bar" style="width:40px; margin-right:2px; opacity:1" title="2026-09-29: 4,780"></span><span class="bar" style="width:16px; margin-right:2px; opacity:1" title="2026-09-30: 2,025"></span><span class="bar" style="width:22px; margin-right:2px; opacity:1" title="2026-10-01: 2,716"></span><span class="bar" style="width:26px; margin-right:2px; opacity:1" title="2026-10-02: 3,133"></span><span class="bar" style="width:15px; margin-right:2px; opacity:1" title="2026-10-03: 1,881"></span><span class="bar" style="width:5px; margin-right:2px; opacity:1" title="2026-10-04: 616"></span></td></tr>
+      <tr><td class="l">サイバー攻撃<br><span class="ex">サイバー攻撃</span></td><td>4,980</td><td>1,540</td><td class="num">3.2倍</td><td>09-29 981</td><td class="l"><span class="bar" style="width:6px; margin-right:2px; opacity:0.5" title="2026-09-21: 159"></span><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-22: 131"></span><span class="bar" style="width:7px; margin-right:2px; opacity:0.5" title="2026-09-23: 188"></span><span class="bar" style="width:8px; margin-right:2px; opacity:0.5" title="2026-09-24: 218"></span><span class="bar" style="width:7px; margin-right:2px; opacity:0.5" title="2026-09-25: 179"></span><span class="bar" style="width:7px; margin-right:2px; opacity:0.5" title="2026-09-26: 180"></span><span class="bar" style="width:6px; margin-right:2px; opacity:0.5" title="2026-09-27: 163"></span><span class="bar" style="width:13px; margin-right:2px; opacity:1" title="2026-09-28: 327"></span><span class="bar" style="width:40px; margin-right:2px; opacity:1" title="2026-09-29: 981"></span><span class="bar" style="width:32px; margin-right:2px; opacity:1" title="2026-09-30: 798"></span><span class="bar" style="width:27px; margin-right:2px; opacity:1" title="2026-10-01: 672"></span><span class="bar" style="width:31px; margin-right:2px; opacity:1" title="2026-10-02: 770"></span><span class="bar" style="width:25px; margin-right:2px; opacity:1" title="2026-10-03: 634"></span><span class="bar" style="width:32px; margin-right:2px; opacity:1" title="2026-10-04: 798"></span></td></tr>
+      <tr><td class="l">お詫び<br><span class="ex">お詫びとお知らせ</span></td><td>445</td><td>186</td><td class="num">2.4倍</td><td>09-29 177</td><td class="l"><span class="bar" style="width:7px; margin-right:2px; opacity:0.5" title="2026-09-21: 32"></span><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-22: 25"></span><span class="bar" style="width:3px; margin-right:2px; opacity:0.5" title="2026-09-23: 15"></span><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-24: 24"></span><span class="bar" style="width:9px; margin-right:2px; opacity:0.5" title="2026-09-25: 40"></span><span class="bar" style="width:7px; margin-right:2px; opacity:0.5" title="2026-09-26: 32"></span><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-27: 24"></span><span class="bar" style="width:9px; margin-right:2px; opacity:1" title="2026-09-28: 40"></span><span class="bar" style="width:40px; margin-right:2px; opacity:1" title="2026-09-29: 177"></span><span class="bar" style="width:15px; margin-right:2px; opacity:1" title="2026-09-30: 68"></span><span class="bar" style="width:11px; margin-right:2px; opacity:1" title="2026-10-01: 51"></span><span class="bar" style="width:11px; margin-right:2px; opacity:1" title="2026-10-02: 53"></span><span class="bar" style="width:8px; margin-right:2px; opacity:1" title="2026-10-03: 36"></span><span class="bar" style="width:4px; margin-right:2px; opacity:1" title="2026-10-04: 20"></span></td></tr>
+      <tr><td class="l">ランサムウェア<br><span class="ex">ランサムウェア</span></td><td>859</td><td>475</td><td>1.8倍</td><td>09-29 184</td><td class="l"><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-21: 29"></span><span class="bar" style="width:8px; margin-right:2px; opacity:0.5" title="2026-09-22: 42"></span><span class="bar" style="width:5px; margin-right:2px; opacity:0.5" title="2026-09-23: 29"></span><span class="bar" style="width:9px; margin-right:2px; opacity:0.5" title="2026-09-24: 49"></span><span class="bar" style="width:12px; margin-right:2px; opacity:0.5" title="2026-09-25: 65"></span><span class="bar" style="width:6px; margin-right:2px; opacity:0.5" title="2026-09-26: 35"></span><span class="bar" style="width:40px; margin-right:2px; opacity:0.5" title="2026-09-27: 207"></span><span class="bar" style="width:31px; margin-right:2px; opacity:1" title="2026-09-28: 161"></span><span class="bar" style="width:35px; margin-right:2px; opacity:1" title="2026-09-29: 184"></span><span class="bar" style="width:26px; margin-right:2px; opacity:1" title="2026-09-30: 135"></span><span class="bar" style="width:23px; margin-right:2px; opacity:1" title="2026-10-01: 120"></span><span class="bar" style="width:23px; margin-right:2px; opacity:1" title="2026-10-02: 120"></span><span class="bar" style="width:16px; margin-right:2px; opacity:1" title="2026-10-03: 84"></span><span class="bar" style="width:10px; margin-right:2px; opacity:1" title="2026-10-04: 55"></span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="note">
+    ・事案は手動で追加（roei_incidents.json）。TDnetの適時開示に出ないプレスリリースのみの公表も多いため、見落としがあれば随時追加する。<br>
+    ・「規模」は公表時点の数字。続報で増えることが多い（例: タイムズカーは第1報「可能性」→第2報660万件確定）。表の規模欄は最新の公表値に手で更新する。<br>
+    ・騰落は配当調整済み終値。time 欄は "pre"/"intra"/"after" または "HH:MM"（9:00前＝寄り前、15:30以降＝引け後、それ以外＝場中として自動判定）。<br>
+    ・同じ日に複数の事案が公表されると、物流3社（9/29〜9/30）のように業界全体の連想売りが混ざる。種別だけでなく時期の重なりも見る。<br>
+    ・このページは観測と答え合わせの記録で、売買の推奨ではない。
+  </p>
+  <p class="updated">最終更新: 2026-10-05 23:43</p>
+</body>
+</html>

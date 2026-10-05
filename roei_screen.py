@@ -7,9 +7,7 @@
 種別ごとの集計（中央値／平均／マイナス率）で「どの種類の事故が、何日後まで売られるか」を答え合わせする。
 
 ■ 起点と日数の定義
-  - 「1営業日後」= 公表後、最初に市場が反応できた取引日の終値。公表が引け前（time=before）なら公表日当日、
-    引け後（after）なら翌営業日。不明（?）は公表日当日として扱い、表に「?」を付ける
-  - 基準値 = その「1営業日後」の前営業日の終値（＝公表前の最後の終値）
+  - 公表時刻で起点を変える（compute() のdocstring参照）: after=公表日終値→翌営業日、pre=前営業日終値→公表日、intra=前営業日終値→翌営業日（当日列あり）
   - 騰落% = 終値 ÷ 基準値 − 1。超過 = 銘柄の騰落 − 同じ日付のTOPIX(1306)の騰落
 ■ Xの投稿数
   snsデッキと同じ Yahooリアルタイム検索の推移APIで「不正アクセス」「情報漏洩」等の日次投稿数を取り、
@@ -75,38 +73,71 @@ def fetch_closes(codes, start):
     return data
 
 
-def first_reaction_day(dates, announce, time_flag):
-    """公表日と引け前/後から『1営業日後』の日付を返す（dates=その銘柄の取引日index）"""
-    a = pd.Timestamp(announce)
-    if time_flag == "after":
-        cand = dates[dates > a]
-    else:
-        cand = dates[dates >= a]
-    return cand[0] if len(cand) else None
+def timing(flag):
+    """time欄 → 'pre' | 'intra' | 'after'。不明(?)は intra 扱い。"HH:MM" 形式なら時刻から判定"""
+    f = (flag or "?").strip()
+    if f in ("pre", "intra", "after"):
+        return f, False
+    m = re.match(r"(\d{1,2}):(\d{2})", f)
+    if m:
+        hm = int(m.group(1)) * 60 + int(m.group(2))
+        if hm < 9 * 60:
+            return "pre", False
+        if hm >= 15 * 60 + 30:
+            return "after", False
+        return "intra", False
+    return "intra", True          # 不明
 
 
 def compute(inc, closes):
-    """各事案に base / day0 / 各horizonの(株騰落, TOPIX騰落, 超過) を付ける"""
+    """各事案に base / day0 / 当日 / 各horizonの(株騰落, TOPIX騰落, 超過) を付ける
+       after: 基準=公表日終値, 1営業日後=翌営業日終値
+       pre:   基準=前営業日終値, 1営業日後=公表日終値
+       intra: 基準=前営業日終値, 当日=公表日終値(引けまでの反応), 1営業日後=翌営業日終値（当日分を含む）"""
     bench = closes[BENCH].dropna()
     for r in inc:
         t = r["code"] + ".T"
         s = closes[t].dropna() if t in closes else pd.Series(dtype=float)
         r["ok"] = len(s) > 5
         r["ret"] = {}
+        r["same_day"] = None
+        kind, unknown = timing(r.get("time"))
+        r["timing"], r["time_unknown"] = kind, unknown
         if not r["ok"]:
             r["err"] = "株価取得不可"
             continue
-        d0 = first_reaction_day(s.index, r["date"], r.get("time", "?"))
-        if d0 is None:
-            r["err"] = "反応日がまだ来ていない"
+        a = pd.Timestamp(r["date"])
+        on = s[s.index == a]                 # 公表日の終値（休場日公表なら空）
+        before = s[s.index < a]
+        after = s[s.index > a]
+        if kind == "after" and len(on):
+            base = float(on.iloc[-1]); base_dt = a
+            day0 = after.index[0] if len(after) else None
+        elif kind == "pre" and len(on):
+            if before.empty:
+                r["err"] = "基準日の株価なし"; continue
+            base = float(before.iloc[-1]); base_dt = before.index[-1]
+            day0 = a
+        else:                                 # intra / 不明 / 休場日公表
+            if not len(on):
+                r["timing"], r["time_unknown"] = "closed", False
+            if before.empty:
+                r["err"] = "基準日の株価なし"; continue
+            base = float(before.iloc[-1]); base_dt = before.index[-1]
+            if kind == "intra" and len(on):
+                r["same_day"] = {"date": a.date().isoformat(), "stock": (float(on.iloc[-1]) / base - 1) * 100}
+            day0 = after.index[0] if len(after) else None
+        bb = bench[bench.index <= base_dt]
+        base_b = float(bb.iloc[-1]) if len(bb) else None
+        if r["same_day"] and base_b:
+            r["same_day"]["bench"] = (float(bench.asof(a)) / base_b - 1) * 100
+            r["same_day"]["excess"] = r["same_day"]["stock"] - r["same_day"]["bench"]
+        if day0 is None:
+            r["err"] = "翌営業日がまだ来ていない"
+            r["base"] = base
             continue
-        pos = s.index.get_loc(d0)
-        if pos == 0:
-            r["err"] = "基準日の株価なし"
-            continue
-        base = float(s.iloc[pos - 1])
-        base_b = float(bench[bench.index < d0].iloc[-1]) if len(bench[bench.index < d0]) else None
-        r["day0"] = d0.date().isoformat()
+        pos = s.index.get_loc(day0)
+        r["day0"] = day0.date().isoformat()
         r["base"] = base
         for n in HORIZONS:
             i = pos + n - 1
@@ -118,7 +149,6 @@ def compute(inc, closes):
                                "excess": (rs - rb) if rb is not None else None}
             else:
                 r["ret"][n] = None
-        # 直近の終値（今日時点の騰落）と、直近1日の騰落（前日終値比）
         r["last"] = {"date": s.index[-1].date().isoformat(), "stock": (float(s.iloc[-1]) / base - 1) * 100,
                      "days": len(s) - pos,
                      "chg1d": (float(s.iloc[-1]) / float(s.iloc[-2]) - 1) * 100 if len(s) >= 2 else None}
@@ -257,7 +287,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="evidence">
     <b>見方:</b>
     <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。
-    <b class="num">②</b> 「1営業日後」＝公表後に市場が最初に反応できた取引日。公表が引け前なら当日、引け後なら翌営業日。公表時刻が不明の事案は当日として扱い <span class="num">?</span> を付ける。
+    <b class="num">②</b> 公表時刻で起点を変える。<b>引け後</b>公表＝基準は公表日の終値、1営業日後は翌営業日。<b>寄り前</b>公表＝基準は前営業日の終値、1営業日後は公表日当日。<b>場中</b>公表＝基準は前営業日の終値、公表日の引けまでの反応を「当日」列に出し、1営業日後は翌営業日（当日分を含む）。時刻不明は場中扱いで <span class="num">?</span>。
     <b class="num">③</b> 上の集計表は<b>超過リターン</b>の中央値／平均／マイナス率（TOPIXより弱かった事案の割合）。「全事案」行が土台、種別行は内訳。N が小さいうちは目安。
     <b class="num">④</b> 下のXの投稿数は Yahooリアルタイム検索の日次件数。直近7日の合計を、その前3週間の平均（7日換算）と比べた倍率。ニュースの熱量の目安で、株価との因果は主張しない。
   </div>
@@ -279,7 +309,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th class="l">公表日</th><th class="l">企業（コード）</th><th class="l">種別</th><th class="l">対象・規模</th><th>1営業日後</th><th>3日後</th><th>5日後</th><th>10日後</th><th>15日後</th><th>30日後</th><th>直近</th></tr>
+      <tr><th class="l">公表日</th><th class="l">時刻</th><th class="l">企業（コード）</th><th class="l">種別</th><th class="l">対象・規模</th><th>当日<br><span class="ex">（場中公表のみ）</span></th><th>1営業日後</th><th>3日後</th><th>5日後</th><th>10日後</th><th>15日後</th><th>30日後</th><th>直近</th></tr>
     </thead>
     <tbody>
 {inc_rows}
@@ -300,7 +330,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・事案は手動で追加（roei_incidents.json）。TDnetの適時開示に出ないプレスリリースのみの公表も多いため、見落としがあれば随時追加する。<br>
     ・「規模」は公表時点の数字。続報で増えることが多い（例: タイムズカーは第1報「可能性」→第2報660万件確定）。表の規模欄は最新の公表値に手で更新する。<br>
-    ・騰落は配当調整済み終値。基準は公表前の最後の終値なので、公表が引け後なら「1営業日後」の値に翌日のギャップが含まれる。<br>
+    ・騰落は配当調整済み終値。time 欄は "pre"/"intra"/"after" または "HH:MM"（9:00前＝寄り前、15:30以降＝引け後、それ以外＝場中として自動判定）。<br>
     ・同じ日に複数の事案が公表されると、物流3社（9/29〜9/30）のように業界全体の連想売りが混ざる。種別だけでなく時期の重なりも見る。<br>
     ・このページは観測と答え合わせの記録で、売買の推奨ではない。
   </p>
@@ -345,14 +375,25 @@ def generate_html(inc, summ, words):
     inc_rows = []
     for r in sorted(inc, key=lambda x: (x["date"], x["code"]), reverse=True):
         tag = f'<span class="tag {TYPE_CLS.get(r["type"], "")}">{r["type"]}</span>'
-        q = ' <span class="num" title="公表時刻が不明のため公表日当日を1営業日後として扱う">?</span>' if r.get("time", "?") == "?" else ""
+        kind = r.get("timing", "intra")
+        tlabel = {"pre": "寄り前", "intra": "場中", "after": "引け後", "closed": "休場日"}[kind]
+        traw = (r.get("time") or "").strip()
+        if r.get("time_unknown"):
+            tcell = '<span class="num" title="公表時刻が不明。場中扱いで計算">?</span>'
+        else:
+            tcell = tlabel + (f'<br><span class="ex">{traw}</span>' if re.match(r"\d{1,2}:\d{2}", traw) else "")
         name = f'{r["name"]}（{r["code"]}）'
         scale = f'{r.get("service", "")}<br><span class="ex">{r.get("scale", "")}</span>'
         if r.get("note"):
             scale += f'<br><span class="ex">{r["note"]}</span>'
         cells = []
+        sd = r.get("same_day")
+        if sd:
+            cells.append(f'<td>{fmt(sd["stock"])}<br><span class="ex">{fmt(sd.get("excess"), plain=True) if sd.get("excess") is not None else ""}</span></td>')
+        else:
+            cells.append('<td class="ex">—</td>')
         if not r.get("ok") or not r.get("ret"):
-            cells = [f'<td colspan="7" class="ex">{r.get("err", "-")}</td>']
+            cells.append(f'<td colspan="7" class="ex">{r.get("err", "-")}</td>')
         else:
             for n in HORIZONS:
                 c = r["ret"].get(n)
@@ -362,10 +403,10 @@ def generate_html(inc, summ, words):
                     cells.append('<td class="ex">（未到達）</td>')
             L = r.get("last")
             cells.append(f'<td>{fmt(L["stock"])}<br><span class="ex">{L["days"]}日目 {L["date"][5:]}</span></td>' if L else "<td>-</td>")
-        inc_rows.append(f'      <tr><td class="l">{r["date"][5:].replace("-", "/")}{q}</td><td class="l">{name}</td>'
+        inc_rows.append(f'      <tr><td class="l">{r["date"][5:].replace("-", "/")}</td><td class="l">{tcell}</td><td class="l">{name}</td>'
                         f'<td class="l">{tag}</td><td class="l wrap">{scale}</td>{"".join(cells)}</tr>')
     if not inc_rows:
-        inc_rows.append('      <tr><td colspan="11" style="text-align:center;color:#64748b">事案なし</td></tr>')
+        inc_rows.append('      <tr><td colspan="13" style="text-align:center;color:#64748b">事案なし</td></tr>')
 
     word_rows = []
     for w in words:
@@ -402,7 +443,7 @@ def make_card(inc, summ, words, only_latest=True):
     rows = [r for r in inc if r.get("ok") and r.get("ret")]
     rows.sort(key=lambda r: (r["date"], r["code"]), reverse=True)
     W, H = 1200, 675
-    BG = (8, 12, 22); PANEL = (14, 22, 40); BAR = (22, 34, 60); LINE = (40, 58, 92)
+    BG = (0, 85, 234); PANEL = (10, 16, 32); BAR = (22, 34, 60); LINE = (90, 150, 240)   # 外枠は #0055EA（アローズの青）、パネルは黒
     WH = (240, 240, 235); GR = (150, 165, 190); AMB = (255, 196, 60); GN = (80, 220, 110); RD = (255, 85, 80); BOXBG = (235, 238, 242); BOXTX = (10, 14, 30)
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
@@ -419,20 +460,22 @@ def make_card(inc, summ, words, only_latest=True):
         d.text((x0 + 10, y0 + 4), title, font=f16, fill=WH)
         d.text((x0 + 12 + d.textlength(title, font=f16), y0 + 8), en, font=f12, fill=GR)
 
-    def box(x, y, w, text, col=BOXTX, fnt=None):
+    def box(x, y, w, text, col=BOXTX, fnt=None, h=32):
         fnt = fnt or f22
-        d.rectangle([x, y, x + w, y + 32], fill=BOXBG)
+        d.rectangle([x, y, x + w, y + h], fill=BOXBG)
         tw = d.textlength(text, font=fnt)
-        d.text((x + w - tw - 8, y + 3), text, font=fnt, fill=col)
+        bb = d.textbbox((0, 0), text, font=fnt)
+        th = bb[3] - bb[1]
+        d.text((x + w - tw - 8, y + (h - th) / 2 - bb[1]), text, font=fnt, fill=col)
 
     def c(v):
         return GN if v is None or v >= 0 else RD
 
     # ---- ヘッダー
-    d.text((20, 10), "情報漏洩銘柄検証", font=f28, fill=AMB)
-    d.text((262, 20), "Data Breach Stock Watch", font=f14, fill=GR)
-    d.text((W - 330, 14), f"{mday} 大引け時点  公表前終値比 %", font=f14, fill=GR)
-    d.text((W - 330, 32), "下段の小数字＝TOPIX(1306)比の超過", font=f12, fill=GR)
+    d.text((20, 10), "情報漏洩銘柄ウォッチ", font=f28, fill=(255, 255, 255))
+    d.text((318, 20), "Data Breach Stock Watch", font=f14, fill=(190, 210, 240))
+    d.text((W - 330, 14), f"{mday} 大引け時点  公表前終値比 %", font=f14, fill=(220, 230, 245))
+    d.text((W - 330, 32), "下段の小数字＝TOPIX(1306)比の超過", font=f12, fill=(190, 210, 240))
 
     # ---- 上段3パネル
     top_y, top_h = 56, 170
@@ -440,17 +483,24 @@ def make_card(inc, summ, words, only_latest=True):
     px = [20, 20 + pw + 12, 20 + 2 * (pw + 12)]
     # P1 本日が初日
     panel(px[0], top_y, px[0] + pw, top_y + top_h, "本日 公表後初日", "First Session")
-    first = [r for r in rows if r.get("day0") == mday and r["ret"].get(1)]
+    first = [(r, r["ret"][1], "初日") for r in rows if r.get("day0") == mday and r["ret"].get(1)]
+    first += [(r, r["same_day"], "当日・場中公表") for r in inc if r.get("same_day") and r["same_day"].get("date") == mday and r["same_day"].get("excess") is not None]
+    # 引け後公表（または休場日）でまだ終値がついていないもの: 騰落率は出さず「翌営業日が初日」とだけ示す
+    pending = [r for r in inc if r.get("ok") and not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない"
+               and not (r.get("same_day") and r["same_day"].get("date") == mday)]
     yy = top_y + 34
     if first:
-        for r in first[:3]:
-            cc = r["ret"][1]
+        for r, cc, lab in first[:3]:
             d.text((px[0] + 10, yy), f'{r["name"]} {r["code"]}', font=f16, fill=WH)
             box(px[0] + pw - 120, yy - 4, 110, f'{cc["stock"]:+.1f}', col=(170, 20, 20) if cc["stock"] < 0 else (0, 110, 50))
-            d.text((px[0] + 10, yy + 22), f'TOPIX比 {cc["excess"]:+.1f}  {r.get("type", "")}', font=f12, fill=GR)
+            d.text((px[0] + 10, yy + 22), f'TOPIX比 {cc["excess"]:+.1f}  {lab}  {r.get("type", "")}', font=f12, fill=GR)
             yy += 46
-    else:
+    elif not pending:
         d.text((px[0] + 10, yy + 10), "本日の該当なし", font=f16, fill=GR)
+    for r in pending[:max(0, 3 - len(first[:3]))]:
+        d.text((px[0] + 10, yy), f'{r["name"]} {r["code"]}', font=f16, fill=GR)
+        d.text((px[0] + 10, yy + 22), f'{r["date"][5:].replace("-", "/")}引け後公表 → 翌営業日が初日（騰落率は未計測）', font=f12, fill=GR)
+        yy += 46
     # P2 本日の最大下落
     panel(px[1], top_y, px[1] + pw, top_y + top_h, "本日 最大下落", "Biggest Drop (vs prev. close)")
     tracked = [r for r in rows if r.get("last") and r["last"].get("chg1d") is not None and r["last"]["days"] <= 30 and r["last"]["date"] == mday]
@@ -458,10 +508,10 @@ def make_card(inc, summ, words, only_latest=True):
         w_ = min(tracked, key=lambda r: r["last"]["chg1d"])
         d.text((px[1] + 10, top_y + 34), f'{w_["name"]} {w_["code"]}', font=f19, fill=WH)
         d.text((px[1] + 10, top_y + 58), f'{w_["date"][5:].replace("-", "/")}公表 {w_.get("type", "")}', font=f12, fill=GR)
-        box(px[1] + 10, top_y + 78, 150, f'{w_["last"]["chg1d"]:+.1f}', col=(170, 20, 20) if w_["last"]["chg1d"] < 0 else (0, 110, 50), fnt=f28)
+        box(px[1] + 10, top_y + 76, 150, f'{w_["last"]["chg1d"]:+.1f}', col=(170, 20, 20) if w_["last"]["chg1d"] < 0 else (0, 110, 50), fnt=f28, h=42)
         d.text((px[1] + 170, top_y + 80), "前日比", font=f12, fill=GR)
-        d.text((px[1] + 170, top_y + 96), f'公表前比 {w_["last"]["stock"]:+.1f}', font=f14, fill=c(w_["last"]["stock"]))
-        d.text((px[1] + 10, top_y + 120), f'追跡中 {len(tracked)}銘柄（公表30営業日以内）', font=f12, fill=GR)
+        d.text((px[1] + 170, top_y + 98), f'公表前比 {w_["last"]["stock"]:+.1f}', font=f14, fill=c(w_["last"]["stock"]))
+        d.text((px[1] + 10, top_y + 126), f'追跡中 {len(tracked)}銘柄（公表30営業日以内）', font=f12, fill=GR)
     # P3 全事案 中央値
     panel(px[2], top_y, px[2] + pw, top_y + top_h, "全事案 中央値", "Median excess vs TOPIX")
     g = summ.get("全事案", {})
@@ -478,7 +528,7 @@ def make_card(inc, summ, words, only_latest=True):
 
     # ---- 下段: 事案ボード
     by0 = top_y + top_h + 12
-    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "Incidents since Sep 2026  —  1 / 5 / 10 days, latest")
+    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "Incidents since Sep 2026  —  1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明(場中扱い)")
     cols = [("公表", 32), ("銘柄", 100), ("コード", 330), ("種別", 400), ("1日", 520), ("5日", 620), ("10日", 720), ("直近", 820), ("日目", 905), ("対象", 960)]
     yy = by0 + 32
     for lab, x in cols:
@@ -489,6 +539,7 @@ def make_card(inc, summ, words, only_latest=True):
         hi = (r.get("day0") == mday)
         col_name = AMB if hi else WH
         d.text((32, yy), r["date"][5:].replace("-", "/"), font=f14, fill=col_name)
+        d.text((76, yy + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
         d.text((100, yy), r["name"][:14], font=f14, fill=col_name)
         d.text((330, yy), r["code"], font=f14, fill=GR)
         d.text((400, yy), r.get("type", "")[:6], font=f12, fill=GR)
@@ -513,18 +564,58 @@ def make_card(inc, summ, words, only_latest=True):
     d.rectangle([20, fy, W - 20, H - 12], fill=PANEL, outline=LINE)
     d.text((32, fy + 6), "X 投稿数（直近7日 / 前3週平均）", font=f12, fill=GR)
     x = 230
-    for w in (words or [])[:4]:
+    for w in (words or [])[:3]:
         if not w.get("ratio"):
             continue
         d.text((x, fy + 4), w["label"], font=f14, fill=WH)
         d.text((x, fy + 22), f'{w["last7"]:,}件', font=f12, fill=GR)
-        d.text((x + 120, fy + 8), f'×{w["ratio"]:.1f}', font=f19, fill=RD if w["ratio"] >= 2 else GN)
+        d.text((x + 110, fy + 8), f'×{w["ratio"]:.1f}', font=f19, fill=RD if w["ratio"] >= 2 else GN)
         x += 215
-    d.text((W - 300, fy + 22), "ichikon77.github.io/minervini/roei.html", font=f12, fill=GR)
+    d.text((W - 290, fy + 14), "ichikon77.github.io/minervini/roei.html", font=f12, fill=GR)
     out = os.path.join(DRAFTS_DIR, f"roei_card_{today:%Y%m%d}.png")
     im.save(out)
     log(f"速報カード: {out}")
-    return out
+    outs = [out]
+    # 1枚目に収まらなかった事案は2枚目（一覧のみ）に
+    rest = rows[maxrows:]
+    if rest:
+        im2 = Image.new("RGB", (W, H), BG)
+        d2 = ImageDraw.Draw(im2)
+        d2.text((20, 10), "情報漏洩銘柄ウォッチ", font=f28, fill=(255, 255, 255))
+        d2.text((318, 20), "Incidents (continued)", font=f14, fill=(190, 210, 240))
+        d2.text((W - 330, 14), f"{mday} 大引け時点  公表前終値比 %", font=f14, fill=(220, 230, 245))
+        d2.rectangle([20, 56, W - 20, H - 12], fill=PANEL, outline=LINE)
+        d2.rectangle([20, 56, W - 20, 82], fill=BAR)
+        d2.text((30, 60), "事案一覧（続き）", font=f16, fill=WH)
+        yy2 = 90
+        for lab, x in cols:
+            d2.text((x, yy2), lab, font=f12, fill=GR)
+        yy2 += 18
+        for r in rest[: (H - 12 - yy2) // 30]:
+            d2.text((32, yy2), r["date"][5:].replace("-", "/"), font=f14, fill=WH)
+            d2.text((100, yy2), r["name"][:14], font=f14, fill=WH)
+            d2.text((330, yy2), r["code"], font=f14, fill=GR)
+            d2.text((400, yy2), r.get("type", "")[:6], font=f12, fill=GR)
+            for n, x in ((1, 520), (5, 620), (10, 720)):
+                cc = r["ret"].get(n)
+                if cc:
+                    d2.text((x, yy2), f'{cc["stock"]:+.1f}', font=f16, fill=c(cc["stock"]))
+                    if cc.get("excess") is not None:
+                        d2.text((x + 52, yy2 + 3), f'{cc["excess"]:+.1f}', font=f12, fill=GR)
+                else:
+                    d2.text((x, yy2), "—", font=f16, fill=(70, 85, 115))
+            L = r.get("last")
+            if L:
+                d2.text((820, yy2), f'{L["stock"]:+.1f}', font=f16, fill=c(L["stock"]))
+                d2.text((905, yy2 + 2), f'{L["days"]}', font=f14, fill=GR)
+            d2.text((960, yy2 + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
+            yy2 += 30
+            d2.line([(28, yy2 - 5), (W - 28, yy2 - 5)], fill=(24, 36, 60))
+        out2 = os.path.join(DRAFTS_DIR, f"roei_card_{today:%Y%m%d}_2.png")
+        im2.save(out2)
+        log(f"速報カード（2枚目）: {out2}")
+        outs.append(out2)
+    return outs
 
 
 # -----------------------------------------
@@ -560,7 +651,19 @@ def main():
     log("情報漏洩銘柄検証 開始")
     inc = load_incidents()
     start = (datetime.date.fromisoformat(min(r["date"] for r in inc)) - datetime.timedelta(days=20)).isoformat() if inc else "2026-08-01"
-    closes = fetch_closes([r["code"] for r in inc], start)
+    closes = None
+    for attempt in range(1, 4):
+        try:
+            closes = fetch_closes([r["code"] for r in inc], start)
+            if BENCH in closes and closes[BENCH].dropna().shape[0] >= 5:
+                break
+            log(f"  株価取得が空（{attempt}/3）→ 30秒後に再試行")
+        except Exception as e:
+            log(f"  株価取得エラー（{attempt}/3）: {e}")
+        time.sleep(30)
+    if closes is None or BENCH not in closes or closes[BENCH].dropna().shape[0] < 5:
+        log("エラー: 株価を取得できないため、ページ・投稿用データは更新しません（前回のまま）")
+        sys.exit(1)
     compute(inc, closes)
     summ = summarize(inc)
     for r in inc:
@@ -578,7 +681,7 @@ def main():
         json.dump({
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "market_day": market_day,
-            "incidents": [{k: r.get(k) for k in ("date", "time", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
+            "incidents": [{k: r.get(k) for k in ("date", "time", "timing", "time_unknown", "same_day", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
                           for r in inc],
             "summary": {g: {str(n): v for n, v in d.items()} for g, d in summ.items()},
             "words": [{k: w.get(k) for k in ("label", "last7", "prev7", "ratio", "peak_day", "peak")} for w in words],
