@@ -27,7 +27,10 @@ import requests
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PAGE_URL = "https://nikkei225jp.com/data/per.php"
-DATA_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/daily2.json"
+# 2026-10-01のサイト改修で /DAY/ → /data_DAY/ に移動（旧URLは404、中身は "var DAILY = [...]" のJS形式に）。新→旧の順で試す
+DATA_URLS = ["https://nikkei225jp.com/_data/_nfsDATA/data_DAY/daily2.json",
+             "https://nikkei225jp.com/_data/_nfsDATA/DAY/daily2.json"]
+DATA_URL = DATA_URLS[0]
 
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "riron_history.json")
 REPORT_HTML = "riron.html"
@@ -124,7 +127,19 @@ def fetch_with_retry(url, tries=4, timeout=60, wait=45):
 
 def fetch_daily():
     """{日付ISO: {日経平均, PER, PBR}} を返す"""
-    s = fetch_with_retry(DATA_URL)
+    s, last_err = None, None
+    for url in DATA_URLS:
+        try:
+            cand = fetch_with_retry(url, tries=2, wait=10)
+            if cand.lstrip().startswith("<"):          # 404/エラーページ(HTML)は不採用
+                raise ValueError(f"HTMLが返った: {url}")
+            s = cand
+            break
+        except Exception as e:
+            last_err = e
+            log(f"  {url} は不可 → 次のURLへ")
+    if s is None:
+        raise RuntimeError(f"daily2.json をどのURLからも取得できません: {last_err}")
     start = s.find('[')
     end = s.rfind(']')
     if start < 0 or end < 0:
