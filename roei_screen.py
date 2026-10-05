@@ -73,20 +73,101 @@ def fetch_closes(codes, start):
     return data
 
 
-def timing(flag):
-    """time欄 → 'pre' | 'intra' | 'after'。不明(?)は intra 扱い。"HH:MM" 形式なら時刻から判定"""
+def _hm(text):
+    m = re.match(r"\s*(\d{1,2}):(\d{2})", text or "")
+    return int(m.group(1)) * 60 + int(m.group(2)) if m else None
+
+
+def timing(flag, auto=None):
+    """公表時刻 → ('pre'|'intra'|'after', 不明フラグ, 根拠)
+       flag: JSONの time（pre/intra/after/"HH:MM"/?）。auto: 報道初出 "HH:MM"（公表日当日, Googleニュース）
+       不明(?)は引け後扱い（公表日の値動きを数えない）。ただし報道初出が 15:30 より前なら、公表はそれ以前なので場中(9時前なら寄り前)に昇格"""
     f = (flag or "?").strip()
     if f in ("pre", "intra", "after"):
-        return f, False
-    m = re.match(r"(\d{1,2}):(\d{2})", f)
-    if m:
-        hm = int(m.group(1)) * 60 + int(m.group(2))
-        if hm < 9 * 60:
-            return "pre", False
-        if hm >= 15 * 60 + 30:
-            return "after", False
-        return "intra", False
-    return "intra", True          # 不明
+        return f, False, "手動"
+    hm = _hm(f)
+    if hm is not None:
+        return ("pre" if hm < 9 * 60 else "after" if hm >= 15 * 60 + 30 else "intra"), False, f"公表{f}"
+    a = _hm(auto or "")
+    if a is not None and a < 15 * 60 + 30:
+        return ("pre" if a < 9 * 60 else "intra"), False, f"報道初出{auto}"
+    return "after", True, "時刻不明→引け後扱い"
+
+
+GNEWS_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
+
+
+NEWS_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "紛失", "サイバー")
+
+
+def news_first_time(r):
+    """Googleニュース検索RSSで、公表日当日の最も早い報道時刻(JST "HH:MM")を返す。見つからなければ None。
+       Googleの検索結果は雑音が多いので、見出しに 検索語(kw) と 事故語(NEWS_WORDS) の両方を含む記事だけ使う。
+       報道時刻は公表時刻の上限（公表はそれ以前）としてだけ使う。公表日より前の日に該当記事があれば警告（公表日の誤り候補）"""
+    import email.utils
+    import html as _html
+    kw = r.get("kw") or r["name"]
+    d0 = datetime.date.fromisoformat(r["date"])
+    q = f'"{kw}" (不正アクセス OR 漏えい OR 漏洩 OR 流出 OR 紛失) after:{(d0 - datetime.timedelta(days=1)).isoformat()} before:{(d0 + datetime.timedelta(days=2)).isoformat()}'
+    url = GNEWS_RSS.format(q=urllib.parse.quote(q))
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+    hits = []
+    for m in re.finditer(r"<item><title>(.*?)</title>.*?<pubDate>([^<]+)</pubDate>", xml, re.S):
+        title = _html.unescape(m.group(1))
+        if kw not in title and r["name"] not in title:
+            continue
+        if not any(w in title for w in NEWS_WORDS):
+            continue
+        try:
+            dt = email.utils.parsedate_to_datetime(m.group(2)).astimezone(datetime.timezone(datetime.timedelta(hours=9)))
+        except Exception:
+            continue
+        hits.append((dt, title))
+    hits.sort()
+    first_on_day = next((dt for dt, _ in hits if dt.date() == d0), None)
+    earlier = [(dt, t) for dt, t in hits if dt.date() < d0]
+    if earlier:
+        log(f"  ⚠ {r['name']}: 公表日({d0})より前の {earlier[0][0]:%m/%d %H:%M} に報道あり → 公表日の誤り候補: {earlier[0][1][:60]}")
+        r["time_auto_note"] = f"前日{earlier[0][0]:%m/%d %H:%M}に報道あり・公表日要確認"
+    return first_on_day.strftime("%H:%M") if first_on_day else None
+
+
+def save_incidents(inc):
+    """roei_incidents.json を1事案1行の形式で書き戻す（time_auto の記録用）"""
+    d = json.load(open(INCIDENTS_JSON, encoding="utf-8"))
+    keep = ("date", "time", "time_auto", "time_auto_checked", "time_auto_note", "kw", "code", "name", "service", "type", "scale", "note", "url")
+    rows = [json.dumps({k: r[k] for k in keep if k in r}, ensure_ascii=False) for r in sorted(inc, key=lambda r: (r["date"], r["code"]))]
+    txt = '{\n  "_説明": ' + json.dumps(d["_説明"], ensure_ascii=False) + ',\n  "incidents": [\n    ' + ',\n    '.join(rows) + '\n  ]\n}\n'
+    with open(INCIDENTS_JSON, "w", encoding="utf-8") as f:
+        f.write(txt)
+
+
+def fill_auto_times(inc):
+    """time が ? の事案について、報道初出時刻を自動で調べて time_auto に記録（公表から10日間は毎回再確認、以後は記録を使う）"""
+    today = datetime.date.today()
+    changed = False
+    for r in inc:
+        if (r.get("time") or "?").strip() != "?":
+            continue
+        d0 = datetime.date.fromisoformat(r["date"])
+        if r.get("time_auto_checked") and (today - d0).days > 10:
+            continue
+        try:
+            t = news_first_time(r)
+        except Exception as e:
+            log(f"  報道初出の取得失敗 {r['name']}: {e}")
+            continue
+        r["time_auto_checked"] = today.isoformat()
+        if t:
+            r["time_auto"] = t
+        log(f"  報道初出 {r['date']} {r['name']}: {t or '当日の報道なし'}")
+        changed = True
+    if changed:
+        try:
+            save_incidents(inc)
+        except Exception as e:
+            log(f"  roei_incidents.json 書き戻し失敗: {e}")
 
 
 def compute(inc, closes):
@@ -101,8 +182,8 @@ def compute(inc, closes):
         r["ok"] = len(s) > 5
         r["ret"] = {}
         r["same_day"] = None
-        kind, unknown = timing(r.get("time"))
-        r["timing"], r["time_unknown"] = kind, unknown
+        kind, unknown, basis = timing(r.get("time"), r.get("time_auto"))
+        r["timing"], r["time_unknown"], r["time_basis"] = kind, unknown, basis
         if not r["ok"]:
             r["err"] = "株価取得不可"
             continue
@@ -110,6 +191,10 @@ def compute(inc, closes):
         on = s[s.index == a]                 # 公表日の終値（休場日公表なら空）
         before = s[s.index < a]
         after = s[s.index > a]
+        if a in bench.index and not len(on):
+            # 取引日なのにこの銘柄の終値だけ無い＝データ源の遅れ。休場日扱いにして誤計算しないよう保留
+            r["err"] = "公表日の株価が未取得（データ源の遅れ・次回再計算）"
+            continue
         if kind == "after" and len(on):
             base = float(on.iloc[-1]); base_dt = a
             day0 = after.index[0] if len(after) else None
@@ -133,7 +218,7 @@ def compute(inc, closes):
             r["same_day"]["bench"] = (float(bench.asof(a)) / base_b - 1) * 100
             r["same_day"]["excess"] = r["same_day"]["stock"] - r["same_day"]["bench"]
         if day0 is None:
-            r["err"] = "翌営業日がまだ来ていない"
+            r["err"] = "翌営業日の株価が未取得（データ源の遅れ）" if len(bench[bench.index > a]) else "翌営業日がまだ来ていない"
             r["base"] = base
             continue
         pos = s.index.get_loc(day0)
@@ -287,7 +372,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="evidence">
     <b>見方:</b>
     <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。
-    <b class="num">②</b> 公表時刻で起点を変える。<b>引け後</b>公表＝基準は公表日の終値、1営業日後は翌営業日。<b>寄り前</b>公表＝基準は前営業日の終値、1営業日後は公表日当日。<b>場中</b>公表＝基準は前営業日の終値、公表日の引けまでの反応を「当日」列に出し、1営業日後は翌営業日（当日分を含む）。時刻不明は場中扱いで <span class="num">?</span>。
+    <b class="num">②</b> 公表時刻で起点を変える。<b>引け後</b>公表＝基準は公表日の終値、1営業日後は翌営業日。<b>寄り前</b>公表＝基準は前営業日の終値、1営業日後は公表日当日。<b>場中</b>公表＝基準は前営業日の終値、公表日の引けまでの反応を「当日」列に出し、1営業日後は翌営業日（当日分を含む）。時刻不明は<b>引け後扱い</b>（公表日の値動きは数えない）で <span class="num">?</span>。ただしGoogleニュースで公表日当日 15:30 より前の報道が見つかれば、公表はそれ以前なので場中（9時前なら寄り前）に自動で昇格し、根拠「報道初出HH:MM」を添える。
     <b class="num">③</b> 上の集計表は<b>超過リターン</b>の中央値／平均／マイナス率（TOPIXより弱かった事案の割合）。「全事案」行が土台、種別行は内訳。N が小さいうちは目安。
     <b class="num">④</b> 下のXの投稿数は Yahooリアルタイム検索の日次件数。直近7日の合計を、その前3週間の平均（7日換算）と比べた倍率。ニュースの熱量の目安で、株価との因果は主張しない。
   </div>
@@ -330,7 +415,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <p class="note">
     ・事案は手動で追加（roei_incidents.json）。TDnetの適時開示に出ないプレスリリースのみの公表も多いため、見落としがあれば随時追加する。<br>
     ・「規模」は公表時点の数字。続報で増えることが多い（例: タイムズカーは第1報「可能性」→第2報660万件確定）。表の規模欄は最新の公表値に手で更新する。<br>
-    ・騰落は配当調整済み終値。time 欄は "pre"/"intra"/"after" または "HH:MM"（9:00前＝寄り前、15:30以降＝引け後、それ以外＝場中として自動判定）。<br>
+    ・騰落は配当調整済み終値。time 欄は "pre"/"intra"/"after" または "HH:MM"（9:00前＝寄り前、15:30以降＝引け後、それ以外＝場中として自動判定）。"?" は引け後扱い＋Googleニュースの報道初出で自動補正（kw 欄＝検索語、既定は企業名）。<br>
     ・同じ日に複数の事案が公表されると、物流3社（9/29〜9/30）のように業界全体の連想売りが混ざる。種別だけでなく時期の重なりも見る。<br>
     ・このページは観測と答え合わせの記録で、売買の推奨ではない。
   </p>
@@ -379,9 +464,12 @@ def generate_html(inc, summ, words):
         tlabel = {"pre": "寄り前", "intra": "場中", "after": "引け後", "closed": "休場日"}[kind]
         traw = (r.get("time") or "").strip()
         if r.get("time_unknown"):
-            tcell = '<span class="num" title="公表時刻が不明。場中扱いで計算">?</span>'
+            auto = r.get("time_auto")
+            tcell = ('<span class="num" title="公表時刻が不明。引け後扱いで計算">?</span>'
+                     + (f'<br><span class="ex">報道{auto}〜</span>' if auto else ""))
         else:
-            tcell = tlabel + (f'<br><span class="ex">{traw}</span>' if re.match(r"\d{1,2}:\d{2}", traw) else "")
+            sub = traw if re.match(r"\d{1,2}:\d{2}", traw) else ("" if r.get("time_basis") == "手動" else r.get("time_basis", ""))
+            tcell = tlabel + (f'<br><span class="ex">{sub}</span>' if sub else "")
         name = f'{r["name"]}（{r["code"]}）'
         scale = f'{r.get("service", "")}<br><span class="ex">{r.get("scale", "")}</span>'
         if r.get("note"):
@@ -528,13 +616,16 @@ def make_card(inc, summ, words, only_latest=True):
 
     # ---- 下段: 事案ボード
     by0 = top_y + top_h + 12
-    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "Incidents since Sep 2026  —  1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明(場中扱い)")
+    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "Incidents since Sep 2026  —  1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明(引け後扱い)")
     cols = [("公表", 32), ("銘柄", 100), ("コード", 330), ("種別", 400), ("1日", 520), ("5日", 620), ("10日", 720), ("直近", 820), ("日目", 905), ("対象", 960)]
     yy = by0 + 32
     for lab, x in cols:
         d.text((x, yy), lab, font=f12, fill=GR)
     yy += 18
-    maxrows = max(1, (H - 60 - yy - 6) // 30)
+    # 行の高さは26〜30pxで可変: 残り高さに収まる限り詰めて、端数が「空行」に見えないようにする
+    avail = H - 60 - yy - 6
+    maxrows = max(1, avail // 26)
+    rh = min(30, avail // max(1, min(len(rows), maxrows)))
     for i, r in enumerate(rows[:maxrows]):
         hi = (r.get("day0") == mday)
         col_name = AMB if hi else WH
@@ -556,7 +647,7 @@ def make_card(inc, summ, words, only_latest=True):
             d.text((820, yy), f'{L["stock"]:+.1f}', font=f16, fill=c(L["stock"]))
             d.text((905, yy + 2), f'{L["days"]}', font=f14, fill=GR)
         d.text((960, yy + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
-        yy += 30
+        yy += rh
         d.line([(28, yy - 5), (W - 28, yy - 5)], fill=(24, 36, 60))
 
     # ---- フッター: Xの投稿数（為替パネル風）
@@ -593,6 +684,7 @@ def make_card(inc, summ, words, only_latest=True):
         yy2 += 18
         for r in rest[: (H - 12 - yy2) // 30]:
             d2.text((32, yy2), r["date"][5:].replace("-", "/"), font=f14, fill=WH)
+            d2.text((76, yy2 + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
             d2.text((100, yy2), r["name"][:14], font=f14, fill=WH)
             d2.text((330, yy2), r["code"], font=f14, fill=GR)
             d2.text((400, yy2), r.get("type", "")[:6], font=f12, fill=GR)
@@ -650,6 +742,7 @@ def push_to_github():
 def main():
     log("情報漏洩銘柄検証 開始")
     inc = load_incidents()
+    fill_auto_times(inc)
     start = (datetime.date.fromisoformat(min(r["date"] for r in inc)) - datetime.timedelta(days=20)).isoformat() if inc else "2026-08-01"
     closes = None
     for attempt in range(1, 4):
@@ -681,7 +774,7 @@ def main():
         json.dump({
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "market_day": market_day,
-            "incidents": [{k: r.get(k) for k in ("date", "time", "timing", "time_unknown", "same_day", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
+            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
                           for r in inc],
             "summary": {g: {str(n): v for n, v in d.items()} for g, d in summ.items()},
             "words": [{k: w.get(k) for k in ("label", "last7", "prev7", "ratio", "peak_day", "peak")} for w in words],
