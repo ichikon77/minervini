@@ -1,0 +1,5 @@
+{
+ "_updated": "2026-10-06T20:29:26",
+ "_説明": "roei_scan.py が見つけた新規事案の候補。auto_added=true は roei_incidents.json に自動追加済み。false は媒体数不足などで保留（手で追加するなら roei_incidents.json に1行書く）",
+ "candidates": []
+}

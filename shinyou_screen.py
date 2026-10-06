@@ -29,7 +29,10 @@ import requests
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 PAGE_URL = "https://nikkei225jp.com/data/sinyou.php"
-DATA_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/dailyweek2.json"
+# 2026-10-01 サイト改修で DAY/ → data_DAY/ に移動（旧URLは404のHTMLを返す）。新→旧の順に試す
+DATA_URLS = ["https://nikkei225jp.com/_data/_nfsDATA/data_DAY/dailyweek2.json",
+             "https://nikkei225jp.com/_data/_nfsDATA/DAY/dailyweek2.json"]
+DATA_URL = DATA_URLS[0]
 
 HISTORY_JSON = os.path.join(SCRIPT_DIR, "shinyou_history.json")
 REPORT_HTML = "shinyou.html"
@@ -119,6 +122,24 @@ def fetch_with_retry(url, tries=3, timeout=60, wait=45):
     raise last_err
 
 
+def fetch_data_text():
+    """DATA_URLS を順に試し、JSON(JS)本文を返す。404等のHTMLページは不採用にして次URLへ"""
+    last_err = None
+    for url in DATA_URLS:
+        try:
+            cand = fetch_with_retry(url, tries=2, wait=10)
+            head = cand.lstrip()[:200].lower()
+            if head.startswith("<") or "<html" in head:
+                raise ValueError(f"HTMLが返った: {url}")
+            if "[" not in head:
+                raise ValueError(f"JSON配列が見当たらない: {url}")
+            return cand
+        except Exception as e:
+            last_err = e
+            log(f"  {url} は不可 → 次のURLへ")
+    raise RuntimeError(f"データをどのURLからも取得できません: {last_err}")
+
+
 def fetch_weekly_data():
     """dailyweek2.json から (日付ISO, {列: 値}) のリストを返す（日付昇順）
 
@@ -129,7 +150,7 @@ def fetch_weekly_data():
     残高系（売り残・買い残）が揃っていれば、信用評価率・信用倍率が未公表(None)でも
     行として採用する（評価率は公表が1〜2日遅れることがあるため。後続実行で補完）。
     """
-    s = fetch_with_retry(DATA_URL)
+    s = fetch_data_text()
     start = s.find('[')
     end = s.rfind(']')
     if start < 0 or end < 0:

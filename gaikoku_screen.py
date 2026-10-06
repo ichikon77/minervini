@@ -29,7 +29,10 @@ import requests
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SHUTAI_JSON_URL = "https://nikkei225jp.com/_data/_nfsDATA/DAY/dailyweek2.json"
+# 2026-10-01 サイト改修で DAY/ → data_DAY/ に移動（旧URLは404のHTMLを返す）。新→旧の順に試す
+SHUTAI_JSON_URLS = ["https://nikkei225jp.com/_data/_nfsDATA/data_DAY/dailyweek2.json",
+                    "https://nikkei225jp.com/_data/_nfsDATA/DAY/dailyweek2.json"]
+SHUTAI_JSON_URL = SHUTAI_JSON_URLS[0]
 SHUTAI_PAGE = "https://nikkei225jp.com/data/shutai.php"
 JPX_INDEX = "https://www.jpx.co.jp/markets/statistics-derivatives/sector/index.html"
 JPX_ARCHIVE_2026 = "https://www.jpx.co.jp/markets/statistics-derivatives/sector/00-archives-00.html"
@@ -119,7 +122,22 @@ def fetch_bytes(url, tries=3, timeout=60, wait=30, referer=None):
 # -----------------------------------------
 def fetch_genbutsu():
     """{金曜日付ISO: 海外差引(円)} を返す"""
-    data = fetch_bytes(SHUTAI_JSON_URL, referer=SHUTAI_PAGE).decode("utf-8", errors="ignore")
+    data, last_err = None, None
+    for url in SHUTAI_JSON_URLS:
+        try:
+            cand = fetch_bytes(url, tries=2, wait=10, referer=SHUTAI_PAGE).decode("utf-8", errors="ignore")
+            head = cand.lstrip()[:200].lower()
+            if head.startswith("<") or "<html" in head:      # 404等のHTMLページは不採用
+                raise ValueError(f"HTMLが返った: {url}")
+            if "[" not in head:
+                raise ValueError(f"JSON配列が見当たらない: {url}")
+            data = cand
+            break
+        except Exception as e:
+            last_err = e
+            log(f"  {url} は不可 → 次のURLへ")
+    if data is None:
+        raise RuntimeError(f"dailyweek2.json をどのURLからも取得できません: {last_err}")
     start = data.find('[')
     end = data.rfind(']')
     raw = json.loads(data[start:end + 1].replace('""', 'null'))

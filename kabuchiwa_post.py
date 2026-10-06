@@ -678,35 +678,71 @@ def upload_media_v2(ck, cs, at, ats, path):
         r.raise_for_status()
     r = requests.post(f"{base}/{media_id}/finalize", auth=auth, timeout=60)
     r.raise_for_status()
+    # 画像でも processing_info が返ることがある。「アップロード成功≠添付可能」なので、処理完了(succeeded)まで待つ
+    info = (r.json().get("data") or {}).get("processing_info")
+    waited = 0
+    while info and info.get("state") not in (None, "succeeded"):
+        if info.get("state") == "failed":
+            raise RuntimeError(f"media processing failed: {info}")
+        wait = min(int(info.get("check_after_secs", 1) or 1), 10)
+        time.sleep(wait)
+        waited += wait
+        if waited > 60:
+            raise RuntimeError("media processing timeout")
+        st = requests.get(base, auth=auth, timeout=30, params={"command": "STATUS", "media_id": media_id})
+        st.raise_for_status()
+        info = (st.json().get("data") or {}).get("processing_info")
+    if waited:
+        log(f"  media {media_id} 処理完了まで {waited}s 待機")
     return media_id
 
 
 def post_to_x(cfg, text, png_path, reply_text):
+    """png_path は 1枚のパス、またはパスのリスト（最大4枚）。アップロードできた分だけ添付する"""
     import tweepy
     ck, cs = cfg["consumer_key"], cfg["consumer_secret"]
     at, ats = cfg["access_token"], cfg["access_token_secret"]
     client = tweepy.Client(consumer_key=ck, consumer_secret=cs,
                            access_token=at, access_token_secret=ats)
-    media_ids = None
-    if png_path and os.path.exists(png_path):
+    paths = png_path if isinstance(png_path, (list, tuple)) else ([png_path] if png_path else [])
+    paths = [p for p in paths if p and os.path.exists(p)][:4]
+    media_ids = []
+    for p in paths:
         media_id = None
         # v2 のメディアアップロード（2026年現行。initialize→append→finalize）→ 失敗時は旧 v1.1 を試す
         try:
-            media_id = upload_media_v2(ck, cs, at, ats, png_path)
+            media_id = upload_media_v2(ck, cs, at, ats, p)
         except Exception as e:
-            log(f"  v2 media upload 失敗: {e}")
+            log(f"  v2 media upload 失敗 ({os.path.basename(p)}): {e}")
             try:
                 api = tweepy.API(tweepy.OAuth1UserHandler(ck, cs, at, ats))
-                media_id = api.media_upload(filename=png_path).media_id
+                media_id = api.media_upload(filename=p).media_id
             except Exception as e2:
                 log(f"  v1.1 media_upload も失敗: {e2}")
         if media_id:
-            media_ids = [str(media_id)]
-        else:
-            log("  画像なしで投稿します")
+            media_ids.append(str(media_id))
+    if paths and not media_ids:
+        log("  画像なしで投稿します")
+    elif len(media_ids) < len(paths):
+        log(f"  画像 {len(media_ids)}/{len(paths)} 枚のみ添付")
+    media_ids = media_ids or None
     resp = client.create_tweet(text=text, media_ids=media_ids)
     tid = resp.data["id"]
     log(f"  投稿完了: https://x.com/kabuchiwa/status/{tid}")
+    # 画像が本当に付いたか確認（$0.005）。付いていなければ、同じ画像を返信で付け直す（自己修復）
+    if media_ids:
+        try:
+            time.sleep(3)
+            chk = client.get_tweet(tid, expansions=["attachments.media_keys"], media_fields=["type"],
+                                   tweet_fields=["attachments"], user_auth=True)
+            n_media = len(((chk.includes or {}).get("media")) or [])
+            log(f"  添付確認: 画像 {n_media}/{len(media_ids)} 枚")
+            if n_media < len(media_ids):
+                log("  ⚠ 画像が付いていないため、返信で画像を付け直します")
+                rep = client.create_tweet(text="（カード画像）", media_ids=media_ids, in_reply_to_tweet_id=tid)
+                log(f"  画像の返信完了: https://x.com/kabuchiwa/status/{rep.data['id']}")
+        except Exception as e:
+            log(f"  添付確認に失敗（投稿自体は完了）: {e}")
     if reply_text:
         try:
             client.create_tweet(text=reply_text, in_reply_to_tweet_id=tid)

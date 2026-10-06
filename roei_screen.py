@@ -568,6 +568,9 @@ def make_card(inc, summ, words, only_latest=True):
     from PIL import Image, ImageDraw, ImageFont
     os.makedirs(DRAFTS_DIR, exist_ok=True)
     rows = [r for r in inc if r.get("ok") and r.get("ret")]
+    # 本日公表でまだ1営業日後が無い事案も一覧に載せる（場中公表なら「当日」の騰落、引け後なら「本日公表」）
+    fresh = [r for r in inc if r.get("ok") and not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない"]
+    rows += fresh
     rows.sort(key=lambda r: (r["date"], r["code"]), reverse=True)
     W, H = 1200, 675
     BG = (0, 85, 234); PANEL = (10, 16, 32); BAR = (22, 34, 60); LINE = (90, 150, 240)   # 外枠は #0055EA（アローズの青）、パネルは黒
@@ -668,7 +671,7 @@ def make_card(inc, summ, words, only_latest=True):
     rh = min(30, avail // max(1, min(len(rows), maxrows)))
     for i, r in enumerate(rows[:maxrows]):
         hi = (r.get("day0") == mday)
-        col_name = AMB if hi else WH
+        col_name = AMB if hi else ((150, 200, 255) if not r.get("ret") else WH)   # 黄=本日が初日、薄青=本日公表
         d.text((32, yy), r["date"][5:].replace("-", "/"), font=f14, fill=col_name)
         d.text((76, yy + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
         d.text((100, yy), r["name"][:14], font=f14, fill=col_name)
@@ -686,6 +689,14 @@ def make_card(inc, summ, words, only_latest=True):
         if L:
             d.text((820, yy), f'{L["stock"]:+.1f}', font=f16, fill=c(L["stock"]))
             d.text((905, yy + 2), f'{L["days"]}', font=f14, fill=GR)
+        elif not r.get("ret"):
+            sd = r.get("same_day")
+            if sd and sd.get("stock") is not None:
+                d.text((820, yy), f'{sd["stock"]:+.1f}', font=f16, fill=c(sd["stock"]))
+                d.text((872, yy + 3), "当日", font=f12, fill=GR)
+            else:
+                d.text((820, yy + 2), "本日公表", font=f12, fill=GR)
+            d.text((905, yy + 2), "0", font=f14, fill=GR)
         d.text((960, yy + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
         yy += rh
         d.line([(28, yy - 5), (W - 28, yy - 5)], fill=(24, 36, 60))
@@ -740,6 +751,14 @@ def make_card(inc, summ, words, only_latest=True):
             if L:
                 d2.text((820, yy2), f'{L["stock"]:+.1f}', font=f16, fill=c(L["stock"]))
                 d2.text((905, yy2 + 2), f'{L["days"]}', font=f14, fill=GR)
+            elif not r.get("ret"):
+                sd = r.get("same_day")
+                if sd and sd.get("stock") is not None:
+                    d2.text((820, yy2), f'{sd["stock"]:+.1f}', font=f16, fill=c(sd["stock"]))
+                    d2.text((872, yy2 + 3), "当日", font=f12, fill=GR)
+                else:
+                    d2.text((820, yy2 + 2), "本日公表", font=f12, fill=GR)
+                d2.text((905, yy2 + 2), "0", font=f14, fill=GR)
             d2.text((960, yy2 + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
             yy2 += 30
             d2.line([(28, yy2 - 5), (W - 28, yy2 - 5)], fill=(24, 36, 60))
