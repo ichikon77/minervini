@@ -13,7 +13,7 @@
   snsデッキと同じ Yahooリアルタイム検索の推移APIで「不正アクセス」「情報漏洩」等の日次投稿数を取り、
   直近7日の合計と、その前の3週間の平均（7日換算）を比べる
 
-実行: 毎日16:30（roei_run.bat）。--nopush でpush省略。--card で速報カード画像（drafts/）を生成。
+実行: 月〜金 20:00（roei_run.bat。休場日は投稿をスキップ）。--nopush でpush省略。--card で速報カード画像（drafts/）を生成。
 事案の追加: roei_incidents.json に1行足して実行するだけ。
 """
 
@@ -70,6 +70,40 @@ def fetch_closes(codes, start):
     if isinstance(data, pd.Series):
         data = data.to_frame()
     data.index = pd.to_datetime(data.index).tz_localize(None).normalize()
+    return fill_missing_last_day(data)
+
+
+def fill_missing_last_day(data):
+    """日付が変わった直後などに、Yahooの日足で当日分が一部銘柄だけ NaN になることがある。
+       基準(1306)に当日があるのに欠けている銘柄は、1時間足の最終バー → fast_info.lastPrice の順で埋める"""
+    if BENCH not in data or data[BENCH].dropna().empty:
+        return data
+    last = data[BENCH].dropna().index[-1]
+    missing = [t for t in data.columns if t != BENCH and pd.isna(data.at[last, t]) if last in data.index]
+    if not missing:
+        return data
+    log(f"  {last.date()} の終値が欠けている銘柄 {len(missing)} 件 → 最新値/1時間足で補完")
+    # fast_info.lastPrice は大引け（引け値）そのもの。ただし翌営業日の寄り付き後は翌日の値になるので、当日〜翌朝9時前だけ使う
+    now = datetime.datetime.now()
+    use_last = (now.date() == last.date()) or (now.date() == (last + pd.Timedelta(days=1)).date() and now.hour < 9)
+    for t in missing:
+        try:
+            tk = yf.Ticker(t)
+            lp = tk.fast_info.get("lastPrice") if use_last else None
+            if lp:
+                data.at[last, t] = float(lp)
+                continue
+            h = tk.history(period="5d", interval="1h", auto_adjust=True)   # 最終バーは引け板を含まないことがある（近似）
+            if len(h):
+                h.index = pd.to_datetime(h.index).tz_localize(None)
+                day = h[h.index.normalize() == last]
+                if len(day):
+                    data.at[last, t] = float(day["Close"].iloc[-1])
+        except Exception as e:
+            log(f"    補完失敗 {t}: {e}")
+    still = [t for t in missing if pd.isna(data.at[last, t])]
+    if still:
+        log(f"  補完できず: {still}")
     return data
 
 
@@ -368,7 +402,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   {chiwawa}
   {nav}
   <h1>情報漏洩銘柄検証 — 不正アクセス・情報漏洩を公表した企業の株価は、その後どう動いたか</h1>
-  <p class="subtitle">最終更新: {updated}（毎日16:30） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
+  <p class="subtitle">最終更新: {updated}（月〜金 20:00） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
   <div class="evidence">
     <b>見方:</b>
     <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。
@@ -560,10 +594,11 @@ def make_card(inc, summ, words, only_latest=True):
         return GN if v is None or v >= 0 else RD
 
     # ---- ヘッダー
-    d.text((20, 10), "情報漏洩銘柄ウォッチ", font=f28, fill=(255, 255, 255))
-    d.text((318, 20), "Data Breach Stock Watch", font=f14, fill=(190, 210, 240))
-    d.text((W - 330, 14), f"{mday} 大引け時点  公表前終値比 %", font=f14, fill=(220, 230, 245))
-    d.text((W - 330, 32), "下段の小数字＝TOPIX(1306)比の超過", font=f12, fill=(190, 210, 240))
+    TITLE = "「情報漏洩銘柄」株価ウォッチ"
+    d.text((20, 10), TITLE, font=f28, fill=(255, 255, 255))
+    d.text((20 + d.textlength(TITLE, font=f28) + 14, 20), "Data Breach Stock Watch", font=f14, fill=(190, 210, 240))
+    d.text((W - 360, 14), f"{mday} 大引け時点  数字＝公表前終値比の騰落率 %", font=f14, fill=(220, 230, 245))
+    d.text((W - 360, 32), "下段の小数字＝TOPIX(1306)比の超過", font=f12, fill=(190, 210, 240))
 
     # ---- 上段3パネル
     top_y, top_h = 56, 170
@@ -672,9 +707,9 @@ def make_card(inc, summ, words, only_latest=True):
     if rest:
         im2 = Image.new("RGB", (W, H), BG)
         d2 = ImageDraw.Draw(im2)
-        d2.text((20, 10), "情報漏洩銘柄ウォッチ", font=f28, fill=(255, 255, 255))
-        d2.text((318, 20), "Incidents (continued)", font=f14, fill=(190, 210, 240))
-        d2.text((W - 330, 14), f"{mday} 大引け時点  公表前終値比 %", font=f14, fill=(220, 230, 245))
+        d2.text((20, 10), TITLE, font=f28, fill=(255, 255, 255))
+        d2.text((20 + d2.textlength(TITLE, font=f28) + 14, 20), "Incidents (continued)", font=f14, fill=(190, 210, 240))
+        d2.text((W - 360, 14), f"{mday} 大引け時点  数字＝公表前終値比の騰落率 %", font=f14, fill=(220, 230, 245))
         d2.rectangle([20, 56, W - 20, H - 12], fill=PANEL, outline=LINE)
         d2.rectangle([20, 56, W - 20, 82], fill=BAR)
         d2.text((30, 60), "事案一覧（続き）", font=f16, fill=WH)
