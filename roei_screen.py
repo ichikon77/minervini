@@ -170,9 +170,12 @@ def news_first_time(r):
 def save_incidents(inc):
     """roei_incidents.json を1事案1行の形式で書き戻す（time_auto の記録用）"""
     d = json.load(open(INCIDENTS_JSON, encoding="utf-8"))
-    keep = ("date", "time", "time_auto", "time_auto_checked", "time_auto_note", "kw", "code", "name", "service", "type", "scale", "note", "url")
+    keep = ("date", "time", "time_auto", "time_auto_checked", "time_auto_note", "kw", "code", "name", "service", "type", "scale", "note", "url", "auto")
     rows = [json.dumps({k: r[k] for k in keep if k in r}, ensure_ascii=False) for r in sorted(inc, key=lambda r: (r["date"], r["code"]))]
-    txt = '{\n  "_説明": ' + json.dumps(d["_説明"], ensure_ascii=False) + ',\n  "incidents": [\n    ' + ',\n    '.join(rows) + '\n  ]\n}\n'
+    txt = ('{\n  "_説明": ' + json.dumps(d["_説明"], ensure_ascii=False)
+           + ',\n  "_aliases": ' + json.dumps(d.get("_aliases", {}), ensure_ascii=False)
+           + ',\n  "_ignore": ' + json.dumps(d.get("_ignore", []), ensure_ascii=False)
+           + ',\n  "incidents": [\n    ' + ',\n    '.join(rows) + '\n  ]\n}\n')
     with open(INCIDENTS_JSON, "w", encoding="utf-8") as f:
         f.write(txt)
 
@@ -216,7 +219,7 @@ def compute(inc, closes):
         r["ok"] = len(s) > 5
         r["ret"] = {}
         r["same_day"] = None
-        kind, unknown, basis = timing(r.get("time"), r.get("time_auto"))
+        kind, unknown, basis = timing(r.get("time"), None if r.get("auto") else r.get("time_auto"))   # 自動検出分は内容未確認なので昇格させない
         r["timing"], r["time_unknown"], r["time_basis"] = kind, unknown, basis
         if not r["ok"]:
             r["err"] = "株価取得不可"
@@ -506,6 +509,8 @@ def generate_html(inc, summ, words):
             tcell = tlabel + (f'<br><span class="ex">{sub}</span>' if sub else "")
         name = f'{r["name"]}（{r["code"]}）'
         scale = f'{r.get("service", "")}<br><span class="ex">{r.get("scale", "")}</span>'
+        if r.get("auto"):
+            scale = '<span class="tag t4" title="報道見出しから自動検出。内容は未確認">自動検出</span> ' + scale
         if r.get("note"):
             scale += f'<br><span class="ex">{r["note"]}</span>'
         cells = []
@@ -777,6 +782,18 @@ def push_to_github():
 def main():
     log("情報漏洩銘柄検証 開始")
     inc = load_incidents()
+    try:
+        import roei_scan
+        roei_scan.set_logger(log)
+        meta = json.load(open(INCIDENTS_JSON, encoding="utf-8"))
+        added, _ = roei_scan.scan(inc, meta.get("_aliases", {}), meta.get("_ignore", []))
+        if added:
+            inc.extend(added)
+            inc.sort(key=lambda r: (r["date"], r["code"]))
+            save_incidents(inc)
+            log(f"  新規事案を自動追加: {len(added)} 件（roei_incidents.json に書き込み済み。auto=true）")
+    except Exception as e:
+        log(f"  新規事案スキャン失敗（既存リストで続行）: {e}")
     fill_auto_times(inc)
     start = (datetime.date.fromisoformat(min(r["date"] for r in inc)) - datetime.timedelta(days=20)).isoformat() if inc else "2026-08-01"
     closes = None
@@ -809,7 +826,7 @@ def main():
         json.dump({
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "market_day": market_day,
-            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
+            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "auto", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
                           for r in inc],
             "summary": {g: {str(n): v for n, v in d.items()} for g, d in summ.items()},
             "words": [{k: w.get(k) for k in ("label", "last7", "prev7", "ratio", "peak_day", "peak")} for w in words],
