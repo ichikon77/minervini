@@ -80,7 +80,8 @@ def compose(d, today):
                and not (r.get("same_day") and r["same_day"].get("date") == mday)]
     adds = pending
     if adds:
-        names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}{'・報道より自動検出' if r.get('auto') else ''}）" for r in adds)
+        # 「報道より自動検出」は読者に不要な内部事情なので投稿文には出さない（2026-10-07 ユーザー判断。表・カードの「自動検出」タグは据え置き）
+        names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}）" for r in adds)
         lines.append(f"本日引け後の公表など、まだ終値がついていない新規銘柄は {names} です。")
     body = "\n".join([head] + lines + [CLOSING])
     return body, bool(first or same or adds or worst)
