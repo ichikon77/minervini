@@ -134,6 +134,30 @@ GNEWS_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
 NEWS_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "紛失", "サイバー")
 
 
+def _fetch_text_deadline(url, deadline_sec):
+    """urlopen をデーモンスレッドで実行し、deadline_sec 秒で見切る（2026-10-08 20:00 の定時実行が
+       Googleニュース問い合わせで無期限ハングし投稿が止まった事故の対策。socket timeout は DNS や
+       細切れ受信では効かないため、壁時計で打ち切る）"""
+    import threading
+    box = {}
+
+    def _run():
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            box["data"] = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "ignore")
+        except Exception as e:
+            box["err"] = e
+
+    th = threading.Thread(target=_run, daemon=True)
+    th.start()
+    th.join(deadline_sec)
+    if th.is_alive():
+        raise TimeoutError(f"{deadline_sec}秒以内に応答なし")
+    if "err" in box:
+        raise box["err"]
+    return box["data"]
+
+
 def news_first_time(r):
     """Googleニュース検索RSSで、公表日当日の最も早い報道時刻(JST "HH:MM")を返す。見つからなければ None。
        Googleの検索結果は雑音が多いので、見出しに 検索語(kw) と 事故語(NEWS_WORDS) の両方を含む記事だけ使う。
@@ -144,8 +168,7 @@ def news_first_time(r):
     d0 = datetime.date.fromisoformat(r["date"])
     q = f'"{kw}" (不正アクセス OR 漏えい OR 漏洩 OR 流出 OR 紛失) after:{(d0 - datetime.timedelta(days=1)).isoformat()} before:{(d0 + datetime.timedelta(days=2)).isoformat()}'
     url = GNEWS_RSS.format(q=urllib.parse.quote(q))
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+    xml = _fetch_text_deadline(url, 25)
     hits = []
     for m in re.finditer(r"<item><title>(.*?)</title>.*?<pubDate>([^<]+)</pubDate>", xml, re.S):
         title = _html.unescape(m.group(1))
@@ -184,12 +207,17 @@ def fill_auto_times(inc):
     """time が ? の事案について、報道初出時刻を自動で調べて time_auto に記録（公表から10日間は毎回再確認、以後は記録を使う）"""
     today = datetime.date.today()
     changed = False
+    t_start = time.time()
+    BUDGET_SEC = 120   # 全体の時間予算。超えたら残りは次回に回す（株価計算・投稿を優先）
     for r in inc:
         if (r.get("time") or "?").strip() != "?":
             continue
         d0 = datetime.date.fromisoformat(r["date"])
         if r.get("time_auto_checked") and (today - d0).days > 10:
             continue
+        if time.time() - t_start > BUDGET_SEC:
+            log(f"  報道初出の調査は時間予算({BUDGET_SEC}秒)超過 → {r['name']} 以降は次回に回す")
+            break
         try:
             t = news_first_time(r)
         except Exception as e:
