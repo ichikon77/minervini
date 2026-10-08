@@ -39,6 +39,9 @@ QUERIES = [
     "個人情報 流出 可能性",
     "サイバー攻撃 個人情報 漏えい",
     "ランサムウェア 個人情報",
+    # 2026-10-08追加: IDCフロンティア(ソフトバンク子会社)のクラウド攻撃は見出しに「個人情報/漏えい」が無く取りこぼした
+    "不正アクセス 障害",
+    "ランサムウェア攻撃",
 ]
 INCIDENT_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "ランサム", "サイバー攻撃", "紛失")
 # 社名の短縮で削る語
@@ -119,6 +122,28 @@ def load_jpx_names():
         return cache["names"] if cache else {}
 
 
+def _fetch_text_deadline(url, deadline_sec):
+    """urlopen をデーモンスレッドで実行し、deadline_sec 秒で見切る（roei_screen.py と同じ。2026-10-08 のハング対策）"""
+    import threading
+    box = {}
+
+    def _run():
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            box["data"] = urllib.request.urlopen(req, timeout=15).read().decode("utf-8", "ignore")
+        except Exception as e:
+            box["err"] = e
+
+    th = threading.Thread(target=_run, daemon=True)
+    th.start()
+    th.join(deadline_sec)
+    if th.is_alive():
+        raise TimeoutError(f"{deadline_sec}秒以内に応答なし")
+    if "err" in box:
+        raise box["err"]
+    return box["data"]
+
+
 def fetch_news(days=2):
     """直近days日の見出し一覧 [{title, src, dt(JST), link}]（重複見出しは除く）"""
     since = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))) - datetime.timedelta(days=days)
@@ -127,8 +152,7 @@ def fetch_news(days=2):
     for q in QUERIES:
         url = GNEWS_RSS.format(q=urllib.parse.quote(f"{q} when:{days}d"))
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "ignore")
+            xml = _fetch_text_deadline(url, 25)
         except Exception as e:
             _log(f"  ニュース取得失敗 [{q}]: {e}")
             continue

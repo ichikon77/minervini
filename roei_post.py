@@ -30,6 +30,7 @@ import kabuchiwa_post as kp   # 認証・投稿・禁止語・休場判定を共
 
 DATA_JSON = os.path.join(SCRIPT_DIR, "roei_post.json")
 DRAFTS_DIR = os.path.join(SCRIPT_DIR, "drafts")
+POSTED_JSON = os.path.join(SCRIPT_DIR, "roei_posted.json")   # {日付: 投稿時刻} 二重投稿ガード用（gitignore対象）
 CLOSING = "不正アクセス、サイバー攻撃、個人情報流出には十分にお気をつけください。"   # ハッシュタグは使わない（Xは不要と公言・多用は減点）。検索語は本文に自然に含める
 DECK_URL = "https://ichikon77.github.io/minervini/roei.html"
 
@@ -134,8 +135,21 @@ def main():
     if not worth:
         log("今日は報告する動きがないため投稿しません")
         return
+    # 二重投稿ガード（2026-10-08: 定時実行がハング→手動で止めて再実行、の場面で2回出るのを防ぐ）。--force --repost で無視
+    posted = {}
+    if os.path.exists(POSTED_JSON):
+        try:
+            posted = json.load(open(POSTED_JSON, encoding="utf-8"))
+        except Exception:
+            posted = {}
+    if posted.get(today.isoformat()) and not ("--repost" in args and force):
+        log(f"本日は既に投稿済み（{posted[today.isoformat()]}）→ 二重投稿を防ぐためスキップ。やり直すなら --force --repost")
+        return
     try:
         kp.post_to_x(cfg, text, pngs, None)
+        posted[today.isoformat()] = datetime.datetime.now().isoformat(timespec="seconds")
+        posted = {k: v for k, v in sorted(posted.items())[-60:]}   # 直近60日分だけ保持
+        json.dump(posted, open(POSTED_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     except Exception as e:
         log(f"投稿失敗: {e}")
     log("完了")

@@ -746,22 +746,26 @@ def make_card(inc, summ, words, only_latest=True):
     im.save(out)
     log(f"速報カード: {out}")
     outs = [out]
-    # 1枚目に収まらなかった事案は2枚目（一覧のみ）に
+    # 1枚目に収まらなかった事案は2枚目以降（一覧のみ）に。収まるまで _2, _3, ... と枚数無制限
+    # （2026-10-08まで2枚目18行が上限で、超過分は黙って切り捨てられていた）
     rest = rows[maxrows:]
-    if rest:
+    PER_PAGE = (H - 12 - 108) // 30   # 続きページ1枚あたりの行数（18）
+    n_pages = (len(rest) + PER_PAGE - 1) // PER_PAGE if rest else 0
+    for pg in range(n_pages):
+        chunk = rest[pg * PER_PAGE:(pg + 1) * PER_PAGE]
         im2 = Image.new("RGB", (W, H), BG)
         d2 = ImageDraw.Draw(im2)
         d2.text((20, 10), TITLE, font=f28, fill=(255, 255, 255))
-        d2.text((20 + d2.textlength(TITLE, font=f28) + 14, 20), "Incidents (continued)", font=f14, fill=(190, 210, 240))
+        d2.text((20 + d2.textlength(TITLE, font=f28) + 14, 20), f"Incidents (continued {pg + 2}/{n_pages + 1})", font=f14, fill=(190, 210, 240))
         d2.text((W - 360, 14), f"{mday} 大引け時点  数字＝公表前終値比の騰落率 %", font=f14, fill=(220, 230, 245))
         d2.rectangle([20, 56, W - 20, H - 12], fill=PANEL, outline=LINE)
         d2.rectangle([20, 56, W - 20, 82], fill=BAR)
-        d2.text((30, 60), "事案一覧（続き）", font=f16, fill=WH)
+        d2.text((30, 60), f"事案一覧（続き {pg + 2}/{n_pages + 1}）", font=f16, fill=WH)
         yy2 = 90
         for lab, x in cols:
             d2.text((x, yy2), lab, font=f12, fill=GR)
         yy2 += 18
-        for r in rest[: (H - 12 - yy2) // 30]:
+        for r in chunk:
             d2.text((32, yy2), r["date"][5:].replace("-", "/"), font=f14, fill=WH)
             d2.text((76, yy2 + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
             d2.text((100, yy2), r["name"][:14], font=f14, fill=WH)
@@ -790,9 +794,9 @@ def make_card(inc, summ, words, only_latest=True):
             d2.text((960, yy2 + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
             yy2 += 30
             d2.line([(28, yy2 - 5), (W - 28, yy2 - 5)], fill=(24, 36, 60))
-        out2 = os.path.join(DRAFTS_DIR, f"roei_card_{today:%Y%m%d}_2.png")
+        out2 = os.path.join(DRAFTS_DIR, f"roei_card_{today:%Y%m%d}_{pg + 2}.png")
         im2.save(out2)
-        log(f"速報カード（2枚目）: {out2}")
+        log(f"速報カード（{pg + 2}枚目）: {out2}")
         outs.append(out2)
     return outs
 
