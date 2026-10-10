@@ -80,11 +80,38 @@ def compose(d, today):
     pending = [r for r in d["incidents"] if r.get("ok") and not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない"
                and not (r.get("same_day") and r["same_day"].get("date") == mday)]
     adds = pending
-    if adds:
+    # 5) 冒頭1行: その日いちばん話題（直近24hの見出し数 buzz が最大、同点なら前日比の絶対値が大きい方）の事案を見出しにする
+    #    （2026-10-10 ユーザー判断: 10/7の1042impは「話題の楽天」に数字がついたから。話題度を主、数字を従に。
+    #     話題の事案にまだ終値がなければ「新規漏洩銘柄に A、B が追加。」の形。全事案 buzz=0 の静かな日は冒頭なし）
+    lead = None
+    hot = [r for r in d["incidents"] if r.get("ok") and (r.get("buzz") or 0) > 0]
+    if hot:
+        def _chg(r):
+            if r.get("last") and r["last"].get("chg1d") is not None and r["last"]["date"] == mday:
+                return abs(r["last"]["chg1d"])
+            if r.get("same_day") and r["same_day"].get("date") == mday and r["same_day"].get("stock") is not None:
+                return abs(r["same_day"]["stock"])
+            return 0
+        top = max(hot, key=lambda r: (r["buzz"], _chg(r)))
+        if top in adds:
+            hot_adds = sorted(adds, key=lambda r: -(r.get("buzz") or 0))   # 話題度の高い順（先頭が見出し）
+            names = "、".join(f"{r['name']}（{r['code']}）" for r in hot_adds[:3]) + (f" ほか{len(adds) - 3}社" if len(adds) > 3 else "")
+            lead = f"新規漏洩銘柄に {names} が追加。"
+        elif top in same:
+            sd = top["same_day"]
+            lead = f"{top['name']}（{top['code']}）、公表当日の引けまでに前日比 {pct(sd['stock'])}（TOPIX比 {pct(sd['excess'])}）。"
+        elif top.get("day0") == mday and top.get("ret", {}).get("1"):
+            c = top["ret"]["1"]
+            ex = f"（TOPIX比 {pct(c['excess'])}）" if c.get("excess") is not None else ""
+            lead = f"{top['name']}（{top['code']}）、公表後初日は {pct(c['stock'])}{ex}。"
+        elif top.get("last") and top["last"].get("chg1d") is not None and top["last"]["date"] == mday:
+            L = top["last"]
+            lead = f"{top['name']}（{top['code']}）、公表{L['days']}日目で前日比 {pct(L['chg1d'])}（公表前比 {pct(L['stock'])}）。"
+    if adds and not (lead and lead.startswith("新規漏洩銘柄に")):
         # 「報道より自動検出」は読者に不要な内部事情なので投稿文には出さない（2026-10-07 ユーザー判断。表・カードの「自動検出」タグは据え置き）
         names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}）" for r in adds)
         lines.append(f"本日引け後の公表など、まだ終値がついていない新規銘柄は {names} です。")
-    body = "\n".join([head] + lines + [CLOSING])
+    body = "\n".join(([lead] if lead else []) + [head] + lines + [CLOSING])
     return body, bool(first or same or adds or worst)
 
 

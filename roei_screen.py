@@ -131,7 +131,7 @@ def timing(flag, auto=None):
 GNEWS_RSS = "https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
 
 
-NEWS_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "紛失", "サイバー")
+NEWS_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "紛失", "サイバー", "ランサム")
 
 
 def _fetch_text_deadline(url, deadline_sec):
@@ -201,6 +201,38 @@ def save_incidents(inc):
            + ',\n  "incidents": [\n    ' + ',\n    '.join(rows) + '\n  ]\n}\n')
     with open(INCIDENTS_JSON, "w", encoding="utf-8") as f:
         f.write(txt)
+
+
+def fill_buzz(inc, days_back=10, budget_sec=60):
+    """話題度: 直近24時間にその社名(kw/name)と事故語を含むGoogleニュース見出しが何本あるか → r["buzz"]。
+       夜の投稿の冒頭1行（その日いちばん話題の事案）を選ぶ材料（2026-10-10 ユーザー指摘:
+       10/7の1042impは「大きい数字」より「その日話題の楽天」が効いた可能性→話題度を主、騰落率を従にする）。
+       公表から days_back 日以内の事案だけ調べる（古い事案は話題になりにくく、問い合わせ数を抑える）"""
+    import html as _html
+    today = datetime.date.today()
+    t0 = time.time()
+    for r in inc:
+        r["buzz"] = 0
+    targets = [r for r in inc if r.get("ok") and (today - datetime.date.fromisoformat(r["date"])).days <= days_back]
+    for r in targets:
+        if time.time() - t0 > budget_sec:
+            log(f"  話題度の調査は時間予算({budget_sec}秒)超過 → {r['name']} 以降は0扱い")
+            break
+        kw = r.get("kw") or r["name"]
+        q = f'"{kw}" (不正アクセス OR 漏えい OR 漏洩 OR 流出 OR ランサム OR サイバー攻撃) when:1d'
+        try:
+            xml = _fetch_text_deadline(GNEWS_RSS.format(q=urllib.parse.quote(q)), 25)
+        except Exception as e:
+            log(f"  話題度の取得失敗 {r['name']}: {e}")
+            continue
+        n = 0
+        for m in re.finditer(r"<item><title>(.*?)</title>", xml, re.S):
+            title = _html.unescape(m.group(1))
+            if (kw in title or r["name"] in title) and any(w in title for w in NEWS_WORDS):
+                n += 1
+        r["buzz"] = n
+    hot = sorted([r for r in targets if r.get("buzz")], key=lambda r: -r["buzz"])[:3]
+    log("  話題度(24h見出し数): " + ("、".join(f"{r['name']} {r['buzz']}" for r in hot) if hot else "該当なし"))
 
 
 def fill_auto_times(inc):
@@ -862,6 +894,10 @@ def main():
         sys.exit(1)
     compute(inc, closes)
     summ = summarize(inc)
+    try:
+        fill_buzz(inc)
+    except Exception as e:
+        log(f"  話題度の調査失敗（0扱いで続行）: {e}")
     for r in inc:
         if r.get("ok") and r.get("ret"):
             r1 = r["ret"].get(1)
@@ -877,7 +913,7 @@ def main():
         json.dump({
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "market_day": market_day,
-            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "auto", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err")}
+            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "auto", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err", "buzz")}
                           for r in inc],
             "summary": {g: {str(n): v for n, v in d.items()} for g, d in summ.items()},
             "words": [{k: w.get(k) for k in ("label", "last7", "prev7", "ratio", "peak_day", "peak")} for w in words],
