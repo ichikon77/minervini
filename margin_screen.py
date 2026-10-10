@@ -134,6 +134,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .summary {{ font-size: 0.9rem; color: #e2e8f0; margin: 0 0 8px; line-height: 1.7; }}
   .summary b {{ color: #f8fafc; }}
   .thin-note {{ color: #94a3b8; }}
+  tr.split td {{ background: rgba(245,158,11,0.14); color: #fcd34d; font-size: 0.8rem; border-top: 2px solid #f59e0b; border-bottom: 2px solid #f59e0b; }}
   .pos {{ color: #4ade80; }}
   .neg {{ color: #f87171; }}
   .note {{ font-size: 0.78rem; color: #64748b; margin-top: 14px; line-height: 1.8; max-width: 900px; }}
@@ -196,6 +197,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点・週次データ）。<br>
     ・<b>買残10期比</b>: 制度買残が10期前（10行前。週次期間は10週、日次期間は10営業日≒2週）から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
     ・<b>膨張率</b>: 直近の倍率 ÷ 直近10期の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
+    ・<b>株式分割</b>: 隣り合う日で制度買残（±4%）と一般買残（±6%）が同じ整数倍（2〜5・10倍）に跳んだら権利落ち日と判定し、黄色の区切り行を入れる（日次データ=2026-09-25以降のみ。週次期間は1系列しか無く実需の振れと区別できないため判定しない）。残高は分割前の株数のまま残す（倍率は株数に依らないので連続して読める）。買残10期比だけは分割後株数に揃えて計算。英字コード銘柄（285A等）は2026-09-25以降の日次からの蓄積（旧週次パーサが読めなかったため）。<br>
     ・買残10期比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
   </p>
   <p class="updated">最終更新: {updated}</p>
@@ -335,6 +337,39 @@ async function search() {{
       const thin = (sell < THIN_SELL_ABS) || (sell * THIN_SELL_RATIO < buy);
       rows.push({{w: w, sell: sell, buy: buy, ratio: ratio, thin: thin, gsell: gsell, gbuy: gbuy}});
     }}
+    // 株式分割の検出（2026-10-11、285A キオクシア 1→3 で発覚）: 隣り合う行で制度買残が整数倍（2〜5・10倍、誤差±4%）に跳び、
+    // 一般買残（あれば）も同じ倍率なら分割（権利落ち日）と判定。数字は補正せず「分割前の株数」のまま残し、区切り行で明示する。
+    // 買残10期比だけは分割をまたぐと意味を失うので、分割後株数に揃えた adj を掛けて計算する（表示は生の数字）。
+    const SPLIT_KS = [2, 3, 4, 5, 10];
+    for (let i = rows.length - 1; i >= 0; i--) {{
+      const r = rows[i];
+      if (r.none) continue;
+      let prev = null;
+      for (let j = i + 1; j < rows.length; j++) {{ if (!rows[j].none) {{ prev = rows[j]; break; }} }}
+      r.split = null;
+      // 日次データ（2026-09-25〜、一般買残あり）のみ判定: 制度買残 ±4% かつ 一般買残 ±6% が同じ整数倍、最低1,000株。
+      // 独立した2系列が同倍率で跳ぶのは分割以外にほぼ無い（9/29の群=東京エレクトロン5分割・三井金属10分割・三越伊勢丹2分割等が実際と一致）。
+      // 週次期間（〜9/18）は1系列・週1点なので実需の振れと区別がつかず（りそな・ゆうちょ・テルモ等の誤検出）、判定しない。
+      // なお実際の分割では売残は k の5〜8割しか増えない（権利付最終日前に売り方が建玉を閉じる）ので、売残は判定に使わない。
+      if (prev && prev.buy >= 1000 && r.buy > 0 && prev.gbuy && r.gbuy) {{
+        for (const k of SPLIT_KS) {{
+          const okBuy = Math.abs((r.buy / prev.buy) / k - 1) <= 0.04;
+          const okG = Math.abs((r.gbuy / prev.gbuy) / k - 1) <= 0.06;
+          if (okBuy && okG) {{
+            r.split = {{k: k, prevRatio: prev.ratio, buyChg: (r.buy / (prev.buy * k) - 1) * 100, sellChg: prev.sell > 0 ? (r.sell / (prev.sell * k) - 1) * 100 : null}};
+            break;
+          }}
+        }}
+      }}
+    }}
+    // adj: その行より新しい分割の倍率の積（分割前の行は ×k で分割後株数に揃う）
+    let adj = 1;
+    for (let i = 0; i < rows.length; i++) {{
+      const r = rows[i];
+      if (r.none) continue;
+      r.adj = adj;
+      if (r.split) adj *= r.split.k;
+    }}
     // 前週比・10週指標は古い順で計算してから新しい順で表示（rows は新しい順）
     for (let i = rows.length - 1; i >= 0; i--) {{
       const r = rows[i];
@@ -349,7 +384,7 @@ async function search() {{
       // 買残の10週変化率: 10週前（rows[i+10]）との比較
       r.buy10 = null;
       const base = rows[i + TREND_WEEKS];
-      if (base && !base.none && base.buy > 0) r.buy10 = (r.buy / base.buy - 1) * 100;
+      if (base && !base.none && base.buy > 0) r.buy10 = ((r.buy * r.adj) / (base.buy * base.adj) - 1) * 100;   // 分割をまたぐ場合は株数を揃える
       // 膨張率: 直近倍率 ÷ 直近10週（当週含む）の倍率中央値
       r.med10 = null; r.exp10 = null;
       const win = [];
@@ -391,6 +426,16 @@ async function search() {{
       }}
       const buy10Str = (r.buy10 !== null) ? ((r.buy10 > 0 ? '+' : '') + r.buy10.toFixed(0) + '%') : '-';
       const expStr = (r.exp10 !== null) ? r.exp10.toFixed(2) + '倍' : '-';
+      if (r.split) {{
+        const sp = r.split;
+        let note = r.w.replace(/-/g, '/') + ' 権利落ち: <b>1→' + sp.k + ' 株式分割</b>（この行より下は分割前の株数、倍率は株数に依らないのでそのまま比較可）。倍率 '
+          + (sp.prevRatio !== null ? sp.prevRatio.toFixed(2) + 'x' : '-') + ' → ' + (r.ratio !== null ? r.ratio.toFixed(2) + 'x' : '-');
+        note += '／分割後株数で揃えた前期比: 買残 ' + (sp.buyChg > 0 ? '+' : '') + sp.buyChg.toFixed(1) + '%';
+        if (sp.sellChg !== null) note += '・売残 ' + (sp.sellChg > 0 ? '+' : '') + sp.sellChg.toFixed(1) + '%';
+        if (sp.sellChg !== null && r.ratio !== null && sp.prevRatio !== null && r.ratio > sp.prevRatio && sp.sellChg < -5 && Math.abs(sp.buyChg) < 5) note += '（倍率上昇の主因は売り方の減少＝踏み上げ燃料の減少）';
+        else if (r.ratio !== null && sp.prevRatio !== null && r.ratio > sp.prevRatio && sp.buyChg > 5) note += '（倍率上昇の主因は買い残の増加）';
+        html += '<tr class="split"><td colspan="9">' + note + '</td></tr>';
+      }}
       html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>' + fmt(r.buy) + '</td><td class="calc">' + buy10Str + '</td><td>'
             + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td><td class="calc">' + (r.gsell !== null ? fmt(r.gsell) : '-') + '</td><td class="calc">' + (r.gbuy !== null ? fmt(r.gbuy) : '-') + '</td></tr>';
     }}
