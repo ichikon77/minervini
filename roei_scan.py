@@ -108,13 +108,19 @@ def load_jpx_names():
         mcol = next(c for c in df.columns if "市場" in c)
         ccol = next(c for c in df.columns if "コード" in c)
         ncol = next(c for c in df.columns if "銘柄名" in c)
+        # all_names: ETF/ETN/REIT も含む全銘柄（jpx_margin.py が信用残PDFの崩れた銘柄名を直す正本に使う。2026-10-11）
+        all_names = {}
+        for code, name in zip(df[ccol].astype(str), df[ncol].astype(str)):
+            code = code.strip()
+            if re.fullmatch(r"\d{4}|\d{3}[A-Z]|\d{2}[A-Z]\d|\d[A-Z]\d{2}", code):
+                all_names[code] = norm(name)
         df = df[df[mcol].astype(str).str.contains("プライム|スタンダード|グロース", na=False, regex=True)]
         names = {}
         for code, name in zip(df[ccol].astype(str), df[ncol].astype(str)):
             code = code.strip()
             if re.fullmatch(r"\d{4}|\d{3}[A-Z]|\d{2}[A-Z]\d|\d[A-Z]\d{2}", code):
                 names[code] = norm(name)
-        json.dump({"_updated": today, "names": names}, open(JPX_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+        json.dump({"_updated": today, "names": names, "all_names": all_names}, open(JPX_CACHE, "w", encoding="utf-8"), ensure_ascii=False)
         _log(f"  JPX上場銘柄名 {len(names)} 件を更新")
         return names
     except Exception as e:

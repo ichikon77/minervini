@@ -419,7 +419,8 @@ def ship_name(name, maxlen=9):
 def compose_kazami(d):
     m = d["main"]
     st, en = datetime.date.fromisoformat(m["start"]), datetime.date.fromisoformat(m["end"])
-    lines = [f"かぶチワワ殿、航海士だ。この3か月（{mmdd(st)}〜{mmdd(en)}）の 風見表を 届けに来た。",
+    # 冒頭は同じ境遇の読者に気づいてもらうためのフック（2026-10-11 ユーザー指定）
+    lines = [f"日経平均 上がっても、自分の保有銘柄が 上がらず 困っている かぶチワワ殿、航海士だ。この3か月（{mmdd(st)}〜{mmdd(en)}）の 風見表を 届けに来た。",
              f"日経平均は 上昇{m['n_up']}日・下落{m['n_dn']}日で {m['nk_ret']:+.1f}%。チェックした{d['universe']}隻の船のうち、中央値となる船は、日経が上がった{m['n_up']}日のうち {round(d['median']['hit'] / 100 * m['n_up'])}日 いっしょに上がり、株価は 3か月で {d['median']['ret']:+.1f}% だった。",
              "【順風の船】日経が上がった日に いっしょに上がった日数（率）｜株価の3か月騰落"]
     for r in d["fair"][:10]:

@@ -21,6 +21,7 @@ JPX 銘柄別信用取引残高 の共通パーサ（margin / haitou / jpminervi
 
 import os
 import re
+import unicodedata
 import json
 import tempfile
 
@@ -37,6 +38,65 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 }
+
+# -----------------------------------------
+# 銘柄名の正本（2026-10-11 追加）
+# 新フォーマットPDFの長い社名・英字社名は、市場区分（プライム/スタンダード/グロース）や「貸借」の列と文字が交錯して
+# 'ユナイテッド・スーパーマーケット・スホターンルダデーィドングス' のように壊れる（37銘柄で確認）。
+# roei_scan.py が JPX 公式の銘柄一覧（data_j.xlsx、週1更新）を roei_jpx_names.json に置いているので、それを正本にする。
+# -----------------------------------------
+JPX_NAMES_JSON = os.path.join(SCRIPT_DIR, "roei_jpx_names.json")
+_GARBLED_RE = re.compile(r"[0-9A-Za-z…]|普通|受益|投信|プライム|スタンダード|グロース|貸|制")
+
+
+def official_names():
+    """{code: 正式名} JPX公式一覧（株式のみ、ETF/REITは含まない）。無ければ {}"""
+    try:
+        d = json.load(open(JPX_NAMES_JSON, encoding="utf-8"))
+        return d.get("all_names") or d.get("names") or {}   # all_names（ETF/REIT含む）は roei_scan が週1で更新
+    except Exception:
+        return {}
+
+
+def is_garbled(name):
+    """列交錯の疑いがある名前か（半角英数・「…」・市場区分や列見出しの文字が混ざる）。PDF由来の名前は全角なので半角英数は交錯の印"""
+    return bool(name) and bool(_GARBLED_RE.search(name))
+
+
+def _same_name(a, b):
+    """全角/半角・空白・中黒の違いだけなら同じ名前とみなす（表記揺れは直さない。崩れだけ直す）"""
+    def n(s):
+        return unicodedata.normalize("NFKC", s or "").replace(" ", "").replace("・", "").replace("･", "")
+    return n(a) == n(b)
+
+
+def best_name(code, parsed, existing=None, official=None):
+    """保存する銘柄名を決める。既存名があれば表記はそのまま残す（全角/半角の揺れで全デッキの表示を変えない）。
+    既存名が壊れている（or 無い）ときだけ、公式一覧 > 壊れていないパース名 > パース名 の順で採用"""
+    off = (official or {}).get(code)
+    if existing and not is_garbled(existing):
+        return existing
+    if off:
+        return off
+    if existing and is_garbled(parsed):
+        return existing
+    return parsed
+
+
+def repair_names(names, official=None):
+    """names dict のうち、公式名と「表記揺れ以上に」違う（＝列交錯で壊れた）名前だけを公式名で直す。戻り値=直した件数"""
+    official = official if official is not None else official_names()
+    n = 0
+    for c, off in official.items():
+        cur = names.get(c)
+        if not cur:
+            continue
+        broken = cur.endswith("…") or bool(re.match(r"^[A-Z][^\x00-\x7f]", cur))   # 「…」切れ／先頭に行区分の半角1字
+        if broken or not _same_name(cur, off):   # 全角/半角・空白・中黒だけの違いは直さない（全デッキの表示を変えないため）
+            names[c] = off
+            n += 1
+    return n
+
 
 # 新フォーマットの株数行の数値列（14個）
 _NEW_FIELDS = ["sell", "sell_chg", "sell_ratio", "buy", "buy_chg", "buy_ratio",

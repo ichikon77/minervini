@@ -46,6 +46,11 @@ TOP_HTML = 30
 TOP_POST = 10
 CHUNK = 100
 MIN_VALID = 0.9  # 窓の9割以上の日に株価があること
+# JPX信用残PDFの行交錯で崩れた社名の手当て（「ホールディングス」に市場区分「スタンダード/プライム」や「貸借」の文字が挟まる）。根本は jpx_margin.py 側
+NAME_FIX = {
+    "3222": "ユナイテッド・スーパーマーケット・ホールディングス",
+    "7532": "パン・パシフィック・インターナショナルホールディングス",
+}
 
 
 def log(msg):
@@ -355,7 +360,17 @@ def push_to_github():
 def load_universe():
     """時価総額1,000億円以上の全銘柄（営業赤字フィルタ無し）。名前・時価総額は fx_corr と同じキャッシュから"""
     h = json.load(open(fx.MARGIN_HISTORY, encoding="utf-8"))
-    names = h["names"]
+    names = dict(h["names"])
+    # JPX PDF 由来の社名は長い行で文字が交錯することがある（例: 3222・7532）→ margin_fundamentals.json の社名があれば優先
+    if os.path.exists(fx.FUNDAMENTALS):
+        try:
+            fund = json.load(open(fx.FUNDAMENTALS, encoding="utf-8")).get("stocks", {})
+            for c, v in fund.items():
+                if v.get("name"):
+                    names[c] = v["name"]
+        except Exception:
+            pass
+    names.update(NAME_FIX)
     caps = json.load(open(fx.MCAP_CACHE, encoding="utf-8")) if os.path.exists(fx.MCAP_CACHE) else {}
     codes = sorted(c for c in names if (caps.get(c) or 0) >= fx.MIN_MCAP_OKU)
     return codes, names, caps

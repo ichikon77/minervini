@@ -517,6 +517,13 @@ def main():
         sys.exit(1)
     log(f"JPXサイト上のPDF: {len(pdfs)}本 ({pdfs[0][0]} ～ {pdfs[-1][0]})")
 
+    # 銘柄名の修復: JPX公式一覧（roei_jpx_names.json）で既存の崩れ名を上書き（2026-10-11、3222/7532 等37件の列交錯対策）
+    official = jpx_margin.official_names()
+    fixed = jpx_margin.repair_names(hist["names"], official)
+    if fixed:
+        log(f"  銘柄名を公式一覧で修復: {fixed}件")
+        save_history(hist)
+
     added = 0
     for d, url, fmt in pdfs:
         if d in hist["weeks"]:
@@ -532,9 +539,8 @@ def main():
             continue
         hist["weeks"][d] = {c: [v[1], v[2], v[3], v[4]] for c, v in data.items()}
         for c, v in data.items():
-            # 新フォーマットはETF等の銘柄名が列交錯で壊れることがあるので、既知の名前を優先
-            if c not in hist["names"] or (fmt == "weekly"):
-                hist["names"][c] = v[0]
+            # 新フォーマットは長い社名・英字社名・ETFの銘柄名が列交錯で壊れる → 公式一覧（roei_jpx_names.json）> 壊れていない既存名 > 新名
+            hist["names"][c] = jpx_margin.best_name(c, v[0], hist["names"].get(c), official)
         added += 1
         save_history(hist)  # 1本ごとに保存（途中で落ちても再開できる）
         log(f"  {d}: {len(data)}銘柄を追加・保存")
