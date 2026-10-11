@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航海士の風見表 - 2026-10-11</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; color: #f8fafc; }
+  h2 { font-size: 1.1rem; margin: 24px 0 10px; color: #f1f5f9; }
+  .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+  .nav { display: flex; gap: 12px; margin-bottom: 20px; font-size: 0.85rem; flex-wrap: wrap; }
+  .nav a { color: #60a5fa; text-decoration: none; background: #1e293b; padding: 5px 14px; border-radius: 6px; border: 1px solid #334155; }
+  .nav a:hover { background: #334155; }
+  .nav a.active { background: #1e40af; border-color: #3b82f6; color: #bfdbfe; }
+  .evidence { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; line-height: 1.8; max-width: 1150px; margin-bottom: 16px; }
+  .evidence b { color: #93c5fd; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px 16px; min-width: 190px; }
+  .card .label { font-size: 0.75rem; color: #94a3b8; }
+  .card .v { font-size: 1.5rem; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .card .v small { font-size: 0.85rem; color: #94a3b8; margin-left: 6px; }
+  .tables { display: flex; gap: 24px; flex-wrap: wrap; }
+  .table-col { flex: 1; min-width: 520px; max-width: 700px; }
+  .table-col h2 { margin-top: 8px; }
+  .table-col h2.fair { color: #86efac; } .table-col h2.head { color: #fca5a5; }
+  table { border-collapse: collapse; font-size: 0.82rem; width: 100%; }
+  thead th { background: #1e293b; color: #94a3b8; padding: 7px 8px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+  thead th:nth-child(-n+2) { text-align: left; }
+  td { padding: 6px 8px; border-bottom: 1px solid #1e293b; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td:nth-child(-n+2) { text-align: left; }
+  tr:hover td { background: #16213a; }
+  .rank { color: #64748b; font-size: 0.76rem; }
+  .big { font-weight: 600; }
+  .fair .big { color: #86efac; } .head .big { color: #fca5a5; }
+  .pos { color: #4ade80; } .neg { color: #f87171; }
+  .star { color: #fde68a; }
+  .dim { color: #64748b; font-size: 0.74rem; }
+  .note { font-size: 0.78rem; color: #64748b; margin-top: 16px; line-height: 1.9; max-width: 1150px; }
+  .updated { text-align: left; font-size: 0.78rem; color: #475569; margin-top: 20px; }
+</style>
+<script data-goatcounter="https://kabuchiwa.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px; font-weight:600;">かぶチワワの分析デッキ（<a href="https://x.com/kabuchiwa" style="color:#60a5fa; text-decoration:none;">@kabuchiwa</a>）</div>
+  <nav class="nav">
+    <a href="map.html" style="border-color:#94a3b8">デッキの見方</a>
+    <a href="calendar.html" style="border-color:#94a3b8">イベント予定</a>
+    <a href="yorimae.html" style="border-color:#94a3b8">寄り前</a>
+    <a href="cpi.html" style="border-color:#7c3aed">米インフレと雇用</a>
+    <a href="fedwatch.html" style="border-color:#7c3aed">FRB利上げ確率</a>
+    <a href="totan.html" style="border-color:#7c3aed">日銀利上げ確率</a>
+    <a href="kinri.html" style="border-color:#7c3aed">金利と為替</a>
+    <a href="kanryu.html" style="border-color:#7c3aed">還流ウォッチ</a>
+    <a href="spriron.html" style="border-color:#7c3aed">SP500理論株価</a>
+    <a href="riron.html" style="border-color:#7c3aed">日経理論株価</a>
+    <a href="gaikoku.html" style="border-color:#2563eb">海外投資家</a>
+    <a href="saitei.html" style="border-color:#2563eb">裁定取引</a>
+    <a href="shutai.html" style="border-color:#2563eb">投資主体別</a>
+    <a href="shinyou.html" style="border-color:#d97706">信用評価率</a>
+    <a href="touraku.html" style="border-color:#d97706">騰落レシオ</a>
+    <a href="karauri.html" style="border-color:#d97706">空売り比率</a>
+    <a href="vix.html" style="border-color:#d97706">VIX温度計</a>
+    <a href="sns.html" style="border-color:#d97706">SNS恐怖温度計</a>
+    <a href="flow.html" style="border-color:#059669">資金フロー</a>
+    <a href="daikin.html" style="border-color:#059669">売買代金</a>
+    <a href="minervini_report_v2.html" style="border-color:#db2777">米国株 (Minervini)</a>
+    <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
+    <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
+    <a href="tenkan.html" style="border-color:#db2777">並び転換</a>
+    <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
+    <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
+    <a href="buffett.html" style="border-color:#db2777">バフェット</a>
+    <a href="cramer.html" style="border-color:#db2777">クレイマー</a>
+    <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
+    <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
+    <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
+    <a href="kazami.html" class="active" style="border-color:#db2777">風見表</a>
+    <a href="roei.html" style="border-color:#db2777">情報漏洩銘柄検証</a>
+    <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
+  </nav>
+  <h1>航海士の風見表 — 日経平均が上がった日に、いっしょに上がる船・逆らう船</h1>
+  <p class="subtitle">最終更新: 2026-10-11 11:09 | 観測期間: 2026-07-08〜2026-10-09（63営業日、日経上昇日 32日・下落日 31日） | 対象: 時価総額1,000億円以上 980銘柄（営業赤字も含む） | 毎週日曜 9:50 更新</p>
+
+  <div class="evidence">
+    <b>見方:</b> 直近3か月の日経平均<b>上昇日</b>だけを取り出し、その日に各銘柄が上がった回数を数える。
+    <b>順風の船</b>＝いっしょに上がった率が高い船、<b>逆風の船</b>＝逆に下がった率が高い船。全銘柄の中央値は 同方向 59% ／ 逆行 41%。<br>
+    <b>★</b>＝6か月の窓でも同じ側のTop30に入る船（今年の局面だけでなく、半年通してその性格）。
+    「上昇日平均」はその銘柄の日経上昇日の平均騰落率、「3か月」は期間リターンと日経（+1.1%）との差。<br>
+    <b>窓の長さの根拠（2026-10-11 検証、92時点・944銘柄）:</b> 選んだTop10のその後21営業日の同方向率は全銘柄中央値より 1か月窓 +6.9pt → 3か月 +9.8 → 6か月 +10.5 → 1年 +11.8 で3か月から頭打ち。翌週の顔ぶれ維持率は 1か月 36%・3か月 64%・6か月 74%・1年 84%。
+    3か月は「今年の局面を映す最短の窓」、6か月★で安定側を補う。
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="label">日経平均 3か月</div><div class="v pos">+1.1%</div></div>
+    <div class="card"><div class="label">日経上昇日 / 下落日</div><div class="v">32<small>/ 31日</small></div></div>
+    <div class="card"><div class="label">全銘柄中央値 同方向率</div><div class="v">59%</div></div>
+    <div class="card"><div class="label">全銘柄中央値 3か月リターン</div><div class="v pos">+1.6%</div></div>
+  </div>
+
+  <div class="tables">
+    <div class="table-col fair">
+      <h2 class="fair">順風の船 — 日経上昇日に いっしょに上がった率 Top30</h2>
+      <table><thead><tr><th>#</th><th>銘柄</th><th>同方向</th><th>率</th><th>上昇日平均</th><th>3か月</th><th>対日経</th><th>6か月</th><th>時価総額</th></tr></thead>
+      <tbody><tr><td class="rank">1</td><td>シチズン時計 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">7762</span></td><td>30/32</td><td class="big">94%</td><td class="pos">+2.10%</td><td class="pos">+8.1%</td><td class="pos">+7.0</td><td class="dim">78%</td><td class="dim">5,797億円</td></tr><tr><td class="rank">2</td><td>ＳＣＲＥＥＮホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">7735</span></td><td>29/32</td><td class="big">91%</td><td class="pos">+2.42%</td><td class="neg">-2.8%</td><td class="neg">-3.9</td><td class="dim">88%</td><td class="dim">3.1兆円</td></tr><tr><td class="rank">3</td><td>ＳＷＣＣ <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">5805</span></td><td>29/32</td><td class="big">91%</td><td class="pos">+2.24%</td><td class="pos">+26.1%</td><td class="pos">+25.0</td><td class="dim">81%</td><td class="dim">4,218億円</td></tr><tr><td class="rank">4</td><td>アドバンテスト <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6857</span></td><td>28/32</td><td class="big">88%</td><td class="pos">+3.93%</td><td class="pos">+44.0%</td><td class="pos">+42.8</td><td class="dim">80%</td><td class="dim">30.0兆円</td></tr><tr><td class="rank">5</td><td>第一工業製薬 <span class="dim">4461</span></td><td>28/32</td><td class="big">88%</td><td class="pos">+3.83%</td><td class="pos">+54.2%</td><td class="pos">+53.1</td><td class="dim">77%</td><td class="dim">1,768億円</td></tr><tr><td class="rank">6</td><td>住友電気工業 <span class="dim">5802</span></td><td>28/32</td><td class="big">88%</td><td class="pos">+2.24%</td><td class="neg">-2.5%</td><td class="neg">-3.7</td><td class="dim">77%</td><td class="dim">7.4兆円</td></tr><tr><td class="rank">7</td><td>日本発條 <span class="dim">5991</span></td><td>28/32</td><td class="big">88%</td><td class="pos">+1.64%</td><td class="neg">-2.3%</td><td class="neg">-3.4</td><td class="dim">72%</td><td class="dim">7,668億円</td></tr><tr><td class="rank">8</td><td>ヒロセ電機 <span class="dim">6806</span></td><td>28/32</td><td class="big">88%</td><td class="pos">+1.02%</td><td class="neg">-7.0%</td><td class="neg">-8.1</td><td class="dim">77%</td><td class="dim">8,136億円</td></tr><tr><td class="rank">9</td><td>日本電子材料 <span class="dim">6855</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+3.37%</td><td class="pos">+29.7%</td><td class="pos">+28.6</td><td class="dim">75%</td><td class="dim">1,314億円</td></tr><tr><td class="rank">10</td><td>山一電機 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6941</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+3.09%</td><td class="pos">+20.1%</td><td class="pos">+18.9</td><td class="dim">80%</td><td class="dim">1,907億円</td></tr><tr><td class="rank">11</td><td>東京精密 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">7729</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+2.59%</td><td class="pos">+17.1%</td><td class="pos">+15.9</td><td class="dim">78%</td><td class="dim">8,357億円</td></tr><tr><td class="rank">12</td><td>マクニカホールディングス <span class="dim">3132</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+2.53%</td><td class="pos">+47.2%</td><td class="pos">+46.0</td><td class="dim">74%</td><td class="dim">8,275億円</td></tr><tr><td class="rank">13</td><td>日本トムソン <span class="dim">6480</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+2.35%</td><td class="neg">-6.5%</td><td class="neg">-7.6</td><td class="dim">72%</td><td class="dim">1,314億円</td></tr><tr><td class="rank">14</td><td>ＴＯＷＡ <span class="dim">6315</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+2.28%</td><td class="neg">-14.7%</td><td class="neg">-15.8</td><td class="dim">71%</td><td class="dim">1,988億円</td></tr><tr><td class="rank">15</td><td>東京応化工業 <span class="dim">4186</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.96%</td><td class="neg">-7.2%</td><td class="neg">-8.4</td><td class="dim">77%</td><td class="dim">1.1兆円</td></tr><tr><td class="rank">16</td><td>ＴＤＫ <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6762</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.95%</td><td class="neg">-2.0%</td><td class="neg">-3.1</td><td class="dim">78%</td><td class="dim">6.2兆円</td></tr><tr><td class="rank">17</td><td>住友ベークライト <span class="dim">4203</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.62%</td><td class="pos">+30.0%</td><td class="pos">+28.9</td><td class="dim">77%</td><td class="dim">8,177億円</td></tr><tr><td class="rank">18</td><td>ナブテスコ <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6268</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.59%</td><td class="neg">-12.1%</td><td class="neg">-13.3</td><td class="dim">80%</td><td class="dim">5,649億円</td></tr><tr><td class="rank">19</td><td>デクセリアルズ <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">4980</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.59%</td><td class="neg">-10.2%</td><td class="neg">-11.3</td><td class="dim">81%</td><td class="dim">6,007億円</td></tr><tr><td class="rank">20</td><td>トーカロ <span class="dim">3433</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.48%</td><td class="pos">+3.8%</td><td class="pos">+2.7</td><td class="dim">77%</td><td class="dim">1,888億円</td></tr><tr><td class="rank">21</td><td>栗田工業 <span class="dim">6370</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+1.06%</td><td class="neg">-12.2%</td><td class="neg">-13.4</td><td class="dim">75%</td><td class="dim">8,376億円</td></tr><tr><td class="rank">22</td><td>横河電機 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6841</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+0.66%</td><td class="neg">-17.3%</td><td class="neg">-18.4</td><td class="dim">80%</td><td class="dim">1.1兆円</td></tr><tr><td class="rank">23</td><td>アズビル <span class="dim">6845</span></td><td>27/32</td><td class="big">84%</td><td class="pos">+0.57%</td><td class="neg">-9.8%</td><td class="neg">-10.9</td><td class="dim">75%</td><td class="dim">7,482億円</td></tr><tr><td class="rank">24</td><td>オンコリスバイオファーマ <span class="dim">4588</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+4.07%</td><td class="pos">+127.7%</td><td class="pos">+126.6</td><td class="dim">74%</td><td class="dim">1,758億円</td></tr><tr><td class="rank">25</td><td>日本マイクロニクス <span class="dim">6871</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+3.21%</td><td class="pos">+14.3%</td><td class="pos">+13.2</td><td class="dim">75%</td><td class="dim">6,718億円</td></tr><tr><td class="rank">26</td><td>レーザーテック <span class="dim">6920</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+2.74%</td><td class="pos">+10.2%</td><td class="pos">+9.1</td><td class="dim">75%</td><td class="dim">4.4兆円</td></tr><tr><td class="rank">27</td><td>湖北工業 <span class="dim">6524</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+2.50%</td><td class="pos">+24.4%</td><td class="pos">+23.3</td><td class="dim">74%</td><td class="dim">1,523億円</td></tr><tr><td class="rank">28</td><td>平田機工 <span class="dim">6258</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+2.47%</td><td class="pos">+47.2%</td><td class="pos">+46.1</td><td class="dim">77%</td><td class="dim">1,338億円</td></tr><tr><td class="rank">29</td><td>ダイヘン <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">6622</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+2.24%</td><td class="neg">-2.1%</td><td class="neg">-3.3</td><td class="dim">78%</td><td class="dim">3,547億円</td></tr><tr><td class="rank">30</td><td>明電舎 <span class="dim">6508</span></td><td>26/32</td><td class="big">81%</td><td class="pos">+2.24%</td><td class="pos">+33.8%</td><td class="pos">+32.7</td><td class="dim">70%</td><td class="dim">5,598億円</td></tr></tbody></table>
+    </div>
+    <div class="table-col head">
+      <h2 class="head">逆風の船 — 日経上昇日に 逆に下がった率 Top30</h2>
+      <table><thead><tr><th>#</th><th>銘柄</th><th>逆行</th><th>率</th><th>上昇日平均</th><th>3か月</th><th>対日経</th><th>6か月</th><th>時価総額</th></tr></thead>
+      <tbody><tr><td class="rank">1</td><td>セブン＆アイ・ホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3382</span></td><td>24/32</td><td class="big">75%</td><td class="neg">-0.61%</td><td class="neg">-1.7%</td><td class="neg">-2.9</td><td class="dim">67%</td><td class="dim">4.5兆円</td></tr><tr><td class="rank">2</td><td>スギホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">7649</span></td><td>23/32</td><td class="big">72%</td><td class="neg">-0.95%</td><td class="neg">-24.8%</td><td class="neg">-25.9</td><td class="dim">65%</td><td class="dim">4,568億円</td></tr><tr><td class="rank">3</td><td>神戸物産 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3038</span></td><td>22/32</td><td class="big">69%</td><td class="neg">-0.53%</td><td class="pos">+7.7%</td><td class="pos">+6.5</td><td class="dim">64%</td><td class="dim">6,560億円</td></tr><tr><td class="rank">4</td><td>日本マクドナルドホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">2702</span></td><td>22/32</td><td class="big">69%</td><td class="neg">-0.50%</td><td class="neg">-1.5%</td><td class="neg">-2.7</td><td class="dim">64%</td><td class="dim">1.0兆円</td></tr><tr><td class="rank">5</td><td>トリドールホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3397</span></td><td>22/32</td><td class="big">69%</td><td class="neg">-0.40%</td><td class="pos">+7.1%</td><td class="pos">+6.0</td><td class="dim">70%</td><td class="dim">3,751億円</td></tr><tr><td class="rank">6</td><td>東急 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">9005</span></td><td>22/32</td><td class="big">69%</td><td class="neg">-0.33%</td><td class="neg">-8.3%</td><td class="neg">-9.5</td><td class="dim">64%</td><td class="dim">8,813億円</td></tr><tr><td class="rank">7</td><td>ロート製薬 <span class="dim">4527</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.60%</td><td class="pos">+7.6%</td><td class="pos">+6.5</td><td class="dim">56%</td><td class="dim">6,071億円</td></tr><tr><td class="rank">8</td><td>森永製菓 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">2201</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.51%</td><td class="neg">-10.5%</td><td class="neg">-11.6</td><td class="dim">61%</td><td class="dim">2,002億円</td></tr><tr><td class="rank">9</td><td>ツルハホールディングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3391</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.46%</td><td class="neg">-7.1%</td><td class="neg">-8.2</td><td class="dim">62%</td><td class="dim">9,634億円</td></tr><tr><td class="rank">10</td><td>サンエー <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">2659</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.38%</td><td class="neg">-9.2%</td><td class="neg">-10.3</td><td class="dim">64%</td><td class="dim">1,825億円</td></tr><tr><td class="rank">11</td><td>ユナイテッド・スーパーマーケット・スホターンルダデーィドングス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3222</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.38%</td><td class="neg">-2.4%</td><td class="neg">-3.5</td><td class="dim">62%</td><td class="dim">1,639億円</td></tr><tr><td class="rank">12</td><td>平和堂 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">8276</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.36%</td><td class="neg">-2.4%</td><td class="neg">-3.5</td><td class="dim">67%</td><td class="dim">1,232億円</td></tr><tr><td class="rank">13</td><td>プリマハム <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">2281</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.36%</td><td class="neg">-4.9%</td><td class="neg">-6.0</td><td class="dim">62%</td><td class="dim">1,146億円</td></tr><tr><td class="rank">14</td><td>西日本旅客鉄道 <span class="dim">9021</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.32%</td><td class="pos">+1.3%</td><td class="pos">+0.2</td><td class="dim">61%</td><td class="dim">1.3兆円</td></tr><tr><td class="rank">15</td><td>東洋水産 <span class="dim">2875</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.30%</td><td class="neg">-6.1%</td><td class="neg">-7.3</td><td class="dim">59%</td><td class="dim">9,643億円</td></tr><tr><td class="rank">16</td><td>スクウェア・エニックス・ホールディングス <span class="dim">9684</span></td><td>21/32</td><td class="big">66%</td><td class="neg">-0.04%</td><td class="pos">+10.3%</td><td class="pos">+9.2</td><td class="dim">61%</td><td class="dim">1.0兆円</td></tr><tr><td class="rank">17</td><td>イオン <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">8267</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.69%</td><td class="neg">-16.7%</td><td class="neg">-17.8</td><td class="dim">65%</td><td class="dim">3.4兆円</td></tr><tr><td class="rank">18</td><td>クスリのアオキホールディングス <span class="dim">3549</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.68%</td><td class="pos">+4.7%</td><td class="pos">+3.5</td><td class="dim">54%</td><td class="dim">3,930億円</td></tr><tr><td class="rank">19</td><td>日清食品ホールディングス <span class="dim">2897</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.54%</td><td class="">-0.0%</td><td class="neg">-1.1</td><td class="dim">58%</td><td class="dim">8,423億円</td></tr><tr><td class="rank">20</td><td>パン・パシフィック・インターナショプナラルイホムールディン貸グス <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">7532</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.42%</td><td class="neg">-21.8%</td><td class="neg">-22.9</td><td class="dim">67%</td><td class="dim">2.0兆円</td></tr><tr><td class="rank">21</td><td>ユニ・チャーム <span class="dim">8113</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.35%</td><td class="neg">-3.6%</td><td class="neg">-4.7</td><td class="dim">51%</td><td class="dim">1.6兆円</td></tr><tr><td class="rank">22</td><td>東海旅客鉄道 <span class="dim">9022</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.33%</td><td class="neg">-1.4%</td><td class="neg">-2.5</td><td class="dim">61%</td><td class="dim">3.4兆円</td></tr><tr><td class="rank">23</td><td>アンドエスティＨＤ <span class="dim">2685</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.32%</td><td class="neg">-13.6%</td><td class="neg">-14.7</td><td class="dim">52%</td><td class="dim">1,418億円</td></tr><tr><td class="rank">24</td><td>パルグループホールディングス <span class="dim">2726</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.30%</td><td class="neg">-7.9%</td><td class="neg">-9.1</td><td class="dim">56%</td><td class="dim">2,466億円</td></tr><tr><td class="rank">25</td><td>王将フードサービス <span class="dim">9936</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.26%</td><td class="neg">-0.6%</td><td class="neg">-1.7</td><td class="dim">56%</td><td class="dim">1,524億円</td></tr><tr><td class="rank">26</td><td>コーセーホールディングス <span class="dim">4922</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.21%</td><td class="pos">+1.0%</td><td class="neg">-0.2</td><td class="dim">58%</td><td class="dim">3,129億円</td></tr><tr><td class="rank">27</td><td>イオンリート投資法人投資証券 <span class="star" title="6か月でも同じ側のTop30">★</span> <span class="dim">3292</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.20%</td><td class="neg">-13.4%</td><td class="neg">-14.5</td><td class="dim">64%</td><td class="dim">2,239億円</td></tr><tr><td class="rank">28</td><td>三井不動産アコモデーションファンド投資法人投資証券 <span class="dim">3226</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.16%</td><td class="neg">-9.9%</td><td class="neg">-11.1</td><td class="dim">59%</td><td class="dim">2,772億円</td></tr><tr><td class="rank">29</td><td>コーエーテクモホールディングス <span class="dim">3635</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.09%</td><td class="pos">+2.6%</td><td class="pos">+1.5</td><td class="dim">55%</td><td class="dim">5,471億円</td></tr><tr><td class="rank">30</td><td>大和ハウスリート投資法人投資証券 <span class="dim">8984</span></td><td>20/32</td><td class="big">62%</td><td class="neg">-0.08%</td><td class="neg">-9.4%</td><td class="neg">-10.5</td><td class="dim">58%</td><td class="dim">4,917億円</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <p class="note">
+    ・これは過去3か月の<b>観測</b>であり、来週も同じ関係が続く保証はない。売買の判断材料ではなく、「自分の船がどの風に乗っているか」を知るための風見。<br>
+    ・率は同率が多く順位の差は小さい。分母（上昇日数）と上昇日平均・3か月リターンを一緒に読む。<br>
+    ・逆風の船のその後21営業日の対日経超過リターンは、検証では中央値より約1.5pt低い傾向があった（2〜6か月窓）。独立した期間が20程度しかないため<b>蓄積中の観察</b>として置く。順風側には同様の差はなかった。<br>
+    ・対象は時価総額1,000億円以上の全銘柄。<b>fx_corr（円安/円高相関）や信用期日スクリーナーと違い、直近四半期が営業赤字の銘柄も含む</b>（風見は観測が目的で、赤字転落した船こそ逆風の典型。業績は銘柄チェッカーで別に確認する）。株価は配当調整済み終値（yfinance）。毎週日曜のTop10は kazami_history.json に蓄積し、後日答え合わせに使う。
+  </p>
+  <p class="updated">最終更新: 2026-10-11 11:09</p>
+</body>
+</html>

@@ -49,6 +49,13 @@ EARNINGS = [
     # SPCX(SpaceX)は上場直後で決算日程未公表。判明したら追記
 ]
 
+# 米大手銀行決算（決算シーズンの開幕。寄り前発表＝日本時間 同日夜20〜21時。金利上昇の影響・投資銀行手数料・貸倒れが焦点）
+# 2026-10-11 追加（ユーザー要望）。日程は各社IR/Reutersで確認済（JPM 10/13 7:00 ET 等）。四半期ごとに追記
+BANK_EARNINGS = [
+    ("2026-10-13", "JPM/GS/C/WFC", "米大手銀行 決算（JPモルガン・ゴールドマン・シティ・ウェルズ）"),
+    ("2026-10-14", "MS/BAC", "米大手銀行 決算（モルガンS・バンカメ）"),
+]
+
 # 韓国半導体決算（現地日付=日本と同時刻）。半導体市況の先行指標・急落の起点になりうる
 KR_EARNINGS = [
     ("2026-07-28", "000660.KS", "SKハイニックス 決算"),
@@ -203,6 +210,12 @@ def build_events(today):
             ev.append((d, "🇺🇸", name, f"{ticker}・引け後発表（日本時間 翌朝）",
                        link("flow.html", "資金フロー"), False))
 
+    for s, ticker, name in BANK_EARNINGS:
+        d = datetime.date.fromisoformat(s)
+        if d >= since:
+            ev.append((d, "🇺🇸", name, f"{ticker}・寄り前発表（日本時間 同日夜20〜21時）。決算シーズン開幕",
+                       link("kinri.html", "金利と為替"), False))
+
     for s, ticker, name in KR_EARNINGS:
         d = datetime.date.fromisoformat(s)
         if d >= since:
@@ -256,6 +269,7 @@ def check_list_freshness(today):
     for name, dates in [("FOMC_DATES", FOMC_DATES), ("BOJ_DATES", BOJ_DATES),
                         ("EARNINGS", [e[0] for e in EARNINGS]),
                         ("KR_EARNINGS", [e[0] for e in KR_EARNINGS]),
+                        ("BANK_EARNINGS", [e[0] for e in BANK_EARNINGS]),
                         ("EMPLOYMENT_DATES", EMPLOYMENT_DATES), ("CPI_DATES", CPI_DATES),
                         ("INDEX_EVENTS", [e[0] for e in INDEX_EVENTS])]:
         future = [d for d in dates if datetime.date.fromisoformat(d) >= today]
@@ -360,6 +374,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kijitsu.html" style="border-color:#db2777">信用期日</a>
     <a href="kijitsu_us.html" style="border-color:#db2777">下落日数(US)</a>
     <a href="fx_corr.html" style="border-color:#db2777">円安/円高相関</a>
+    <a href="kazami.html" style="border-color:#db2777">風見表</a>
     <a href="roei.html" style="border-color:#db2777">情報漏洩銘柄検証</a>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
