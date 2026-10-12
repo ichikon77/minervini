@@ -289,6 +289,33 @@
       <div class="deck">→ <a href="shinyou.html">信用評価率</a>（1570カラム） / <a href="margin.html">銘柄チェッカー</a></div>
     </div>
 
+    <div class="card testing">
+      <h3>⑰ 2026年10月の需給は「2024年4〜6月型（暴落ではなく停滞）」か<span class="badge testing">🔬 検証中</span></h3>
+      <div class="body">売り残が8,000億円を割り（ショートカバー燃料切れ）、信用倍率は高いが、評価損益率が浅い（−1桁%）ときは、Sho氏の2024年振り返りにある「空売り不在＋買い残過多でも含み損が浅ければ暴落せず停滞」の型になる、という<b>私（Claude）の類推</b>。Sho氏が今の相場をそう言ったわけではなく、過去1局面との類似（N=1）に基づく見立て。</div>
+      <div class="evidence">
+        <b>起点: 2026-10-09（金）終値時点の対応表</b><br>
+        <table style="border-collapse:collapse;margin:6px 0;font-size:0.95em">
+          <tr><th style="text-align:left;padding:2px 8px;border-bottom:1px solid #cbd5e1">指標</th><th style="text-align:left;padding:2px 8px;border-bottom:1px solid #cbd5e1">2024年4〜6月</th><th style="text-align:left;padding:2px 8px;border-bottom:1px solid #cbd5e1">2026-10-09</th><th style="padding:2px 8px;border-bottom:1px solid #cbd5e1">合う？</th></tr>
+          <tr><td style="padding:2px 8px">二市場売り残</td><td style="padding:2px 8px">6,000億円台（8,000億割れ）</td><td style="padding:2px 8px">7,507億円（10/2申込、前週比−28%で8,000億割れ）</td><td style="text-align:center">○</td></tr>
+          <tr><td style="padding:2px 8px">二市場信用倍率</td><td style="padding:2px 8px">6.44倍</td><td style="padding:2px 8px">8.69倍（今の方が悪い）</td><td style="text-align:center">○</td></tr>
+          <tr><td style="padding:2px 8px">信用評価損益率</td><td style="padding:2px 8px">−1桁%（浅い）</td><td style="padding:2px 8px">−5.56%</td><td style="text-align:center">○</td></tr>
+          <tr><td style="padding:2px 8px">1570 制度信用倍率</td><td style="padding:2px 8px">1倍超</td><td style="padding:2px 8px">3.11倍</td><td style="text-align:center">○</td></tr>
+          <tr><td style="padding:2px 8px">金融政策の方向</td><td style="padding:2px 8px">米利下げ期待 vs 日本利上げ → 米国株優位</td><td style="padding:2px 8px">日米とも利上げ観測（FRB 12月82%・日銀12月80%）</td><td style="text-align:center">×</td></tr>
+          <tr><td style="padding:2px 8px">直前の形</td><td style="padding:2px 8px">3月高値41,000→配当落ち後37,000へ下げた後の停滞</td><td style="padding:2px 8px">10/6高値70,684の直後、69,031（−2.3%）。天井未確定</td><td style="text-align:center">×</td></tr>
+          <tr><td style="padding:2px 8px">EPS（日経÷加重PER）</td><td style="padding:2px 8px">3月決算で上方</td><td style="padding:2px 8px">10月に入っても3,929→3,974円と切り上げ（PER 17.37＝2026年レンジ16.84〜20.92の下寄り）</td><td style="text-align:center">追い風</td></tr>
+        </table>
+        需給の4つは揃うが、2024年の停滞を作った「政策方向の違い」は無く、EPSは上向き。<br>
+        <b>判定（期限 2026-11-14 のメジャーSQ翌営業日まで）</b>: 日経が 10/9 終値 69,031 から <b>±5% の範囲（65,580〜72,480）に収まれば「停滞」採用</b>。<br>
+        ・外れ方A（2018年型の投げ）: 評価損益率が−10%（shinyouの超警戒線）へ悪化しつつ売り残が減り続け、日経−5%超<br>
+        ・外れ方B（上昇再開）: 売り残が8,000億円を回復し、投資主体別で証券自己が買い越しに戻り、日経+5%超<br>
+        判定に使うデッキ: shinyou（毎週金曜申込分、次は10/16公表）・shutai（翌週木曜）・riron（EPSの方向）
+      </div>
+      <div class="log">
+        <span class="d">2026-10-12</span> 登録。銘柄提案6本（JPX/マックス/リンナイ、XOM/GILD/PM）の前提として置いた見立て。ユーザーから「PER16倍上限はEPS上昇で上限ではなくなっている」と指摘を受け、バリュエーション面の重さは根拠から外し、需給だけを根拠に残した。
+      </div>
+      <div class="deck">→ <a href="shinyou.html">信用評価率</a> + <a href="shutai.html">投資主体別</a> + <a href="riron.html">日経理論株価</a> + <a href="gaikoku.html">海外投資家</a></div>
+    </div>
+
   </div>
 
   <h2>アノマリー</h2>
@@ -313,6 +340,6 @@
     ・「採用」でも将来のデータで覆る可能性は常にある。検証条件（期間・回数・判定基準）を明記しているのは再現・反証を可能にするため。<br>
     ・検証はすべて終値ベース・自前計算（yfinance等の公開データ）。
   </p>
-  <p class="updated">最終更新: 2026-07-31（①②⑮に7月末暴落の実地検証ログ、⑯を追加）</p>
+  <p class="updated">最終更新: 2026-10-12（⑰「2026年10月は2024年4〜6月型の停滞か」を需給セクションに追加）</p>
 </body>
 </html>
