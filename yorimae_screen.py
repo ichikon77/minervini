@@ -94,13 +94,31 @@ def last_price(ticker, prefer_intraday=True):
     return None
 
 
-def daily_closes(ticker, period="2y"):
-    try:
-        h = yf.Ticker(ticker).history(period=period)["Close"].dropna()
-        h.index = h.index.tz_localize(None).normalize()
-        return h
-    except Exception:
-        return pd.Series(dtype=float)
+def daily_closes(ticker, period="2y", tries=3, wait=20):
+    """日足終値。Yahooの瞬断（2026-10-13 07:18 '^N225: no price data found' で朝の投稿が止まった）対策で、
+    空や例外なら wait 秒おいて tries 回まで取り直す。最後は yf.download でも試す"""
+    for i in range(1, tries + 1):
+        try:
+            h = yf.Ticker(ticker).history(period=period)["Close"].dropna()
+            if len(h):
+                h.index = h.index.tz_localize(None).normalize()
+                return h
+        except Exception:
+            pass
+        try:
+            d = yf.download(ticker, period=period, progress=False, auto_adjust=False)["Close"]
+            if isinstance(d, pd.DataFrame):
+                d = d.iloc[:, 0]
+            d = d.dropna()
+            if len(d):
+                d.index = pd.to_datetime(d.index).tz_localize(None).normalize()
+                return d
+        except Exception:
+            pass
+        if i < tries:
+            log(f"  {ticker} の日足が取れない → {wait}秒後に再試行 ({i}/{tries})")
+            time.sleep(wait)
+    return pd.Series(dtype=float)
 
 
 # -----------------------------------------
