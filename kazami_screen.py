@@ -99,12 +99,16 @@ def window_stats(px, nk, w):
     r = r.iloc[-w:]
     n = n.iloc[-w:]
     up = (n > 0).values
+    dn = (n < 0).values
     n_up = int(up.sum())
-    n_dn = int((n < 0).sum())
+    n_dn = int(dn.sum())
     valid = r.notna().sum() >= MIN_VALID * w
     same = ((r > 0).values & up[:, None]).sum(0)
     opp = ((r < 0).values & up[:, None]).sum(0)
+    up_dn = ((r > 0).values & dn[:, None]).sum(0)   # 日経下落日に逆に上がった（嵐に強い）
+    dn_dn = ((r < 0).values & dn[:, None]).sum(0)   # 日経下落日にいっしょに下がった（嵐に弱い）
     avg_up = r[up].mean(0) * 100
+    avg_dn = r[dn].mean(0) * 100
     ret_w = (px.iloc[-1] / px.iloc[-w - 1] - 1) * 100 if len(px) > w else (px.iloc[-1] / px.iloc[0] - 1) * 100
     nk_ret = float((nk.iloc[-1] / nk.iloc[-w - 1] - 1) * 100) if len(nk) > w else float((nk.iloc[-1] / nk.iloc[0] - 1) * 100)
     out = {}
@@ -113,7 +117,10 @@ def window_stats(px, nk, w):
             continue
         out[c] = {"same": int(same[i]), "opp": int(opp[i]), "n_up": n_up,
                   "hit": same[i] / n_up * 100 if n_up else None, "opp_rate": opp[i] / n_up * 100 if n_up else None,
+                  "up_dn": int(up_dn[i]), "dn_dn": int(dn_dn[i]), "n_dn": n_dn,
+                  "shield": up_dn[i] / n_dn * 100 if n_dn else None, "storm": dn_dn[i] / n_dn * 100 if n_dn else None,
                   "avg_up": float(avg_up[c]) if pd.notna(avg_up[c]) else None,
+                  "avg_dn": float(avg_dn[c]) if pd.notna(avg_dn[c]) else None,
                   "ret": float(ret_w[c]) if pd.notna(ret_w[c]) else None}
         out[c]["excess"] = out[c]["ret"] - nk_ret if out[c]["ret"] is not None else None
     meta = {"n_up": n_up, "n_dn": n_dn, "days": int(len(r)), "nk_ret": nk_ret,
@@ -122,38 +129,43 @@ def window_stats(px, nk, w):
 
 
 def rank(stats, side):
-    """side='fair'（順風: hit高い順, 同率は上昇日平均が高い順） / 'head'（逆風: opp_rate高い順, 同率は上昇日平均が低い順）"""
-    items = [(c, v) for c, v in stats.items() if v["hit"] is not None]
-    if side == "fair":
-        items.sort(key=lambda cv: (-cv[1]["hit"], -(cv[1]["avg_up"] or 0)))
-    else:
-        items.sort(key=lambda cv: (-cv[1]["opp_rate"], (cv[1]["avg_up"] or 0)))
+    """side: fair=順風（日経上昇日に上がった率↓）/ head=逆風（上昇日に下がった率↓）/
+             shield=嵐に強い（日経下落日に上がった率↓）/ storm=嵐に弱い（下落日に下がった率↓）。同率は平均騰落で並べる"""
+    items = [(c, v) for c, v in stats.items() if v["hit"] is not None and v["shield"] is not None]
+    key = {"fair": lambda v: (-v["hit"], -(v["avg_up"] or 0)),
+           "head": lambda v: (-v["opp_rate"], (v["avg_up"] or 0)),
+           "shield": lambda v: (-v["shield"], -(v["avg_dn"] or 0)),
+           "storm": lambda v: (-v["storm"], (v["avg_dn"] or 0))}[side]
+    items.sort(key=lambda cv: key(cv[1]))
     return [c for c, _ in items]
 
 
 def build(px, nk, names, caps):
     s3, m3 = window_stats(px, nk, MAIN_W)
     s6, m6 = window_stats(px, nk, STAR_W)
-    star = {"fair": set(rank(s6, "fair")[:STAR_TOP]), "head": set(rank(s6, "head")[:STAR_TOP])}
+    SIDES = ("fair", "head", "shield", "storm")
+    star = {side: set(rank(s6, side)[:STAR_TOP]) for side in SIDES}
+    r1 = lambda x: round(x, 1) if x is not None else None
+    r2 = lambda x: round(x, 2) if x is not None else None
     lists = {}
-    for side in ("fair", "head"):
+    for side in SIDES:
         rows = []
         for i, c in enumerate(rank(s3, side)[:TOP_HTML], 1):
             v = s3[c]
+            v6 = s6.get(c, {})
             rows.append({"rank": i, "code": c, "name": names.get(c, c), "mcap": caps.get(c, 0),
-                         "same": v["same"], "opp": v["opp"], "n_up": v["n_up"], "hit": round(v["hit"], 1), "opp_rate": round(v["opp_rate"], 1),
-                         "avg_up": round(v["avg_up"], 2) if v["avg_up"] is not None else None,
-                         "ret": round(v["ret"], 1) if v["ret"] is not None else None,
-                         "excess": round(v["excess"], 1) if v["excess"] is not None else None,
+                         "same": v["same"], "opp": v["opp"], "n_up": v["n_up"], "hit": r1(v["hit"]), "opp_rate": r1(v["opp_rate"]),
+                         "up_dn": v["up_dn"], "dn_dn": v["dn_dn"], "n_dn": v["n_dn"], "shield": r1(v["shield"]), "storm": r1(v["storm"]),
+                         "avg_up": r2(v["avg_up"]), "avg_dn": r2(v["avg_dn"]),
+                         "ret": r1(v["ret"]), "excess": r1(v["excess"]),
                          "star": c in star[side],
-                         "hit6": round(s6[c]["hit"], 1) if c in s6 else None, "opp6": round(s6[c]["opp_rate"], 1) if c in s6 else None})
+                         "hit6": r1(v6.get("hit")), "opp6": r1(v6.get("opp_rate")), "shield6": r1(v6.get("shield")), "storm6": r1(v6.get("storm"))})
         lists[side] = rows
-    med_hit = float(np.median([v["hit"] for v in s3.values() if v["hit"] is not None]))
-    med_opp = float(np.median([v["opp_rate"] for v in s3.values() if v["opp_rate"] is not None]))
-    med_ret = float(np.median([v["ret"] for v in s3.values() if v["ret"] is not None]))
+    med = lambda k: float(np.median([v[k] for v in s3.values() if v[k] is not None]))
     return {"generated": datetime.datetime.now().isoformat(timespec="seconds"), "asof": m3["end"],
-            "main": m3, "star_w": m6, "universe": len(s3), "median": {"hit": med_hit, "opp_rate": med_opp, "ret": med_ret},
-            "fair": lists["fair"], "head": lists["head"]}
+            "main": m3, "star_w": m6, "universe": len(s3),
+            "median": {"hit": med("hit"), "opp_rate": med("opp_rate"), "shield": med("shield"), "storm": med("storm"), "ret": med("ret")},
+            "fair": lists["fair"], "head": lists["head"], "shield": lists["shield"], "storm": lists["storm"]}
 
 
 # -----------------------------------------
@@ -237,10 +249,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="evidence">
     <b>見方:</b> 直近3か月の日経平均<b>上昇日</b>だけを取り出し、その日に各銘柄が上がった回数を数える。
     <b>順風の船</b>＝いっしょに上がった率が高い船、<b>逆風の船</b>＝逆に下がった率が高い船。全銘柄の中央値は 同方向 {med_hit:.0f}% ／ 逆行 {med_opp:.0f}%。<br>
+    下段は鏡像で、日経平均<b>下落日</b>に <b>嵐に強い船</b>＝逆に上がった率が高い船、<b>嵐に弱い船</b>＝いっしょに下がった率が高い船（中央値 {med_shield:.0f}% ／ {med_storm:.0f}%）。日経が大きく下げた日の夕方に航海士がXで届ける。<br>
     <b>★</b>＝6か月の窓でも同じ側のTop{star_top}に入る船（今年の局面だけでなく、半年通してその性格）。
     「上昇日平均」はその銘柄の日経上昇日の平均騰落率、「3か月」は期間リターンと日経（{nk_ret:+.1f}%）との差。<br>
     <b>窓の長さの根拠（2026-10-11 検証、92時点・944銘柄）:</b> 選んだTop10のその後21営業日の同方向率は全銘柄中央値より 1か月窓 +6.9pt → 3か月 +9.8 → 6か月 +10.5 → 1年 +11.8 で3か月から頭打ち。翌週の顔ぶれ維持率は 1か月 36%・3か月 64%・6か月 74%・1年 84%。
-    3か月は「今年の局面を映す最短の窓」、6か月★で安定側を補う。
+    3か月は「今年の局面を映す最短の窓」、6か月★で安定側を補う。下落日側も同じ検証で、嵐に強い船Top10のその後21営業日の下落日に上がった率 48.8% vs 中央値 40.1%（86%の時点で上回り）、嵐に弱い船 68.5% vs 57.8%（89%）。
   </div>
 
   <div class="cards">
@@ -260,6 +273,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <h2 class="head">逆風の船 — 日経上昇日に 逆に下がった率 Top{top}</h2>
       <table><thead><tr><th>#</th><th>銘柄</th><th>逆行</th><th>率</th><th>上昇日平均</th><th>3か月</th><th>対日経</th><th>6か月</th><th>時価総額</th></tr></thead>
       <tbody>{head_rows}</tbody></table>
+    </div>
+  </div>
+
+  <h2 style="margin-top:28px">日経平均が下がった日（{n_dn}日）— 嵐に強い船・弱い船</h2>
+  <div class="tables">
+    <div class="table-col fair">
+      <h2 class="fair">嵐に強い船 — 日経下落日に 逆に上がった率 Top{top}</h2>
+      <table><thead><tr><th>#</th><th>銘柄</th><th>逆行</th><th>率</th><th>下落日平均</th><th>3か月</th><th>対日経</th><th>6か月</th><th>時価総額</th></tr></thead>
+      <tbody>{shield_rows}</tbody></table>
+    </div>
+    <div class="table-col head">
+      <h2 class="head">嵐に弱い船 — 日経下落日に いっしょに下がった率 Top{top}</h2>
+      <table><thead><tr><th>#</th><th>銘柄</th><th>同方向</th><th>率</th><th>下落日平均</th><th>3か月</th><th>対日経</th><th>6か月</th><th>時価総額</th></tr></thead>
+      <tbody>{storm_rows}</tbody></table>
     </div>
   </div>
 
@@ -286,18 +313,19 @@ def cls(v):
 
 
 def rows_html(rows, side):
+    spec = {"fair": ("same", "n_up", "hit", "hit6", "avg_up"), "head": ("opp", "n_up", "opp_rate", "opp6", "avg_up"),
+            "shield": ("up_dn", "n_dn", "shield", "shield6", "avg_dn"), "storm": ("dn_dn", "n_dn", "storm", "storm6", "avg_dn")}[side]
     out = []
     for r in rows:
-        cnt = r["same"] if side == "fair" else r["opp"]
-        rate = r["hit"] if side == "fair" else r["opp_rate"]
-        six = r["hit6"] if side == "fair" else r["opp6"]
+        cnt, den, rate, six, avg = r[spec[0]], r[spec[1]], r[spec[2]], r[spec[3]], r[spec[4]]
         star = ' <span class="star" title="6か月でも同じ側のTop30">★</span>' if r["star"] else ""
         out.append(
             f'<tr><td class="rank">{r["rank"]}</td><td>{r["name"]}{star} <span class="dim">{r["code"]}</span></td>'
-            f'<td>{cnt}/{r["n_up"]}</td><td class="big">{rate:.0f}%</td>'
-            f'<td class="{cls(r["avg_up"])}">{r["avg_up"]:+.2f}%</td>'
+            f'<td>{cnt}/{den}</td><td class="big">{rate:.0f}%</td>'
+            f'<td class="{cls(avg)}">{avg:+.2f}%</td>'
             f'<td class="{cls(r["ret"])}">{r["ret"]:+.1f}%</td><td class="{cls(r["excess"])}">{r["excess"]:+.1f}</td>'
-            f'<td class="dim">{six:.0f}%</td><td class="dim">{fmt_oku(r["mcap"])}</td></tr>')
+            f'<td class="dim">{six:.0f}%</td><td class="dim">{fmt_oku(r["mcap"])}</td></tr>' if six is not None else
+            f'<td class="dim">-</td><td class="dim">{fmt_oku(r["mcap"])}</td></tr>')
     return "".join(out)
 
 
@@ -307,7 +335,9 @@ def generate_html(d):
         nav=nav_html(), start=d["main"]["start"], end=d["main"]["end"], days=d["main"]["days"], n_up=d["main"]["n_up"], n_dn=d["main"]["n_dn"],
         universe=d["universe"], med_hit=d["median"]["hit"], med_opp=d["median"]["opp_rate"], med_ret=d["median"]["ret"], med_ret_cls=cls(d["median"]["ret"]),
         star_top=STAR_TOP, nk_ret=d["main"]["nk_ret"], nk_cls=cls(d["main"]["nk_ret"]), top=TOP_HTML,
-        fair_rows=rows_html(d["fair"], "fair"), head_rows=rows_html(d["head"], "head"))
+        med_shield=d["median"]["shield"], med_storm=d["median"]["storm"],
+        fair_rows=rows_html(d["fair"], "fair"), head_rows=rows_html(d["head"], "head"),
+        shield_rows=rows_html(d["shield"], "shield"), storm_rows=rows_html(d["storm"], "storm"))
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -323,7 +353,9 @@ def save_history(d):
             hist = {}
     hist[d["asof"]] = {"nk_ret": round(d["main"]["nk_ret"], 2), "n_up": d["main"]["n_up"],
                        "fair": [(r["code"], r["hit"], r["star"]) for r in d["fair"][:TOP_POST]],
-                       "head": [(r["code"], r["opp_rate"], r["star"]) for r in d["head"][:TOP_POST]]}
+                       "head": [(r["code"], r["opp_rate"], r["star"]) for r in d["head"][:TOP_POST]],
+                       "shield": [(r["code"], r["shield"], r["star"]) for r in d["shield"][:TOP_POST]],
+                       "storm": [(r["code"], r["storm"], r["star"]) for r in d["storm"][:TOP_POST]]}
     json.dump(hist, open(HISTORY_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     log(f"履歴保存: {len(hist)}週分")
 
@@ -390,6 +422,8 @@ def main():
     log(f"  日経 3か月 {d['main']['nk_ret']:+.1f}%（上昇{d['main']['n_up']}日/下落{d['main']['n_dn']}日） 中央値 同方向{d['median']['hit']:.0f}%")
     log("  順風Top5: " + "、".join(f"{r['name']} {r['same']}/{r['n_up']}{'★' if r['star'] else ''}" for r in d["fair"][:5]))
     log("  逆風Top5: " + "、".join(f"{r['name']} {r['opp']}/{r['n_up']}{'★' if r['star'] else ''}" for r in d["head"][:5]))
+    log("  嵐に強いTop5: " + "、".join(f"{r['name']} {r['up_dn']}/{r['n_dn']}{'★' if r['star'] else ''}" for r in d["shield"][:5]))
+    log("  嵐に弱いTop5: " + "、".join(f"{r['name']} {r['dn_dn']}/{r['n_dn']}{'★' if r['star'] else ''}" for r in d["storm"][:5]))
     json.dump(d, open(POST_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     generate_html(d)
     if "--test" not in sys.argv:

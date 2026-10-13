@@ -5,6 +5,7 @@
   weekly  : 土曜 8:00  「王様の週間成績表」  yorimae_history.json の1週間分を採点して答え合わせ
   preview : 日曜 18:30 「来週のフィールド予告」calendar_screen のイベントから来週分（休場日も）を告げる
   kazami  : 日曜 10:00 「航海士の風見表」  kazami_screen.py の結果（日経上昇日に順風/逆風の船 Top10）を航海士が届ける
+  storm   : 平日 16:30 「嵐の日の風見表」  日経が -1.0% 以下に下げた日だけ、日経下落日に強い船/弱い船 Top10 を届ける（5日以内の連投なし）
 
 使い方:
   python weekend_post.py weekly  [--dry-run] [--force] [--date YYYY-MM-DD] [--no-render]
@@ -416,6 +417,53 @@ def ship_name(name, maxlen=9):
     return n[:maxlen]
 
 
+STORM_TH = -1.0   # 日経平均の当日騰落率がこの%以下なら「嵐の日」投稿を出す
+STORM_MIN_GAP_DAYS = 5   # 嵐の日投稿の間隔（この日数以内に出していれば出さない）
+
+
+def nikkei_today(today):
+    """今日の日経平均の終値と前日比%（yfinance ^N225）。今日の日足が無ければ None"""
+    try:
+        import yfinance as yf
+        h = yf.Ticker("^N225").history(period="7d")["Close"].dropna()
+        if len(h) < 2 or h.index[-1].date() != today:
+            return None
+        return float(h.iloc[-1]), float(h.iloc[-1] / h.iloc[-2] - 1) * 100, float(h.iloc[-1] - h.iloc[-2])
+    except Exception as e:
+        log(f"  日経平均の取得失敗: {e}")
+        return None
+
+
+def compose_storm(d, chg, yen):
+    """日経が大きく下げた日の夕方。嵐に強い船/弱い船（3か月の日経下落日の統計）"""
+    m = d["main"]
+    st, en = datetime.date.fromisoformat(m["start"]), datetime.date.fromisoformat(m["end"])
+    head = (f"日経平均が 今日 {chg:+.1f}%（{yen:+,.0f}円）、自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。" if chg is not None
+            else "日経平均が 下げた日に、自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。")
+    lines = [head + f"この3か月（{mmdd(st)}〜{mmdd(en)}）、日経が下げた{m['n_dn']}日に どの船が 沈まなかったか、届けに来た。",
+             f"チェックした{d['universe']}隻の船のうち、中央値となる船は、日経が下げた{m['n_dn']}日のうち {round(d['median']['shield'] / 100 * m['n_dn'])}日 逆に上がり、株価は 3か月で {d['median']['ret']:+.1f}% だった。",
+             "【嵐に強い船】日経が下がった日に 逆に上がった日数（率）｜株価の3か月騰落"]
+    for r in d["shield"][:10]:
+        lines.append(f"{r['rank']}. {ship_name(r['name'], 12)}{'★' if r['star'] else ''} {r['up_dn']}/{r['n_dn']}日（{r['shield']:.0f}%）｜株価 {r['ret']:+.0f}%")
+    lines.append("【嵐に弱い船】日経が下がった日に いっしょに下がった日数（率）｜株価の3か月騰落")
+    for r in d["storm"][:10]:
+        lines.append(f"{r['rank']}. {ship_name(r['name'], 12)}{'★' if r['star'] else ''} {r['dn_dn']}/{r['n_dn']}日（{r['storm']:.0f}%）｜株価 {r['ret']:+.0f}%")
+    # 検証値: 3か月Top10の先行き21営業日・日経下落日に上がった率 48.8% vs 中央値 40.1%（92時点、86%で上回り、2026-10-13）
+    lines.append("★は 6か月でも 同じ側にいた船。来週の風を 約束は できぬ。だが 過去2年の記録では、嵐に強い船は その後1か月も 日経が下げた日の 49%で 逆に上がった（ふつうの船は 40%）。くせは すぐには 変わらぬ。風を 読みながら、安全な 航海を！")
+    lines.append("30隻までの表は 巻物（分析デッキの風見表）に。")
+    return "\n".join(lines)
+
+
+def storm_speech(d, chg):
+    m = d["main"]
+    s0, w0 = d["shield"][0], d["storm"][0]
+    s = f"嵐の日の 風見表だ。" + (f"今日の 日経は {chg:+.1f}%。" if chg is not None else "")
+    s += f"<br>嵐に強い筆頭は {ship_name(s0['name'])}、日経が下げた{s0['n_dn']}日のうち {s0['up_dn']}日 逆に上がった。"
+    s += f"<br>嵐に弱い筆頭は {ship_name(w0['name'])}、{w0['dn_dn']}日 いっしょに沈んだ。"
+    s += "<br>風を 読みながら、安全な 航海を！」"
+    return s
+
+
 def compose_kazami(d):
     m = d["main"]
     st, en = datetime.date.fromisoformat(m["start"]), datetime.date.fromisoformat(m["end"])
@@ -424,10 +472,10 @@ def compose_kazami(d):
              f"日経平均は 上昇{m['n_up']}日・下落{m['n_dn']}日で {m['nk_ret']:+.1f}%。チェックした{d['universe']}隻の船のうち、中央値となる船は、日経が上がった{m['n_up']}日のうち {round(d['median']['hit'] / 100 * m['n_up'])}日 いっしょに上がり、株価は 3か月で {d['median']['ret']:+.1f}% だった。",
              "【順風の船】日経が上がった日に いっしょに上がった日数（率）｜株価の3か月騰落"]
     for r in d["fair"][:10]:
-        lines.append(f"{r['rank']}. {ship_name(r['name'])}{'★' if r['star'] else ''} {r['same']}/{r['n_up']}日（{r['hit']:.0f}%）｜株価 {r['ret']:+.0f}%")
+        lines.append(f"{r['rank']}. {ship_name(r['name'], 12)}{'★' if r['star'] else ''} {r['same']}/{r['n_up']}日（{r['hit']:.0f}%）｜株価 {r['ret']:+.0f}%")
     lines.append("【逆風の船】日経が上がった日に 逆に下がった日数（率）｜株価の3か月騰落")
     for r in d["head"][:10]:
-        lines.append(f"{r['rank']}. {ship_name(r['name'])}{'★' if r['star'] else ''} {r['opp']}/{r['n_up']}日（{r['opp_rate']:.0f}%）｜株価 {r['ret']:+.0f}%")
+        lines.append(f"{r['rank']}. {ship_name(r['name'], 12)}{'★' if r['star'] else ''} {r['opp']}/{r['n_up']}日（{r['opp_rate']:.0f}%）｜株価 {r['ret']:+.0f}%")
     # 締め: 「読めぬ」で投げない（ユーザー指摘 10/11）。検証値（3か月Top10の先行き21営業日の同方向率 72.9% vs 中央値 63.1%、92時点）を根拠に「くせは続きやすい」とだけ言う。約束はしない
     lines.append("★は 6か月でも 同じ側にいた船。来週の風を 約束は できぬ。だが 過去2年の記録では、順風の船は その後1か月も 日経が上がった日の 73%で いっしょに上がった（ふつうの船は 63%）。くせは すぐには 変わらぬ。風を 読みながら、安全な 航海を！")
     lines.append("30隻までの表は 巻物（分析デッキの風見表）に。")
@@ -486,16 +534,16 @@ KAZAMI_CARD = """<!DOCTYPE html>
 </style></head>
 <body>
 <div class="grid"></div>
-<div class="head">{chiwawa}<div class="title">かぶチワワ 航海士の風見表<small>日経が上がった日に どう動いた船か</small></div><div class="date">{range_s}</div></div>
+<div class="head">{chiwawa}<div class="title">かぶチワワ 航海士の風見表<small>{subtitle}</small></div><div class="date">{range_s}</div></div>
 <div class="left">
   <div class="navi">{navi}</div>
   <div class="window"><span class="who">航海士</span>{speech}</div>
 </div>
 <div class="right">
-  <div class="strip">日経 <b>{nk_ret:+.1f}%</b>（上昇<b>{n_up}</b>日・下落<b>{n_dn}</b>日）｜{universe}隻の中央値の船: 同方向 <b>{med_days}/{n_up}日</b>・株価 <b>{med_ret:+.1f}%</b></div>
-  <div class="col fair"><h3>順風の船</h3><div class="sub">日経上昇日に いっしょに上がった日数（率）｜株価の3か月</div>
+  <div class="strip">{strip}</div>
+  <div class="col fair"><h3>{left_h3}</h3><div class="sub">{left_sub}</div>
     <table><colgroup><col style="width:26px"><col><col style="width:58px"><col style="width:50px"><col style="width:56px"></colgroup>{fair_rows}</table></div>
-  <div class="col adverse"><h3>逆風の船</h3><div class="sub">日経上昇日に 逆に下がった日数（率）｜株価の3か月</div>
+  <div class="col adverse"><h3>{right_h3}</h3><div class="sub">{right_sub}</div>
     <table><colgroup><col style="width:26px"><col><col style="width:58px"><col style="width:50px"><col style="width:56px"></colgroup>{head_rows}</table></div>
 </div>
 <div class="foot"><span>{deck}/kazami.html　★＝6か月でも同じ側の船　対象: 時価総額1,000億以上（営業赤字も含む）　毎週日曜更新</span><span>@kabuchiwa</span></div>
@@ -503,25 +551,40 @@ KAZAMI_CARD = """<!DOCTYPE html>
 """
 
 
-def kazami_card_html(d, speech):
+def kazami_card_html(d, speech, regime="up", today_chg=None):
+    """regime='up': 順風/逆風（日経上昇日）, 'down': 嵐に強い/弱い（日経下落日）"""
     m = d["main"]
-    def rows(side):
+    if regime == "up":
+        sides, cnt_k, den_k, rate_k = ("fair", "head"), ("same", "opp"), "n_up", ("hit", "opp_rate")
+    else:
+        sides, cnt_k, den_k, rate_k = ("shield", "storm"), ("up_dn", "dn_dn"), "n_dn", ("shield", "storm")
+
+    def rows(side, ck, rk):
         out = []
         for r in d[side][:10]:
-            cnt = r["same"] if side == "fair" else r["opp"]
-            rate = r["hit"] if side == "fair" else r["opp_rate"]
             star = '<span class="star">★</span>' if r["star"] else ""
             rc = "pos" if (r["ret"] or 0) > 0 else ("neg" if (r["ret"] or 0) < 0 else "")
-            out.append(f'<tr><td class="rk">{r["rank"]}</td><td class="nm">{ship_name(r["name"], 9)}{star}</td><td class="ct">{cnt}/{r["n_up"]}</td>'
-                       f'<td class="rt">{rate:.0f}%</td><td class="r3 {rc}">{r["ret"]:+.0f}%</td></tr>')
+            out.append(f'<tr><td class="rk">{r["rank"]}</td><td class="nm">{ship_name(r["name"], 9)}{star}</td><td class="ct">{r[ck]}/{r[den_k]}</td>'
+                       f'<td class="rt">{r[rk]:.0f}%</td><td class="r3 {rc}">{r["ret"]:+.0f}%</td></tr>')
         return "".join(out)
     st, en = datetime.date.fromisoformat(m["start"]), datetime.date.fromisoformat(m["end"])
+    if regime == "up":
+        med_days = round(d["median"]["hit"] / 100 * m["n_up"])
+        strip = (f'日経 <b>{m["nk_ret"]:+.1f}%</b>（上昇<b>{m["n_up"]}</b>日・下落<b>{m["n_dn"]}</b>日）｜{d["universe"]}隻の中央値の船: '
+                 f'同方向 <b>{med_days}/{m["n_up"]}日</b>・株価 <b>{d["median"]["ret"]:+.1f}%</b>')
+        labels = dict(subtitle="日経が上がった日に どう動いた船か", left_h3="順風の船", left_sub="日経上昇日に いっしょに上がった日数（率）｜株価の3か月",
+                      right_h3="逆風の船", right_sub="日経上昇日に 逆に下がった日数（率）｜株価の3か月")
+    else:
+        med_days = round(d["median"]["shield"] / 100 * m["n_dn"])
+        todays = f'今日の日経 <b>{today_chg:+.1f}%</b>｜' if today_chg is not None else ""
+        strip = (f'{todays}3か月の下落日 <b>{m["n_dn"]}</b>日｜{d["universe"]}隻の中央値の船: '
+                 f'逆に上がった <b>{med_days}/{m["n_dn"]}日</b>・株価 <b>{d["median"]["ret"]:+.1f}%</b>')
+        labels = dict(subtitle="日経が下がった日に 沈まなかった船か", left_h3="嵐に強い船", left_sub="日経下落日に 逆に上がった日数（率）｜株価の3か月",
+                      right_h3="嵐に弱い船", right_sub="日経下落日に いっしょに下がった日数（率）｜株価の3か月")
     return KAZAMI_CARD.format(W=kp.CARD_W, H=kp.CARD_H, chiwawa=kp.CHIWAWA_SVG, navi=navi_svg(9),
                               range_s=f"{st.strftime('%Y/%m/%d')} 〜 {en.strftime('%m/%d')}",
-                              speech=speech, fair_rows=rows("fair"), head_rows=rows("head"), deck=DECK_URL_SHORT,
-                              universe=d["universe"], med=d["median"]["hit"], med_ret=d["median"]["ret"],
-                              med_days=round(d["median"]["hit"] / 100 * m["n_up"]),
-                              nk_ret=m["nk_ret"], n_up=m["n_up"], n_dn=m["n_dn"])
+                              speech=speech, fair_rows=rows(sides[0], cnt_k[0], rate_k[0]), head_rows=rows(sides[1], cnt_k[1], rate_k[1]),
+                              deck=DECK_URL_SHORT, universe=d["universe"], med=d["median"]["hit"], strip=strip, **labels)
 
 
 
@@ -805,10 +868,16 @@ def run(mode, args):
         today = datetime.date.fromisoformat(args[args.index("--date") + 1])
     log(f"かぶチワワ 週末投稿（{mode}） 開始")
 
-    want_wd = 5 if mode == "weekly" else 6   # weekly=土曜, preview/kazami=日曜
-    if not force and today.weekday() != want_wd:
-        log(f"{today}（{WD[today.weekday()]}）は実行曜日（{WD[want_wd]}）ではない → スキップ（テストは --force）")
-        return
+    if mode == "storm":
+        # 平日の引け後のみ。日経が STORM_TH 以下に下げた日だけ出す（--force で無視）
+        if not force and (today.weekday() >= 5 or is_holiday(today)):
+            log(f"{today} は休場日 → スキップ")
+            return
+    else:
+        want_wd = 5 if mode == "weekly" else 6   # weekly=土曜, preview/kazami=日曜
+        if not force and today.weekday() != want_wd:
+            log(f"{today}（{WD[today.weekday()]}）は実行曜日（{WD[want_wd]}）ではない → スキップ（テストは --force）")
+            return
 
     if mode == "weekly":
         if not os.path.exists(HISTORY_JSON):
@@ -823,6 +892,41 @@ def run(mode, args):
         text = compose_weekly(rows, monday)
         html = weekly_card_html(rows, monday, weekly_speech(rows))
         key = f"weekly:{monday.isoformat()}"
+    elif mode == "storm":
+        if not os.path.exists(KAZAMI_JSON):
+            log("kazami_post.json がありません（kazami_screen.py を先に実行）")
+            return
+        d = json.load(open(KAZAMI_JSON, encoding="utf-8"))
+        gen = datetime.datetime.fromisoformat(d["generated"])
+        if (datetime.datetime.now() - gen).total_seconds() > 9 * 24 * 3600 and not force:
+            log(f"kazami_post.json が古い（{gen:%m/%d %H:%M}、日曜の計算が止まっている?）→ 投稿しません")
+            return
+        if len(d.get("shield") or []) < 10 or len(d.get("storm") or []) < 10:
+            log("嵐に強い/弱い船が10隻に足りません（kazami_screen.py を新版で再実行）→ 投稿しません")
+            return
+        nk = nikkei_today(today)
+        chg, yen = (nk[1], nk[2]) if nk else (None, None)
+        if not force:
+            if nk is None:
+                log("今日の日経平均の終値がまだ無い → スキップ")
+                return
+            if chg > STORM_TH:
+                log(f"今日の日経 {chg:+.2f}% は嵐（{STORM_TH}%以下）ではない → スキップ")
+                return
+            # 連日の嵐で毎日出さない: 直近 STORM_MIN_GAP_DAYS 日以内に出していれば見送る
+            if os.path.exists(POSTED_JSON):
+                try:
+                    pj = json.load(open(POSTED_JSON, encoding="utf-8"))
+                    recent = [k for k in pj if k.startswith("storm:") and (today - datetime.date.fromisoformat(k[6:])).days < STORM_MIN_GAP_DAYS]
+                    if recent:
+                        log(f"直近{STORM_MIN_GAP_DAYS}日以内に嵐の日投稿あり（{recent[-1]}）→ スキップ")
+                        return
+                except Exception:
+                    pass
+        log(f"  今日の日経: {('%+.2f%%' % chg) if chg is not None else '不明'} → 嵐の日投稿")
+        text = compose_storm(d, chg, yen)
+        html = kazami_card_html(d, storm_speech(d, chg), regime="down", today_chg=chg)
+        key = f"storm:{today.isoformat()}"
     elif mode == "kazami":
         if not os.path.exists(KAZAMI_JSON):
             log("kazami_post.json がありません（kazami_screen.py を先に実行）")
@@ -901,7 +1005,7 @@ def main():
             json.dump(cfg, open(kp.CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
         print(f"週末投稿（土曜8:00 成績表・日曜10:00 風見表・日曜18:30 来週予告）: {'オン' if cfg.get('weekend_post_enabled') else 'オフ（下書きのみ）'}")
         return
-    mode = next((a for a in args if a in ("weekly", "preview", "kazami")), None)
+    mode = next((a for a in args if a in ("weekly", "preview", "kazami", "storm")), None)
     if not mode:
         print(__doc__)
         return
