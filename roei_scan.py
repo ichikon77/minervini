@@ -181,6 +181,16 @@ def fetch_news(days=2):
     return out
 
 
+def _kw_in(title, kw):
+    """社名が見出しに含まれるか。短い（3文字以下）カタカナ社名は前後がカタカナ・長音でないことを要求し、
+    「ハッキング」→「キング」、「データベース」→「ベース」のような別語の一部への反応を防ぐ"""
+    if kw not in title:
+        return False
+    if len(kw) <= 3 and re.fullmatch(r"[ァ-ヴー]+", kw):
+        return re.search(r"(?<![ァ-ヴー])" + re.escape(kw) + r"(?![ァ-ヴー])", title) is not None
+    return True
+
+
 def build_matchers(jpx_names, aliases):
     """[(検索語, code, 由来)] 長い語から順に"""
     ms = []
@@ -230,7 +240,7 @@ def scan(inc, aliases, ignore_words, today=None):
             continue
         if any(w and w in t for w in (ignore_words or [])):
             continue
-        hit = next(((kw, code, how) for kw, code, how in matchers if kw in t), None)
+        hit = next(((kw, code, how) for kw, code, how in matchers if _kw_in(t, kw)), None)
         if not hit:
             continue
         kw, code, how = hit
@@ -252,7 +262,9 @@ def scan(inc, aliases, ignore_words, today=None):
                "sources": len(c["srcs"]), "first_report": c["first"].strftime("%Y-%m-%d %H:%M"), "titles": c["titles"][:8]}
         n_src = len([x for x in c["srcs"] if x != "(転載)"]) or 1
         rec["sources"] = n_src
-        strong = n_src >= 2 and (c["how"] == "alias" or len(c["kw"]) >= 4)
+        # 4文字未満の社名は「ハッキング→キング」型の誤検出が多かったので弾いていたが、旭化成・イズミ（4媒体）を落とした。
+        # _kw_in で前後がカタカナでない（別語の一部でない）ことを確認するようにしたので、3文字まで許可（2026-10-14）
+        strong = n_src >= 2 and (c["how"] == "alias" or len(c["kw"]) >= 3)
         rec["auto_added"] = bool(strong)
         cand_out.append(rec)
         if strong:
