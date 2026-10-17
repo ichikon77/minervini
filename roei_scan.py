@@ -44,6 +44,9 @@ QUERIES = [
     "ランサムウェア攻撃",
 ]
 INCIDENT_WORDS = ("不正アクセス", "漏えい", "漏洩", "流出", "ランサム", "サイバー攻撃", "紛失")
+SAME_CODE_DAYS = 30   # 同じ銘柄はこの日数以内なら続報扱い（14日だとパーク24の解説記事やヤマトの確定報を新規に拾った。2026-10-16）
+# 解説・インタビュー・まとめ記事の見出し語（新規公表ではない）
+COMMENTARY_WORDS = ("に聞く", "解説", "まとめ", "整理", "振り返", "教訓", "考える", "とは", "ラッシュ", "相次ぐ", "一覧", "ランキング")
 # 社名の短縮で削る語
 STRIP_WORDS = ("ホールディングス", "ホールディング", "グループ", "株式会社", "ＨＤ", "HD", "・", "（株）", "(株)")
 # 短縮後にこれだけになる社名は一般語なので使わない
@@ -240,14 +243,16 @@ def scan(inc, aliases, ignore_words, today=None):
             continue
         if any(w and w in t for w in (ignore_words or [])):
             continue
+        if any(w in t for w in COMMENTARY_WORDS):
+            continue   # 解説・まとめ記事は新規公表ではない
         hit = next(((kw, code, how) for kw, code, how in matchers if _kw_in(t, kw)), None)
         if not hit:
             continue
         kw, code, how = hit
         d = n["dt"].date().isoformat()
         last = recent.get(code)
-        if last and (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(last)).days <= 14:
-            continue   # 既に登録済み事案の続報
+        if last and (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(last)).days <= SAME_CODE_DAYS:
+            continue   # 既に登録済み事案の続報（確定報・第二報は手で追加する）
         c = cands.setdefault((code, d), {"code": code, "date": d, "kw": kw, "how": how, "name": jpx.get(code, kw),
                                           "titles": [], "srcs": set(), "first": n["dt"], "link": n["link"]})
         c["titles"].append(f"{n['dt']:%H:%M} {n['src']}: {n['title']}")
@@ -257,6 +262,7 @@ def scan(inc, aliases, ignore_words, today=None):
             c["link"] = n["link"]
     added = []
     cand_out = []
+    added_codes = set()   # 同じ巡回で同じ銘柄を日付違いで二重追加しない（エムスリー 10/15・10/16 の二重登録対策）
     for (code, d), c in sorted(cands.items()):
         rec = {"code": code, "date": d, "name": c["name"], "kw": c["kw"], "matched_by": c["how"],
                "sources": len(c["srcs"]), "first_report": c["first"].strftime("%Y-%m-%d %H:%M"), "titles": c["titles"][:8]}
@@ -264,14 +270,23 @@ def scan(inc, aliases, ignore_words, today=None):
         rec["sources"] = n_src
         # 4文字未満の社名は「ハッキング→キング」型の誤検出が多かったので弾いていたが、旭化成・イズミ（4媒体）を落とした。
         # _kw_in で前後がカタカナでない（別語の一部でない）ことを確認するようにしたので、3文字まで許可（2026-10-14）
-        strong = n_src >= 2 and (c["how"] == "alias" or len(c["kw"]) >= 3)
+        strong = n_src >= 2 and (c["how"] == "alias" or len(c["kw"]) >= 3) and code not in added_codes
         rec["auto_added"] = bool(strong)
         cand_out.append(rec)
         if strong:
+            added_codes.add(code)
             t0 = sorted(c["titles"])[0].split(": ", 1)[-1]   # 時刻順で最も早い見出し
+            # 件数は「その社名を含み、他の上場社名を含まない見出し」だけから拾う（まとめ記事の他社の件数を拾わない。パーク24に531万件が付いた対策）
+            own_titles = []
+            for tt in c["titles"]:
+                body = tt.split(": ", 1)[-1]
+                nb = norm(body)
+                others = [k for k, cd, _h in matchers if cd != code and len(k) >= 3 and _kw_in(nb, k)]
+                if _kw_in(nb, c["kw"]) and not others:
+                    own_titles.append(body)
             added.append({
                 "date": d, "time": "?", "kw": c["kw"], "code": code, "name": short_name(c["name"]) or c["name"],
-                "service": t0[:60], "type": guess_type(" ".join(c["titles"])), "scale": guess_scale(" ".join(c["titles"])) or "（見出しに件数なし）",
+                "service": t0[:60], "type": guess_type(" ".join(c["titles"])), "scale": guess_scale(" ".join(own_titles)) or "（見出しに件数なし）",
                 "note": f"自動検出（報道{n_src}媒体・初出{c['first']:%m/%d %H:%M}）・要確認。誤検出なら行を削除", "url": c["link"], "auto": True,
             })
             _log(f"  ★ 自動追加: {d} {c['name']}({code}) {n_src}媒体 初出{c['first']:%H:%M}  {t0[:50]}")
