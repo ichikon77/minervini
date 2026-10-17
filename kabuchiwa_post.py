@@ -892,8 +892,17 @@ def main():
     reply = None
     if cfg.get("reply_with_link", True):
         reply = f"偵察の詳細（ADR15銘柄・理論値の答え合わせ履歴）はこちらの巻物に。\n{DECK_URL}"
+    # 画像あり/なしのA/B試験（2026-10-20〜10-31、ユーザー合意 10/17）: 火・木は画像を付けずに投稿し、月・水・金（画像あり）と
+    # 曜日別のビュー中央値を比べる。同じ口座・同じ文面・同じ時刻で画像の有無だけを比較するため。カードは下書き用に生成だけする。
+    # 背景: 9月末の推薦アルゴリズム変更（クリック後滞在・「興味なし」の重み、Cold Start 2時間化）で画像カード型が不利になった疑い
+    AB_NO_IMAGE_WEEKDAYS = {1, 3}            # 火=1, 木=3
+    AB_START, AB_END = datetime.date(2026, 10, 20), datetime.date(2026, 10, 31)
+    attach = png_path if rendered else None
+    if AB_START <= today <= AB_END and today.weekday() in AB_NO_IMAGE_WEEKDAYS:
+        attach = None
+        log("  A/B試験: 本日は画像なしで投稿（火・木）")
     try:
-        post_to_x(cfg, text, png_path if rendered else None, reply)
+        post_to_x(cfg, text, attach, reply)
     except Exception as e:
         log(f"投稿失敗: {e}")
 
