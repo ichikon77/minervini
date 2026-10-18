@@ -18,6 +18,23 @@ import time
 import subprocess
 import datetime
 
+try:
+    from jp_market_holidays import next_business_day as _jp_next_bday
+except Exception:
+    _jp_next_bday = None
+
+
+def us_close_note(d):
+    """米決算（引け後発表）の日本時間の反映日。翌朝が東証休場なら反映日を注記する"""
+    base = "引け後発表（日本時間 翌朝"
+    if _jp_next_bday is None:
+        return base + "）"
+    nxt = d + datetime.timedelta(days=1)
+    jp = _jp_next_bday(nxt)
+    if jp == nxt:
+        return base + "）"
+    return base + f"。{nxt.month}/{nxt.day}は東証休場→日本株への反映は {jp.month}/{jp.day}）"
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPORT_HTML = "calendar.html"
 
@@ -46,6 +63,14 @@ EARNINGS = [
     ("2026-07-31", "AAPL", "Apple 決算"),
     ("2026-08-27", "NVDA", "NVIDIA 決算"),
     ("2026-09-10", "ORCL", "Oracle 決算"),  # AI設備投資の先行指標（OpenAI関連の受注残RPOに注目）。5月末決算のため3/6/9/12月発表
+    # --- 2026 Q3分（2026-10-18 追記。各社IRリリースで確認。いずれも引け後発表） ---
+    ("2026-10-21", "TSLA", "Tesla 決算"),       # ir.tesla.com 10/2 リリース
+    ("2026-10-21", "META", "Meta 決算"),        # investor.atmeta.com 10/12 リリース
+    ("2026-10-28", "GOOGL", "Alphabet 決算"),   # abc.xyz 10/6 リリース（FOMC結果発表と同日）
+    ("2026-10-28", "MSFT", "Microsoft 決算"),   # PR Newswire 10/7 リリース
+    ("2026-10-29", "AMZN", "Amazon 決算"),      # ir.aboutamazon.com 10/15 リリース
+    ("2026-11-02", "AAPL", "Apple 決算"),       # Apple IR 10/6 更新。月曜発表は異例。日本時間翌朝11/3は文化の日で休場→反映11/4
+    ("2026-11-17", "NVDA", "NVIDIA 決算"),      # 8/26 Q2説明会でIRが「11/17」と予告。正式「Sets Conference Call」リリースは未（例年3週前に出る。11月上旬に再確認）
     # SPCX(SpaceX)は上場直後で決算日程未公表。判明したら追記
 ]
 
@@ -60,6 +85,9 @@ BANK_EARNINGS = [
 KR_EARNINGS = [
     ("2026-07-28", "000660.KS", "SKハイニックス 決算"),
     ("2026-07-29", "005930.KS", "サムスン電子 決算"),
+    # 2026 Q3分（2026-10-18 追記）
+    ("2026-10-28", "000660.KS", "SKハイニックス 決算"),  # IR告知: 10/28 9:00 KST 説明会（寄り前〜場中）
+    ("2026-10-29", "005930.KS", "サムスン電子 決算"),    # samsung.com/global/ir: 10/29 10:00 KST 説明会（10/8に暫定値は既出）
 ]
 
 # 米雇用統計（BLS公表スケジュール、現地8:30 = 日本21:30/22:30）
@@ -207,7 +235,7 @@ def build_events(today):
     for s, ticker, name in EARNINGS:
         d = datetime.date.fromisoformat(s)
         if d >= since:
-            ev.append((d, "🇺🇸", name, f"{ticker}・引け後発表（日本時間 翌朝）",
+            ev.append((d, "🇺🇸", name, f"{ticker}・{us_close_note(d)}",
                        link("flow.html", "資金フロー"), False))
 
     for s, ticker, name in BANK_EARNINGS:
