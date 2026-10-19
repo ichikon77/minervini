@@ -64,7 +64,8 @@ def log(msg):
 # 取得
 # -----------------------------------------
 def fetch_word_counts(word):
-    """{日付ISO: 件数} を返す（直近30日、当日は集計途中なので除外）"""
+    """{日付ISO: 件数} を返す（直近30日）。当日分は集計途中の暫定値（2026-10-19 から含める。
+    翌日以降の実行で確定値に上書きされる。main() が当日行に _partial 印を付ける）"""
     url = API.format(word=urllib.parse.quote(word))
     req = urllib.request.Request(url, headers={
         **UA, "Referer": f"https://search.yahoo.co.jp/realtime/search?p={urllib.parse.quote(word)}"})
@@ -74,8 +75,8 @@ def fetch_word_counts(word):
     today = datetime.date.today().isoformat()
     for e in data.get("tweetTransition", {}).get("entry", []):
         d = datetime.datetime.fromtimestamp(e["from"]).date().isoformat()
-        if d >= today:
-            continue  # 当日は集計途中・翌日以降に確定値を取る
+        if d > today:
+            continue
         out[d] = e["count"]
     return out
 
@@ -251,7 +252,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </table>
   </div>
   <p class="note">
-    ・投稿数はYahooリアルタイム検索の集計（X全体のサンプリングであり絶対数ではなく推移を見る）。当日分は集計途中のため翌日に確定値を記録。<br>
+    ・投稿数はYahooリアルタイム検索の集計（X全体のサンプリングであり絶対数ではなく推移を見る）。当日分は「暫定 HH:MM時点」の途中集計で、翌日の実行で確定値に置き換わる（相場関連の投稿は日中に集中するため19:50時点で大半は入っている）。<br>
     ・APIの遡及限界が30日のため、それ以前は蓄積分のみ（このページの運用開始: 2026-08-15、以後毎日蓄積）。<br>
     ・スパイク判定 = その日の件数 ÷ 過去20日の中央値。土日祝の投稿も含む（市場休場日は日経平均が「-」）。<br>
     ・関連デッキ: <a href="vix.html" style="color:#60a5fa">VIX温度計</a>（機関の恐怖） /
@@ -295,7 +296,11 @@ def generate_html(hist, nikkei):
                 spike_days.append((d, w, ratio))
             else:
                 cells.append(f"<td>{v:,}</td>")
-        rows.append(f'      <tr{cls}><td>{d.replace("-", "/")}</td>'
+        d_s = d.replace("-", "/")
+        if rec.get("_partial"):
+            d_s += (f' <span style="font-size:11px;color:#fbbf24" title="当日は集計途中。翌日の実行で確定値に置き換わる">'
+                    f'暫定 {rec["_partial"]}時点</span>')
+        rows.append(f'      <tr{cls}><td>{d_s}</td>'
                     f'<td>{nk_s}</td><td>{chg_s}</td>' + "".join(cells) + "</tr>")
 
     # スパイク履歴サマリ
@@ -388,6 +393,15 @@ def main():
         added += n_new
         log(f"  {w}: {len(counts)}日分取得（更新{n_new}）")
         time.sleep(1.5)
+
+    # 当日行は暫定（集計途中）の印を付け、過去日の印は確定値で上書きされたので外す
+    today = datetime.date.today().isoformat()
+    for d, rec in hist.items():
+        if d == today and any(rec.get(w) is not None for w, _ in WORDS):
+            rec["_partial"] = datetime.datetime.now().strftime("%H:%M")
+            added += 1
+        elif d < today and rec.pop("_partial", None) is not None:
+            added += 1
 
     if added:
         save_history(hist)
