@@ -418,7 +418,7 @@ def ship_name(name, maxlen=9):
 
 
 STORM_TH = -1.0   # 日経平均の当日騰落率がこの%以下なら「嵐の日」投稿を出す
-STORM_MIN_GAP_DAYS = 5   # 嵐の日投稿の間隔（この日数以内に出していれば出さない）
+STORM_MIN_GAP_DAYS = 5   # 嵐の日投稿の間隔。この日数以内に出していても、前回より下げが大きければ「嵐が強まった」として出す（2026-10-25 変更。10/15 −4.9%・10/22 −2.65% を黙らせた反省）
 
 
 def nikkei_today(today):
@@ -434,12 +434,21 @@ def nikkei_today(today):
         return None
 
 
-def compose_storm(d, chg, yen):
-    """日経が大きく下げた日の夕方。嵐に強い船/弱い船（3か月の日経下落日の統計）"""
+def compose_storm(d, chg, yen, prev=None):
+    """日経が大きく下げた日の夕方。嵐に強い船/弱い船（3か月の日経下落日の統計）
+    prev=("きのう"/"火曜" などの呼び名, 前回の嵐投稿の日の騰落率) が与えられたら「前回より嵐が強まった」の一言を冒頭に挟む"""
     m = d["main"]
     st, en = datetime.date.fromisoformat(m["start"]), datetime.date.fromisoformat(m["end"])
-    head = (f"日経平均が 今日 {chg:+.1f}%（{yen:+,.0f}円）、自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。" if chg is not None
-            else "日経平均が 下げた日に、自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。")
+    if chg is not None:
+        head = f"日経平均が 今日 {chg:+.1f}%（{yen:+,.0f}円）"
+        if prev and prev[1] is not None:
+            when, pc = prev
+            head += f"。{when}の {pc:+.1f}% より 嵐が さらに 強まった。"
+        else:
+            head += "、"
+        head += "自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。"
+    else:
+        head = "日経平均が 下げた日に、自分の船だけ 沈んだ気がしている かぶチワワ殿、航海士だ。"
     lines = [head + f"この3か月（{mmdd(st)}〜{mmdd(en)}）、日経が下げた{m['n_dn']}日に どの船が 沈まなかったか、届けに来た。",
              f"チェックした{d['universe']}隻の船のうち、中央値となる船は、日経が下げた{m['n_dn']}日のうち {round(d['median']['shield'] / 100 * m['n_dn'])}日 逆に上がり、株価は 3か月で {d['median']['ret']:+.1f}% だった。",
              "【嵐に強い船】日経が下がった日に 逆に上がった日数（率）｜株価の3か月騰落"]
@@ -906,6 +915,7 @@ def run(mode, args):
             return
         nk = nikkei_today(today)
         chg, yen = (nk[1], nk[2]) if nk else (None, None)
+        prev = None   # 直近の嵐投稿（呼び名, その日の騰落率）— 強まった時の冒頭一言に使う
         if not force:
             if nk is None:
                 log("今日の日経平均の終値がまだ無い → スキップ")
@@ -913,18 +923,28 @@ def run(mode, args):
             if chg > STORM_TH:
                 log(f"今日の日経 {chg:+.2f}% は嵐（{STORM_TH}%以下）ではない → スキップ")
                 return
-            # 連日の嵐で毎日出さない: 直近 STORM_MIN_GAP_DAYS 日以内に出していれば見送る
+            # 連日の嵐で同じ規模の表を毎日出さない: 直近 STORM_MIN_GAP_DAYS 日以内に出していたら、
+            # 前回より下げが大きい（嵐が強まった）ときだけ出す。前回の騰落率が未記録（旧版）なら出す
             if os.path.exists(POSTED_JSON):
                 try:
                     pj = json.load(open(POSTED_JSON, encoding="utf-8"))
-                    recent = [k for k in pj if k.startswith("storm:") and (today - datetime.date.fromisoformat(k[6:])).days < STORM_MIN_GAP_DAYS]
+                    recent = sorted(k for k in pj if k.startswith("storm:") and (today - datetime.date.fromisoformat(k[6:])).days < STORM_MIN_GAP_DAYS)
                     if recent:
-                        log(f"直近{STORM_MIN_GAP_DAYS}日以内に嵐の日投稿あり（{recent[-1]}）→ スキップ")
-                        return
-                except Exception:
-                    pass
+                        pdate = datetime.date.fromisoformat(recent[-1][6:])
+                        pchg = pj.get(f"storm_chg:{pdate.isoformat()}")
+                        if pchg is not None and chg >= pchg - 1e-9:
+                            log(f"直近{STORM_MIN_GAP_DAYS}日以内に嵐の日投稿あり（{pdate} {pchg:+.2f}%）、今日 {chg:+.2f}% はそれ以下の嵐 → スキップ")
+                            return
+                        if pchg is None:
+                            log(f"直近{STORM_MIN_GAP_DAYS}日以内に嵐の日投稿あり（{pdate}）が騰落率の記録なし → 比較できないので投稿する")
+                        else:
+                            when = "きのう" if (today - pdate).days == 1 else f"{WD[pdate.weekday()]}曜"
+                            prev = (when, pchg)
+                            log(f"直近の嵐投稿（{pdate} {pchg:+.2f}%）より今日 {chg:+.2f}% は大きい → 嵐が強まったとして投稿")
+                except Exception as e:
+                    log(f"  嵐の間隔チェックで例外（無視して続行）: {e}")
         log(f"  今日の日経: {('%+.2f%%' % chg) if chg is not None else '不明'} → 嵐の日投稿")
-        text = compose_storm(d, chg, yen)
+        text = compose_storm(d, chg, yen, prev)
         html = kazami_card_html(d, storm_speech(d, chg), regime="down", today_chg=chg)
         key = f"storm:{today.isoformat()}"
     elif mode == "kazami":
@@ -985,7 +1005,9 @@ def run(mode, args):
     try:
         kp.post_to_x(cfg, text, png_path if rendered else None, None)
         posted[key] = datetime.datetime.now().isoformat(timespec="seconds")
-        posted = dict(sorted(posted.items())[-40:])
+        if mode == "storm" and chg is not None:
+            posted[f"storm_chg:{today.isoformat()}"] = round(chg, 2)   # 次の嵐と規模を比べるため
+        posted = dict(sorted(posted.items())[-60:])
         json.dump(posted, open(POSTED_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     except Exception as e:
         log(f"投稿失敗: {e}")
