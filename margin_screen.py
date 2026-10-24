@@ -196,10 +196,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・単位は株（ETFは口）。<br>
     ・<b>倍率の信頼度</b>: 売り残が1万株未満、または買残の1/50未満の日は「売り残僅少」としてグレー表示（※印）。分母が小さいと倍率が暴れるため、その銘柄では倍率ではなく買残の推移を見る。<br>
     　根拠: 全銘柄で売り残の少ない下位25%は倍率の10週変動係数が0.73、多い上位25%は0.31（2026-09-27時点・週次データ）。<br>
-    ・<b>買残10期比</b>: 制度買残が10期前（10行前。週次期間は10週、日次期間は10営業日≒2週）から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
-    ・<b>膨張率</b>: 直近の倍率 ÷ 直近10期の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。<br>
-    ・<b>株式分割</b>: 隣り合う日で制度買残（±4%）と一般買残（±6%）が同じ整数倍（2〜5・10倍）に跳んだら権利落ち日と判定し、黄色の区切り行を入れる（日次データ=2026-09-25以降のみ。週次期間は1系列しか無く実需の振れと区別できないため判定しない）。残高は分割前の株数のまま残す（倍率は株数に依らないので連続して読める）。買残10期比だけは分割後株数に揃えて計算。英字コード銘柄（285A等）は2026-09-25以降の日次からの蓄積（旧週次パーサが読めなかったため）。<br>
-    ・買残10期比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
+    ・<b>買残10営業日比・50営業日比</b>: 制度買残が10営業日前（≒2週）／50営業日前（≒10週）から何%増減したか。倍率の分母（売り残）のノイズを含まない「個人が買い下がって残高を積んでいるか」の指標。<br>
+    ・<b>膨張率（÷10営業日中央値／÷50営業日中央値）</b>: その日の倍率 ÷ その日を含む直近10営業日／50営業日の倍率中央値。その銘柄の平常に対してどれだけ膨らんだか（銘柄間で比べられる）。10営業日は「直近2週間で急に動いたか」、50営業日は「2〜3か月の平常から見てどうか」。両方を見ると「短期では膨張、長期では縮んでいたのが戻っただけ」のような違いが読める。<br>
+    ・<b>営業日の数え方</b>（2026-10-25 変更）: 2026-09-25 より前の週次データは「申込日（金曜）の値がその週の月〜金に続いた」とみなして営業日に展開してから数える（以前は行数で数えていたため、日次化後に10行＝2週へ縮み、長期の平常と比べられなくなっていた）。履歴の先頭より前に窓がはみ出す場合は出さない。<br>
+    ・<b>株式分割</b>: 隣り合う日で制度買残（±4%）と一般買残（±6%）が同じ整数倍（2〜5・10倍）に跳んだら権利落ち日と判定し、黄色の区切り行を入れる（日次データ=2026-09-25以降のみ。週次期間は1系列しか無く実需の振れと区別できないため判定しない）。残高は分割前の株数のまま残す（倍率は株数に依らないので連続して読める）。買残N営業日比だけは分割後株数に揃えて計算。英字コード銘柄（285A等）は2026-09-25以降の日次からの蓄積（旧週次パーサが読めなかったため）。<br>
+    ・買残N営業日比・膨張率は計算値であり売買判定ではない。色付けは信頼度のグレーのみ。履歴が積もった時点で、対照群と比べて事後リターンに差があるかを検証してから判定色を検討する。
   </p>
   <p class="updated">最終更新: {updated}</p>
 <script>
@@ -209,9 +210,40 @@ let FUND = null;
 //   根拠: 2026-09-27 時点の全3,769銘柄で、売り残下位25%の倍率10週変動係数は0.73、上位25%は0.31（分母が小さいほど倍率が暴れる）
 const THIN_SELL_ABS = 10000;
 const THIN_SELL_RATIO = 50;
-// 10期トレンド指標（買残10期比・膨張率）の窓幅と、中央値を出すのに必要な最低期数（1期=1行。週次期間は1週、日次期間は1営業日）
-const TREND_WEEKS = 10;
-const TREND_MIN = 6;
+// トレンド指標（買残N営業日比・膨張率 ÷N営業日中央値）。2026-10-25 に「行数（10行）」から「営業日数」へ変更し、短期10・長期50の2本立てに:
+//   9/25 の日次化で 10 行＝10 営業日＝2 週に縮み、比較相手の半分が「測りたい膨らみ」自体で汚れていた
+//   （6920 10/22: 10行方式 膨張率1.40倍・買残+33% → 50営業日では 1.19倍・−4%＝「縮んでいたのが平常に戻った」と読みが逆になる）。
+//   週次期間（〜2026-09-18）の行は「申込日（金曜）の値がその週の月〜金 5営業日に続いた」とみなして営業日列に展開し、
+//   日次期間の行は1営業日1点。これで週次・日次が混在した履歴でも「N営業日」が同じ意味になる（12月中旬以降は日次だけで50営業日が埋まる）。
+const TREND_SHORT = 10;                 // 短期: 直近2週間で急に動いたか
+const TREND_LONG = 50;                  // 長期: 2〜3か月の平常から見てどうか（≒旧設計の10週）
+const TREND_MIN = 6;                    // 中央値を出すのに必要な最低点数
+const DAILY_START = '2026-09-25';       // これ以降の行は日次（それより前は週次）
+// 営業日列: rows（新しい順）から、各行がカバーする平日（月〜金）の配列（要素は d='YYYY-MM-DD' と row）を古い順に作る
+function buildBusinessDays(rows) {{
+  const valid = rows.filter(r => !r.none).slice().reverse();   // 古い順
+  const out = [];
+  for (const r of valid) {{
+    const end = new Date(r.w + 'T00:00:00Z');
+    if (r.w >= DAILY_START) {{
+      out.push({{d: r.w, row: r}});
+    }} else {{
+      // 週次: 申込日を含む週の月曜から申込日までの平日に同じ値を置く（申込日が木曜なら木曜まで）
+      const dow = (end.getUTCDay() + 6) % 7;                      // 月=0 … 日=6
+      for (let k = dow; k >= 0; k--) {{
+        const x = new Date(end); x.setUTCDate(end.getUTCDate() - k);
+        if (x.getUTCDay() === 0 || x.getUTCDay() === 6) continue;
+        out.push({{d: x.toISOString().slice(0, 10), row: r}});
+      }}
+    }}
+  }}
+  return out;
+}}
+function medianOf(arr) {{
+  const a = arr.slice().sort((x, y) => x - y);
+  const n = a.length;
+  return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2;
+}}
 
 async function loadData() {{
   if (DATA) return DATA;
@@ -340,7 +372,7 @@ async function search() {{
     }}
     // 株式分割の検出（2026-10-11、285A キオクシア 1→3 で発覚）: 隣り合う行で制度買残が整数倍（2〜5・10倍、誤差±4%）に跳び、
     // 一般買残（あれば）も同じ倍率なら分割（権利落ち日）と判定。数字は補正せず「分割前の株数」のまま残し、区切り行で明示する。
-    // 買残10期比だけは分割をまたぐと意味を失うので、分割後株数に揃えた adj を掛けて計算する（表示は生の数字）。
+    // 買残N営業日比だけは分割をまたぐと意味を失うので、分割後株数に揃えた adj を掛けて計算する（表示は生の数字）。
     const SPLIT_KS = [2, 3, 4, 5, 10];
     for (let i = rows.length - 1; i >= 0; i--) {{
       const r = rows[i];
@@ -371,47 +403,65 @@ async function search() {{
       r.adj = adj;
       if (r.split) adj *= r.split.k;
     }}
-    // 前週比・10週指標は古い順で計算してから新しい順で表示（rows は新しい順）
+    // 前期比
     for (let i = rows.length - 1; i >= 0; i--) {{
       const r = rows[i];
       if (r.none) continue;
-      // 前週比
       r.chg = null;
       if (r.ratio !== null) {{
         for (let j = i + 1; j < rows.length; j++) {{
           if (!rows[j].none && rows[j].ratio !== null) {{ r.chg = r.ratio - rows[j].ratio; break; }}
         }}
       }}
-      // 買残の10週変化率: 10週前（rows[i+10]）との比較
-      r.buy10 = null;
-      const base = rows[i + TREND_WEEKS];
-      if (base && !base.none && base.buy > 0) r.buy10 = ((r.buy * r.adj) / (base.buy * base.adj) - 1) * 100;   // 分割をまたぐ場合は株数を揃える
-      // 膨張率: 直近倍率 ÷ 直近10週（当週含む）の倍率中央値
-      r.med10 = null; r.exp10 = null;
-      const win = [];
-      for (let j = i; j < Math.min(rows.length, i + TREND_WEEKS); j++) {{
-        if (!rows[j].none && rows[j].ratio !== null) win.push(rows[j].ratio);
-      }}
-      if (win.length >= TREND_MIN && r.ratio !== null) {{
-        win.sort((a, b) => a - b);
-        const m = win.length % 2 ? win[(win.length - 1) / 2] : (win[win.length / 2 - 1] + win[win.length / 2]) / 2;
-        r.med10 = m;
-        r.exp10 = m > 0 ? r.ratio / m : null;
+    }}
+    // N営業日指標（短期10・長期50）: 営業日列の上で「その日を含む直近N営業日」の中央値と、N営業日前の買残と比べる
+    const bd = buildBusinessDays(rows);                 // 古い順
+    const posOf = new Map();                            // 行 → 営業日列での最後の位置（週次行は金曜の位置）
+    bd.forEach((e, idx) => posOf.set(e.row, idx));
+    for (const r of rows) {{
+      if (r.none) continue;
+      const p = posOf.get(r);
+      for (const [N, tag] of [[TREND_SHORT, 'S'], [TREND_LONG, 'L']]) {{
+        r['buy' + tag] = null; r['med' + tag] = null; r['exp' + tag] = null;
+        if (p === undefined) continue;
+        const from = p - N + 1;
+        // 買残N営業日比: N営業日前の行の買残（分割をまたぐ場合は株数を揃える）。窓が履歴の先頭より前に出るときは出さない
+        const bidx = p - N;
+        if (bidx >= 0) {{
+          const b = bd[bidx].row;
+          if (b.buy > 0) r['buy' + tag] = ((r.buy * r.adj) / (b.buy * b.adj) - 1) * 100;
+        }}
+        // 膨張率: 直近倍率 ÷ 直近N営業日（当日含む）の倍率中央値。窓が履歴の先頭より前に出るときは出さない（短い窓で平常を誤認しない）
+        if (from >= 0 && r.ratio !== null) {{
+          const win = [];
+          for (let j = from; j <= p; j++) if (bd[j].row.ratio !== null) win.push(bd[j].row.ratio);
+          if (win.length >= TREND_MIN) {{
+            const m = medianOf(win);
+            r['med' + tag] = m;
+            r['exp' + tag] = m > 0 ? r.ratio / m : null;
+          }}
+        }}
       }}
     }}
-    // 直近週のサマリー（事実の計算値のみ・判定はしない）
+    // 直近日のサマリー（事実の計算値のみ・判定はしない）
     const latest = rows.find(r => !r.none && r.ratio !== null);
     if (latest) {{
       let s = '倍率 <b>' + latest.ratio.toFixed(2) + 'x</b>';
-      if (latest.med10 !== null) s += '（' + TREND_WEEKS + '期中央値 ' + latest.med10.toFixed(2) + 'x → 膨張率 <b>' + latest.exp10.toFixed(2) + '倍</b>）';
-      if (latest.buy10 !== null) s += '　／　買い残 ' + TREND_WEEKS + '期で <b>' + (latest.buy10 > 0 ? '+' : '') + latest.buy10.toFixed(0) + '%</b>';
+      const part = [];
+      if (latest.expS !== null) part.push('10営業日: 中央値 ' + latest.medS.toFixed(2) + 'x → 膨張率 <b>' + latest.expS.toFixed(2) + '倍</b>');
+      if (latest.expL !== null) part.push('50営業日: 中央値 ' + latest.medL.toFixed(2) + 'x → 膨張率 <b>' + latest.expL.toFixed(2) + '倍</b>');
+      if (part.length) s += '（' + part.join('　/　') + '）';
+      const bp = [];
+      if (latest.buyS !== null) bp.push('10営業日で <b>' + (latest.buyS > 0 ? '+' : '') + latest.buyS.toFixed(0) + '%</b>');
+      if (latest.buyL !== null) bp.push('50営業日で <b>' + (latest.buyL > 0 ? '+' : '') + latest.buyL.toFixed(0) + '%</b>');
+      if (bp.length) s += '　／　買い残 ' + bp.join('・');
       if (latest.thin) s += '　／　<span class="thin-note">売り残僅少（' + fmt(latest.sell) + '株）のため倍率は参考外</span>';
       html += '<p class="summary">' + s + '</p>';
     }}
-    html += '<table><thead><tr><th>申込日</th><th>制度買残</th><th>買残' + TREND_WEEKS + '期比</th><th>制度売残</th><th>制度信用倍率</th><th>前期比</th><th>膨張率<br><span style="font-weight:400">÷' + TREND_WEEKS + '期中央値</span></th><th>一般売残</th><th>一般買残</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>申込日</th><th>制度買残</th><th>買残<br><span style="font-weight:400">10営業日比</span></th><th>買残<br><span style="font-weight:400">50営業日比</span></th><th>制度売残</th><th>制度信用倍率</th><th>前期比</th><th>膨張率<br><span style="font-weight:400">÷10営業日中央値</span></th><th>膨張率<br><span style="font-weight:400">÷50営業日中央値</span></th><th>一般売残</th><th>一般買残</th></tr></thead><tbody>';
     for (const r of rows) {{
       if (r.none) {{
-        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>';
+        html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td>' + '<td>-</td>'.repeat(10) + '</tr>';
         continue;
       }}
       let cls = 'ratio';
@@ -425,8 +475,8 @@ async function search() {{
         const sign = r.chg > 0 ? '+' : '';
         chgStr = '<span class="' + (r.chg > 0 ? 'pos' : 'neg') + '">' + sign + r.chg.toFixed(2) + '</span>';
       }}
-      const buy10Str = (r.buy10 !== null) ? ((r.buy10 > 0 ? '+' : '') + r.buy10.toFixed(0) + '%') : '-';
-      const expStr = (r.exp10 !== null) ? r.exp10.toFixed(2) + '倍' : '-';
+      const pctStr = v => (v !== null && v !== undefined) ? ((v > 0 ? '+' : '') + v.toFixed(0) + '%') : '-';
+      const expStr = v => (v !== null && v !== undefined) ? v.toFixed(2) + '倍' : '-';
       if (r.split) {{
         const sp = r.split;
         let note = r.w.replace(/-/g, '/') + ' 権利落ち: <b>1→' + sp.k + ' 株式分割</b>（この行より下は分割前の株数、倍率は株数に依らないのでそのまま比較可）。倍率 '
@@ -435,10 +485,11 @@ async function search() {{
         if (sp.sellChg !== null) note += '・売残 ' + (sp.sellChg > 0 ? '+' : '') + sp.sellChg.toFixed(1) + '%';
         if (sp.sellChg !== null && r.ratio !== null && sp.prevRatio !== null && r.ratio > sp.prevRatio && sp.sellChg < -5 && Math.abs(sp.buyChg) < 5) note += '（倍率上昇の主因は売り方の減少＝踏み上げ燃料の減少）';
         else if (r.ratio !== null && sp.prevRatio !== null && r.ratio > sp.prevRatio && sp.buyChg > 5) note += '（倍率上昇の主因は買い残の増加）';
-        html += '<tr class="split"><td colspan="9">' + note + '</td></tr>';
+        html += '<tr class="split"><td colspan="11">' + note + '</td></tr>';
       }}
-      html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>' + fmt(r.buy) + '</td><td class="calc">' + buy10Str + '</td><td>'
-            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="calc' + (r.thin ? ' thin' : '') + '">' + expStr + '</td><td class="calc">' + (r.gsell !== null ? fmt(r.gsell) : '-') + '</td><td class="calc">' + (r.gbuy !== null ? fmt(r.gbuy) : '-') + '</td></tr>';
+      const thinCls = 'calc' + (r.thin ? ' thin' : '');
+      html += '<tr><td>' + r.w.replace(/-/g, '/') + '</td><td>' + fmt(r.buy) + '</td><td class="calc">' + pctStr(r.buyS) + '</td><td class="calc">' + pctStr(r.buyL) + '</td><td>'
+            + fmt(r.sell) + '</td><td class="' + cls + '">' + ratioStr + '</td><td>' + chgStr + '</td><td class="' + thinCls + '">' + expStr(r.expS) + '</td><td class="' + thinCls + '">' + expStr(r.expL) + '</td><td class="calc">' + (r.gsell !== null ? fmt(r.gsell) : '-') + '</td><td class="calc">' + (r.gbuy !== null ? fmt(r.gbuy) : '-') + '</td></tr>';
     }}
     html += '</tbody></table>';
   }}
