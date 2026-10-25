@@ -217,8 +217,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .card .label {{ font-size: 0.75rem; color: #94a3b8; }}
   .card .v {{ font-size: 1.5rem; margin-top: 2px; font-variant-numeric: tabular-nums; }}
   .card .v small {{ font-size: 0.85rem; color: #94a3b8; margin-left: 6px; }}
-  .tables {{ display: flex; gap: 24px; flex-wrap: wrap; }}
-  .table-col {{ flex: 1; min-width: 520px; max-width: 700px; }}
+  .tables {{ display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }}
+  /* 表の実幅は9列で約720px。基準幅をそれに合わせ、2つ並ばない窓幅では縦に積む（min-width:0 と overflow で隣の表に重ならない） */
+  .table-col {{ flex: 1 1 720px; min-width: 0; max-width: 100%; overflow-x: auto; }}
+  .nm {{ display: inline-block; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }}
   .table-col h2 {{ margin-top: 8px; }}
   .table-col h2.fair {{ color: #86efac; }} .table-col h2.head {{ color: #fca5a5; }}
   table {{ border-collapse: collapse; font-size: 0.82rem; width: 100%; }}
@@ -320,7 +322,7 @@ def rows_html(rows, side):
         cnt, den, rate, six, avg = r[spec[0]], r[spec[1]], r[spec[2]], r[spec[3]], r[spec[4]]
         star = ' <span class="star" title="6か月でも同じ側のTop30">★</span>' if r["star"] else ""
         out.append(
-            f'<tr><td class="rank">{r["rank"]}</td><td>{r["name"]}{star} <span class="dim">{r["code"]}</span></td>'
+            f'<tr><td class="rank">{r["rank"]}</td><td><span class="nm" title="{r["name"]}">{r["name"]}</span>{star} <span class="dim">{r["code"]}</span></td>'
             f'<td>{cnt}/{den}</td><td class="big">{rate:.0f}%</td>'
             f'<td class="{cls(avg)}">{avg:+.2f}%</td>'
             f'<td class="{cls(r["ret"])}">{r["ret"]:+.1f}%</td><td class="{cls(r["excess"])}">{r["excess"]:+.1f}</td>'
