@@ -251,6 +251,7 @@ NAV = [
     ("fx_corr.html", "円安/円高相関", "#db2777"),
     ("kazami.html", "風見表", "#db2777"),
     ("roei.html", "情報漏洩銘柄検証", "#db2777"),
+    ("semi.html", "半導体ゾンビ", "#db2777"),
     ("kasetsu.html", "仮説検証", "#94a3b8"),
 ]
 

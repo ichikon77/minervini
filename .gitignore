@@ -67,3 +67,10 @@ margin_mcap_cache.json
 !kanryu_history.json
 # 並び転換の段階到達日（答え合わせ用の蓄積データ）はバックアップのためpush
 !tenkan_history.json
+!semi_history.json
+semi_post.json
+semi_posted.json
+semi_rating_cache.json
+semi_run_log.txt
+semi_log.txt
+semi_post_log.txt
