@@ -45,18 +45,21 @@ def mmdd(s):
 # -----------------------------------------
 # 投稿文
 # -----------------------------------------
-def compose(d):
+def compose(d, today=None):
     """2026-10-25 ユーザー指定フォーマット（短く・需給が主役・締めは戦士の一言）。
-    「チャンス」は禁止語なので「波」に置き換え。倍率の高低は市場の慣用で「需給が悪化/改善」と言う（中身の買残/売残はカードで見せる）"""
+    「チャンス」は禁止語なので「波」に置き換え。倍率の高低は市場の慣用で「需給が悪化/改善」と言う（中身の買残/売残はカードで見せる）。
+    株価の日付（asof）が今日でないとき（休日に --force で出す等）は「今日」を「10/23（金）」に置き換える"""
     s, by = d["summary"], {r["code"]: r for r in d["rows"]}
+    asof = datetime.date.fromisoformat(s["asof"])
+    day = "今日" if (today is None or asof == today) else f"{asof.month}/{asof.day}（{WD[asof.weekday()]}）"
     lines = [OPENING]
     zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
     worst = min(zombies, key=lambda r: r["d1"])
     if worst["d1"] < 0:
-        lines.append(f"今日、いちばん株価を下げたゾンビは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
+        lines.append(f"{day}、いちばん株価を下げたゾンビは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
     else:
         best = max(zombies, key=lambda r: r["d1"])
-        lines.append(f"今日は ゾンビが 1体も 下げなかった。いちばん上げたのは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
+        lines.append(f"{day}は ゾンビが 1体も 下げなかった。いちばん上げたのは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
     heavy = [by[c] for c in s["heavy"][:3]]
     light = [by[c] for c in s["light"][:3]]
     if heavy:
@@ -67,7 +70,7 @@ def compose(d):
                      + "、".join(f"{r['name']} {r['ratio']:.1f}倍（ふだんの {r['exp50']:.1f}倍）" for r in light) + "。")
     if s.get("buzz_top"):
         b = by[s["buzz_top"][0]]
-        lines.append(f"今日 Xで 騒がれているのは {b['name']}（投稿 {b['buzz_today']:,}件、ふだんの {b['buzz_spike']:.1f}倍）。株価 {b['d1']:+.1f}%、制度信用倍率 {b['ratio']:.1f}倍。")
+        lines.append(f"{day} Xで 騒がれているのは {b['name']}（投稿 {b['buzz_today']:,}件、ふだんの {b['buzz_spike']:.1f}倍）。株価 {b['d1']:+.1f}%、制度信用倍率 {b['ratio']:.1f}倍。")
     lines.append("狂暴化したゾンビにおてつきしたり、つぎの半導体の波に乗り遅れたりしないためにも、毎日の数値確認を怠らないようにしておけよ。")
     lines.append(f"半導体ゾンビ全{s['n']}体の詳細は 分析デッキの「半導体ゾンビ」で確認できるぞ。")
     return "\n".join(lines)
@@ -190,7 +193,7 @@ def card_speech(d):
     s, by = d["summary"], {r["code"]: r for r in d["rows"]}
     zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
     worst = min(zombies, key=lambda r: r["d1"])
-    t = f"半導体ゾンビは {s['n_zombie']}/{s['n']}体。今日 いちばん 下げたのは {worst['name']} {worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。"
+    t = f"半導体ゾンビは {s['n_zombie']}/{s['n']}体。いちばん 下げたのは {worst['name']} {worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。"
     if s["heavy"]:
         h = by[s["heavy"][0]]
         t += f"<br>需給が 悪化しているのは {h['name']}（制度信用倍率 {h['ratio']:.1f}倍、ふだんの {h['exp50']:.1f}倍）。"
@@ -262,7 +265,7 @@ def main():
         if d["summary"]["asof"] != today.isoformat():
             log(f"株価が今日の終値ではない（{d['summary']['asof']}）→ 投稿しません（yfinance の遅延なら semi_run.bat を再実行）")
             return
-    text = compose(d)
+    text = compose(d, today)
     out_dir = os.path.join(DRAFTS_DIR, today.isoformat())
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "semi_post.txt"), "w", encoding="utf-8") as f:
@@ -277,7 +280,7 @@ def main():
         html_path = os.path.join(out_dir, "semi_card.html")
         png_path = os.path.join(out_dir, "semi_card.png")
         with open(html_path, "w", encoding="utf-8") as f:
-            f.write(card_html(d, today))
+            f.write(card_html(d, datetime.date.fromisoformat(d["summary"]["asof"])))
         if kp.render_card(html_path, png_path):
             log(f"カード画像: OK {png_path}")
         else:
