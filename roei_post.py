@@ -44,7 +44,9 @@ def pct(v, d=1):
     return f"{v:+.{d}f}%"
 
 
-def compose(d, today):
+def compose(d, today, lead_code=None):
+    """lead_code: 冒頭1行（見出し）にする事案の証券コードを手で指定（--lead 9449）。
+       話題度の自動選択が見出しの略称（「GMO、…」等）で数え漏れたときの逃げ道（2026-10-27 GMOインターネットグループ）"""
     inc = [r for r in d["incidents"] if r.get("ok") and r.get("ret")]
     mday = d.get("market_day") or today.isoformat()
     md = datetime.date.fromisoformat(mday)
@@ -85,6 +87,13 @@ def compose(d, today):
     #     話題の事案にまだ終値がなければ「新規漏洩銘柄に A、B が追加。」の形。全事案 buzz=0 の静かな日は冒頭なし）
     lead = None
     hot = [r for r in d["incidents"] if r.get("ok") and (r.get("buzz") or 0) > 0]
+    if lead_code:
+        forced = [r for r in d["incidents"] if r.get("ok") and r.get("code") == lead_code]
+        if forced:
+            hot = [max(forced, key=lambda r: r["date"])]   # 同じコードが複数あれば最新の事案
+            hot[0]["buzz"] = max(hot[0].get("buzz") or 0, 1)
+        else:
+            log(f"--lead {lead_code}: 該当する事案が無いので自動選択に戻します")
     if hot:
         def _chg(r):
             if r.get("last") and r["last"].get("chg1d") is not None and r["last"]["date"] == mday:
@@ -106,7 +115,9 @@ def compose(d, today):
             lead = f"{top['name']}（{top['code']}）、公表後初日は {pct(c['stock'])}{ex}。"
         elif top.get("last") and top["last"].get("chg1d") is not None and top["last"]["date"] == mday:
             L = top["last"]
-            lead = f"{top['name']}（{top['code']}）、公表{L['days']}日目で前日比 {pct(L['chg1d'])}（公表前比 {pct(L['stock'])}）。"
+            ms = (top.get("ret") or {}).get(str(L["days"]))   # 5/10/15/30日目の節目なら TOPIX比も添える
+            ex = f"、TOPIX比 {pct(ms['excess'])}" if ms and ms.get("excess") is not None else ""
+            lead = f"{top['name']}（{top['code']}）、公表{L['days']}日目で前日比 {pct(L['chg1d'])}（公表前比 {pct(L['stock'])}{ex}）。"
     if adds and not (lead and lead.startswith("新規漏洩銘柄に")):
         # 「報道より自動検出」は読者に不要な内部事情なので投稿文には出さない（2026-10-07 ユーザー判断。表・カードの「自動検出」タグは据え置き）
         names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}）" for r in adds)
@@ -143,7 +154,8 @@ def main():
     if (datetime.datetime.now() - gen).total_seconds() > 6 * 3600 and not force:
         log("データが古いので投稿しません")
         return
-    text, worth = compose(d, today)
+    lead_code = args[args.index("--lead") + 1] if "--lead" in args and args.index("--lead") + 1 < len(args) else None
+    text, worth = compose(d, today, lead_code=lead_code)
     os.makedirs(os.path.join(DRAFTS_DIR, today.isoformat()), exist_ok=True)
     with open(os.path.join(DRAFTS_DIR, today.isoformat(), "roei_post.txt"), "w", encoding="utf-8") as f:
         f.write(text + "\n")
