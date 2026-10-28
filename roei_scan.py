@@ -239,6 +239,7 @@ def scan(inc, aliases, ignore_words, today=None):
     for r in inc:
         recent[r["code"]] = max(recent.get(r["code"], "0000"), r["date"])
     cands = {}    # (code, date) -> {...}
+    same_code = {}   # (code, date) -> 続報扱いでスキップした見出し（別件の2件目を黙って落とさないため記録。2026-10-28: りそな/NTT/JR東海/バンダイのユミルリンク下流を90日ルールが全部飲み込んだ）
     for n in news:
         t = norm(n["title"])
         if not any(w in t for w in INCIDENT_WORDS):
@@ -256,6 +257,10 @@ def scan(inc, aliases, ignore_words, today=None):
         d = n["dt"].date().isoformat()
         last = recent.get(code)
         if last and (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(last)).days <= SAME_CODE_DAYS:
+            if d != last:   # 登録済みの公表日そのものの見出しは当然の続報なので記録しない
+                sc = same_code.setdefault((code, d), {"code": code, "date": d, "name": jpx.get(code, kw), "kw": kw, "last": last, "titles": []})
+                if len(sc["titles"]) < 5:
+                    sc["titles"].append(f"{n['dt']:%H:%M} {n['src']}: {n['title']}")
             continue   # 既に登録済み事案の続報（確定報・第二報は手で追加する）
         c = cands.setdefault((code, d), {"code": code, "date": d, "kw": kw, "how": how, "name": jpx.get(code, kw),
                                           "titles": [], "srcs": set(), "first": n["dt"], "link": n["link"]})
@@ -296,10 +301,15 @@ def scan(inc, aliases, ignore_words, today=None):
             _log(f"  ★ 自動追加: {d} {c['name']}({code}) {n_src}媒体 初出{c['first']:%H:%M}  {t0[:50]}")
         else:
             _log(f"  候補（追加せず）: {d} {c['name']}({code}) {n_src}媒体 [{c['how']}:{c['kw']}]  {c['titles'][0][:70]}")
+    # 同コード90日ルールで落とした見出し。別件の2件目（委託先ユミルリンクの下流など）が混ざるので、ログに出して目で拾えるようにする
+    same_out = []
+    for (code, d), sc in sorted(same_code.items()):
+        same_out.append({k: sc[k] for k in ("code", "date", "name", "kw", "last", "titles")})
+        _log(f"  続報扱い（{sc['last']} の {sc['name']}({code}) から{SAME_CODE_DAYS}日以内）: {d} {len(sc['titles'])}見出し  {sc['titles'][0][:70]}  ※別件なら手で追加")
     try:
         json.dump({"_updated": datetime.datetime.now().isoformat(timespec="seconds"),
-                   "_説明": "roei_scan.py が見つけた新規事案の候補。auto_added=true は roei_incidents.json に自動追加済み。false は媒体数不足などで保留（手で追加するなら roei_incidents.json に1行書く）",
-                   "candidates": cand_out}, open(CANDIDATES_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+                   "_説明": "roei_scan.py が見つけた新規事案の候補。auto_added=true は roei_incidents.json に自動追加済み。false は媒体数不足などで保留（手で追加するなら roei_incidents.json に1行書く）。same_code_skipped は登録済み銘柄の90日以内の見出し（続報か別件かは目で判断）",
+                   "candidates": cand_out, "same_code_skipped": same_out}, open(CANDIDATES_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     except Exception as e:
         _log(f"  候補JSONの保存失敗: {e}")
     return added, cand_out

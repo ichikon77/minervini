@@ -136,7 +136,7 @@ def main():
             cfg["roei_post_enabled"] = False
         cfg.pop("_comment", None)
         json.dump(cfg, open(kp.CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        print(f"情報漏洩ウォッチの夕方投稿: {'オン（月〜金 20:00ごろ・休場日は自動スキップ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
+        print(f"情報漏洩ウォッチの夕方投稿: {'オン（月〜金 22:00ごろ・休場日は自動スキップ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
         return
     today = datetime.date.today()
     if "--date" in args:
