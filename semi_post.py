@@ -4,7 +4,8 @@
 
 書き出しは固定「かぶチワワよ。今日も戦士として、半導体ゾンビと戦ってきたぞ。」（2026-10-25 ユーザー指定）。
 中身は比喩を使わず「株価」「信用倍率」「X投稿数」の素の言葉で書く（知らない人が読んでも分かるように、ユーザー指摘 10/25）。
-項目は毎日固定: ゾンビの数 → 株価が高値からいちばん落ちている銘柄 → 今日沈んだ3 → 浮いた2 → 信用倍率が平常比で膨らんだ/しぼんだ1ずつ →
+項目は毎日固定（2026-10-29 更新）: 今日いちばん下げたゾンビ1体 → いちばん上げたゾンビ1体 → 信用倍率が平常比で膨らんだ3/しぼんだ3 → 締め。カードの戦士のセリフも下げ1体＋上げ1体。
+（旧案: ゾンビの数 → 株価が高値からいちばん落ちている銘柄 → 今日沈んだ3 → 浮いた2 → 信用倍率が平常比で膨らんだ/しぼんだ1ずつ →
 復活度の最上位 →（あれば）今日 X で話題の銘柄 → 締め。売買の言葉は使わない（kabuchiwa_post.FORBIDDEN_WORDS で検査）。
 
 投稿のオン/オフは x_config.json の "semi_post_enabled"（既定 false＝下書きのみ）。--enable/--disable/--status。
@@ -54,12 +55,16 @@ def compose(d, today=None):
     day = "今日" if (today is None or asof == today) else f"{asof.month}/{asof.day}（{WD[asof.weekday()]}）"
     lines = [OPENING]
     zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
+    # 2026-10-29 ユーザー要望: 下げた1体だけでなく、上げた1体も毎日書く（カードの戦士のセリフも同じ）
     worst = min(zombies, key=lambda r: r["d1"])
-    if worst["d1"] < 0:
+    best = max(zombies, key=lambda r: r["d1"])
+    if worst["d1"] < 0 and best["d1"] > 0:
         lines.append(f"{day}、いちばん株価を下げたゾンビは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
-    else:
-        best = max(zombies, key=lambda r: r["d1"])
+        lines.append(f"いちばん株価を上げたゾンビは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
+    elif worst["d1"] >= 0:
         lines.append(f"{day}は ゾンビが 1体も 下げなかった。いちばん上げたのは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
+    else:
+        lines.append(f"{day}は ゾンビが 1体も 上げなかった。いちばん下げたのは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
     heavy = [by[c] for c in s["heavy"][:3]]
     light = [by[c] for c in s["light"][:3]]
     if heavy:
@@ -196,13 +201,26 @@ def card_speech(d):
     s, by = d["summary"], {r["code"]: r for r in d["rows"]}
     zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
     worst = min(zombies, key=lambda r: r["d1"])
-    t = f"半導体ゾンビは {s['n_zombie']}/{s['n']}体。いちばん 下げたのは {worst['name']} {worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。"
+    best = max(zombies, key=lambda r: r["d1"])
+    nm = lambda r: CARD_SHORT.get(r["name"], r["name"])   # ウィンドウ幅（約15字/行）に収めるため短縮名
+    t = f"半導体ゾンビは {s['n_zombie']}/{s['n']}体。"
+    # 下げた1体＋上げた1体（2026-10-29 ユーザー要望）。全員上げ/全員下げの日はその旨
+    if worst["d1"] < 0 and best["d1"] > 0:
+        t += (f"いちばん 下げたのは {nm(worst)} {worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）、"
+              f"いちばん 上げたのは {nm(best)} {best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
+    elif worst["d1"] >= 0:
+        t += f"1体も 下げなかった。いちばん 上げたのは {nm(best)} {best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。"
+    else:
+        t += f"1体も 上げなかった。いちばん 下げたのは {nm(worst)} {worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。"
+    # 需給の行は倍率を落として1体ずつ（ウィンドウが伸びて下のURL帯に重なるのを防ぐ。倍率は右の表にある）
     if s["heavy"]:
         h = by[s["heavy"][0]]
-        t += f"<br>需給が 悪化しているのは {h['name']}（制度信用倍率 {h['ratio']:.1f}倍、ふだんの {h['exp50']:.1f}倍）。"
+        t += f"<br>需給が 悪化しているのは {nm(h)}（ふだんの {h['exp50']:.1f}倍）"
     if s["light"]:
         l = by[s["light"][0]]
-        t += f"改善しているのは {l['name']}（ふだんの {l['exp50']:.1f}倍）。"
+        t += f"、改善しているのは {nm(l)}（ふだんの {l['exp50']:.1f}倍）"
+    if s["heavy"] or s["light"]:
+        t += "。"
     t += "<br>毎日の 数値確認を 怠るな。」"
     return t
 
