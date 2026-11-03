@@ -58,13 +58,17 @@ ADR_LIST = [
     ("NTDOY", "7974.T", "任天堂", "OTC"),
     ("SFTBY", "9984.T", "ソフトバンクG", "OTC"),
     ("HTHIY", "6501.T", "日立", "OTC"),
-    ("TOELY", "8035.T", "東京エレクトロン", "OTC"),
+    # 東京エレクトロンは TOELY（ADR）が 2026-10-07 の 5:1 分割以降 Yahoo に値が無く、10/6 の終値が
+    # 「昨晩の終値」として使われ続けて +20〜34% の偽ギャップが 13 営業日投稿に載った（2026-11-03 発見）。
+    # 原株の OTC 銘柄 TOELF（USD 建て普通株、比率≈1.0、2年分の日足あり）に差し替え
+    ("TOELF", "8035.T", "東京エレクトロン", "OTC"),
     ("FRCOY", "9983.T", "ファーストリテ", "OTC"),
     ("KMTUY", "6301.T", "コマツ", "OTC"),
 ]
 
 BETA_LOOKBACK = 250   # 理論値の回帰に使う日数（約1年）
 RATIO_WINDOW = 20     # ADR換算比率の中央値を取る日数
+ADR_GAP_MAX = 15.0    # ADRギャップの絶対値がこれを超えたらデータ異常として除外（実株が一晩で15%乖離することはない）
 DEVIATION_TH = 0.5    # 実測-理論値の乖離がこの%を超えたら「日本固有要因あり」(赤)
 
 
@@ -889,10 +893,21 @@ def calc_adr_gaps():
             if len(merged) < RATIO_WINDOW:
                 continue
             ratio = float((merged["af"] / merged["j"]).iloc[-RATIO_WINDOW:].median())
+            # 鮮度ガード: ADRの最終日が東京の前営業日より古ければ「昨晩の終値」ではない
+            # （米国休場明け、または TOELY 2026-10-07 分割後のようにデータが止まった銘柄）。
+            # バックテスト側の「u < tp は除外」と同じ基準。古い値で偽ギャップを出すより載せない
+            adr_date = a.index[-1].date()
+            if adr_date < expected:
+                log(f"  {adr}（{name}）: ADR終値が {adr_date} で古い（東京前営業日 {expected}）→ 除外")
+                continue
             adr_last = float(a.iloc[-1])          # 今朝の米国終値
             tyo_prev = float(j.iloc[-1])          # 東京の前日終値
             implied = adr_last * (fx_now or float(f.iloc[-1])) / ratio
             gap = (implied / tyo_prev - 1) * 100
+            # 異常値ガード: 分割・比率変更・欠損バーで換算が狂った値を投稿に載せない（9/29 三井住友 +98.3% の型）
+            if abs(gap) > ADR_GAP_MAX:
+                log(f"  {adr}（{name}）: ADRギャップ {gap:+.1f}% はデータ異常の疑い（|gap|>{ADR_GAP_MAX:.0f}%）→ 除外")
+                continue
             out.append({"name": name, "adr": adr, "tyo": tyo.replace(".T", ""),
                         "mkt": mkt, "tyo_prev": tyo_prev, "implied": implied, "gap": gap})
         except Exception as e:
@@ -1197,6 +1212,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・<b>ADR換算比率</b> = 直近{ratio_window}日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
     定義上、平常時のギャップは0近辺になり、表示される値は「昨晩ついた固有のプレミアム/ディスカウント」。<br>
     ・ADRは米国での流動性が薄い銘柄（OTC系）ほどノイズが大きい。大型のTM/SONY/MUFG等を優先的に信頼する。<br>
+    ・ADRの終値が東京の前営業日より古い銘柄（米国休場・データ停止）と、ギャップの絶対値が{adr_gap_max:.0f}%を超える銘柄（分割・換算の不良）は
+    データ異常として表から外す（2026-11-03〜。東京エレクトロンは TOELY の分割後データ停止で 10/16〜11/2 に偽の+20〜34%が出たため、原株 TOELF に差し替え）。<br>
     ・{beta_note}
   </p>
   <p class="updated">最終更新: {updated}</p>
@@ -1450,6 +1467,7 @@ def generate_html(data, hist=None):
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         dev_th=DEVIATION_TH,
         ratio_window=RATIO_WINDOW,
+        adr_gap_max=ADR_GAP_MAX,
         cards="".join(cards),
         adr_rows="\n".join(adr_rows),
         beta_note=beta_note,
