@@ -55,6 +55,16 @@ def pct(v, d=1):
     return f"{v:+.{d}f}%"
 
 
+def nm(r):
+    """銘柄名（コード）。公表前後に決算発表が重なる銘柄には「※決算」を添える（騰落が漏洩だけの反応ではないことを示す、2026-11-03）"""
+    if r.get("earn"):
+        y, m, d = r["earn"].split("-")
+        tag = f"※決算{int(m)}/{int(d)}"
+    else:
+        tag = ""
+    return f"{r['name']}（{r['code']}{tag}）"
+
+
 def compose(d, today, lead_code=None):
     """lead_code: 冒頭1行（見出し）にする事案の証券コードを手で指定（--lead 9449）。
        話題度の自動選択が見出しの略称（「GMO、…」等）で数え漏れたときの逃げ道（2026-10-27 GMOインターネットグループ）"""
@@ -71,7 +81,7 @@ def compose(d, today, lead_code=None):
         for i, r in enumerate(same):
             sd = r["same_day"]
             q = f"（{r['time_basis']}から場中と推定）" if str(r.get("time_basis", "")).startswith("報道初出") else ""
-            lines.append(f"{r['name']}（{r['code']}）{pct(sd['stock'])}（TOPIX比 {pct(sd['excess'])}）{q}{'。' if i == len(same) - 1 else '、'}")
+            lines.append(f"{nm(r)}{pct(sd['stock'])}（TOPIX比 {pct(sd['excess'])}）{q}{'。' if i == len(same) - 1 else '、'}")
     # 2) 今日が「1営業日後」（day0 == market_day）
     first = [r for r in inc if r.get("day0") == mday and r["ret"].get("1")]
     if first:
@@ -79,16 +89,16 @@ def compose(d, today, lead_code=None):
         for i, r in enumerate(first):
             c = r["ret"]["1"]
             ex = f"（TOPIX比 {pct(c['excess'])}）" if c.get("excess") is not None else ""
-            lines.append(f"{r['name']}（{r['code']}）{pct(c['stock'])}{ex}{'。' if i == len(first) - 1 else '、'}")
+            lines.append(f"{nm(r)}{pct(c['stock'])}{ex}{'。' if i == len(first) - 1 else '、'}")
     # 3) 本日の最大下落（追跡中=30営業日以内）
     tracked = [r for r in inc if r.get("last") and r["last"].get("chg1d") is not None and r["last"]["days"] <= 30 and r["last"]["date"] == mday]
     worst = min(tracked, key=lambda r: r["last"]["chg1d"]) if tracked else None
     if worst and worst["last"]["chg1d"] < 0:
         wd = datetime.date.fromisoformat(worst["date"])
-        lines.append(f"本日、特に下げた情報漏洩銘柄は、{wd.month}/{wd.day}に公表した{worst['name']}（{worst['code']}）で、前日比 {pct(worst['last']['chg1d'])}（公表前比 {pct(worst['last']['stock'])}、{worst['last']['days']}日目）でした。")
+        lines.append(f"本日、特に下げた情報漏洩銘柄は、{wd.month}/{wd.day}に公表した{nm(worst)}で、前日比 {pct(worst['last']['chg1d'])}（公表前比 {pct(worst['last']['stock'])}、{worst['last']['days']}日目）でした。")
     elif tracked:
         best = max(tracked, key=lambda r: r["last"]["chg1d"])
-        lines.append(f"本日は追跡中{len(tracked)}銘柄に目立った下げはなく、最も戻したのは{best['name']}（{best['code']}）の前日比 {pct(best['last']['chg1d'])}でした。")
+        lines.append(f"本日は追跡中{len(tracked)}銘柄に目立った下げはなく、最も戻したのは{nm(best)}の前日比 {pct(best['last']['chg1d'])}でした。")
     # 4) 本日引け後に公表（翌営業日がまだ来ていない）新規
     pending = [r for r in d["incidents"] if r.get("ok") and not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない"
                and not (r.get("same_day") and r["same_day"].get("date") == mday)]
@@ -119,16 +129,16 @@ def compose(d, today, lead_code=None):
             lead = f"新規漏洩銘柄に {names} が追加。"
         elif top in same:
             sd = top["same_day"]
-            lead = f"{top['name']}（{top['code']}）、公表当日の引けまでに前日比 {pct(sd['stock'])}（TOPIX比 {pct(sd['excess'])}）。"
+            lead = f"{nm(top)}、公表当日の引けまでに前日比 {pct(sd['stock'])}（TOPIX比 {pct(sd['excess'])}）。"
         elif top.get("day0") == mday and top.get("ret", {}).get("1"):
             c = top["ret"]["1"]
             ex = f"（TOPIX比 {pct(c['excess'])}）" if c.get("excess") is not None else ""
-            lead = f"{top['name']}（{top['code']}）、公表後初日は {pct(c['stock'])}{ex}。"
+            lead = f"{nm(top)}、公表後初日は {pct(c['stock'])}{ex}。"
         elif top.get("last") and top["last"].get("chg1d") is not None and top["last"]["date"] == mday:
             L = top["last"]
             ms = (top.get("ret") or {}).get(str(L["days"]))   # 5/10/15/30日目の節目なら TOPIX比も添える
             ex = f"、TOPIX比 {pct(ms['excess'])}" if ms and ms.get("excess") is not None else ""
-            lead = f"{top['name']}（{top['code']}）、公表{L['days']}日目で前日比 {pct(L['chg1d'])}（公表前比 {pct(L['stock'])}{ex}）。"
+            lead = f"{nm(top)}、公表{L['days']}日目で前日比 {pct(L['chg1d'])}（公表前比 {pct(L['stock'])}{ex}）。"
     if adds and not (lead and lead.startswith("新規漏洩銘柄に")):
         # 「報道より自動検出」は読者に不要な内部事情なので投稿文には出さない（2026-10-07 ユーザー判断。表・カードの「自動検出」タグは据え置き）
         names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}）" for r in adds)
@@ -165,7 +175,7 @@ def compose_weekly(d, today):
         def fmt_r(r):
             c = ret1(r)
             ex = f"（TOPIX比 {pct(c['excess'])}）" if c.get("excess") is not None else ""
-            return f"{r['name']}（{r['code']}）{pct(c['stock'])}{ex}"
+            return f"{nm(r)}{pct(c['stock'])}{ex}"
         neg = [r for r in first if ret1(r)["stock"] < 0][:4]
         pos = [r for r in reversed(first) if ret1(r)["stock"] > 0][:2]
         if neg:
@@ -174,9 +184,11 @@ def compose_weekly(d, today):
             lines.append("上げたのは " + "、".join(fmt_r(r) for r in pos) + ("" if len(pos) == n - ws["first_neg"] else f" ほか{n - ws['first_neg'] - len(pos)}社") + "。")
     # 3) 今週公表の銘柄で、公表前比が最悪・最良（直近終値）
     w, b = ws["worst"], ws["best"]
+    n_earn = ws.get("n_earn", 0)
     if w and w["last"]["stock"] < 0:
-        lines.append(f"今週公表の銘柄で、公表前からの下げがいちばん大きいのは {w['name']}（{w['code']}）{pct(w['last']['stock'])}（{w['last']['days']}日目）。"
-                     + (f"いちばん戻しているのは {b['name']}（{b['code']}）{pct(b['last']['stock'])}。" if b and b is not w and b["last"]["stock"] > 0 else ""))
+        lines.append(f"今週公表の銘柄で、公表前からの下げがいちばん大きいのは {nm(w)}{pct(w['last']['stock'])}（{w['last']['days']}日目）。"
+                     + (f"いちばん戻しているのは {nm(b)}{pct(b['last']['stock'])}。" if b and b is not w and b["last"]["stock"] > 0 else "")
+                     + (f"（決算発表が重なる{n_earn}社は除く）" if n_earn else ""))
     # 4) 全事案中央値
     g = d.get("summary", {}).get("全事案", {})
     med = []

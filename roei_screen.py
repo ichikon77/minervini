@@ -237,6 +237,70 @@ def fill_buzz(inc, days_back=10, budget_sec=60):
     log("  話題度(24h見出し数): " + ("、".join(f"{r['name']} {r['buzz']}" for r in hot) if hot else "該当なし"))
 
 
+EARN_CACHE = os.path.join(SCRIPT_DIR, "roei_earnings_cache.json")   # {code: {"dates": [...], "fetched": "YYYY-MM-DD"}} 週1更新（gitignore不要・小さい）
+EARN_TOL_DAYS = 2        # yfinance の決算日は日本株で1〜2日ずれることがある（ANA 実際10/30 → 10/28 と出た）ので幅を持つ
+EARN_WINDOW_DAYS = 10    # 公表日から何日以内の決算を「重なり」とみなすか（暦日。5営業日≒7暦日＋余裕）
+
+
+def earn_tag(r):
+    """カード・HTML用の印「決算10/28」（ゼロ埋めなし）。earn が無ければ空文字"""
+    if not r.get("earn"):
+        return ""
+    y, m, d = r["earn"].split("-")
+    return f"決算{int(m)}/{int(d)}"
+
+
+def fill_earnings(inc, budget_sec=60, days_back=45):
+    """公表日の前後に決算発表が重なる銘柄に印を付ける（2026-11-03 ユーザー指摘: ANA +6.3%・中部電力 −8.1% は決算の反応）。
+    r["earn"] = "YYYY-MM-DD"（重なる決算日、yfinance get_earnings_dates）または None。
+    公表前2日〜公表後 EARN_WINDOW_DAYS 日に決算日（±EARN_TOL_DAYS）があれば印（過去・これからの決算とも。表示は「決算11/5」のように日付付き、2026-11-03 ユーザー指定）。因果は書けないので「決算と重なる」と注記するだけ"""
+    today = datetime.date.today()
+    cache = {}
+    if os.path.exists(EARN_CACHE):
+        try:
+            cache = json.load(open(EARN_CACHE, encoding="utf-8"))
+        except Exception:
+            cache = {}
+    t0 = time.time()
+    fetched = 0
+    for r in inc:
+        r["earn"] = None
+        if not r.get("ok"):
+            continue
+        d0 = datetime.date.fromisoformat(r["date"])
+        if (today - d0).days > days_back:
+            # 古い事案は確定済みの印をキャッシュから引くだけ（再取得しない）
+            pass
+        ent = cache.get(r["code"])
+        stale = (not ent) or (today - datetime.date.fromisoformat(ent.get("fetched", "2000-01-01"))).days >= 7
+        if stale and (today - d0).days <= days_back and time.time() - t0 < budget_sec:
+            try:
+                import yfinance as _yf
+                ed = _yf.Ticker(f"{r['code']}.T").get_earnings_dates(limit=12)
+                dates = sorted({x.strftime("%Y-%m-%d") for x in ed.index.to_pydatetime()}) if ed is not None and len(ed) else []
+                ent = {"dates": dates, "fetched": today.isoformat()}
+                cache[r["code"]] = ent
+                fetched += 1
+            except Exception as e:
+                log(f"  決算日の取得失敗 {r['name']}({r['code']}): {str(e)[:60]}")
+                ent = ent or {"dates": [], "fetched": today.isoformat()}
+                cache[r["code"]] = ent
+        if not ent:
+            continue
+        lo = d0 - datetime.timedelta(days=2 + EARN_TOL_DAYS)
+        hi = d0 + datetime.timedelta(days=EARN_WINDOW_DAYS + EARN_TOL_DAYS)
+        hits = [x for x in ent["dates"] if lo <= datetime.date.fromisoformat(x) <= hi]   # これから来る決算にも印（「決算11/5」と日付で示す）
+        if hits:
+            r["earn"] = min(hits, key=lambda x: abs((datetime.date.fromisoformat(x) - d0).days))
+    try:
+        json.dump(cache, open(EARN_CACHE, "w", encoding="utf-8"), ensure_ascii=False, indent=0)
+    except Exception as e:
+        log(f"  決算日キャッシュの保存失敗: {e}")
+    n = sum(1 for r in inc if r.get("earn"))
+    log(f"  決算日の重なり: {n} 件に印（新規取得 {fetched} 銘柄、{time.time() - t0:.0f}秒）: "
+        + "、".join(f"{r['name']}({r['earn'][5:]})" for r in inc if r.get("earn"))[:200])
+
+
 def fill_auto_times(inc):
     """time が ? の事案について、報道初出時刻を自動で調べて time_auto に記録（公表から10日間は毎回再確認、以後は記録を使う）"""
     today = datetime.date.today()
@@ -570,6 +634,8 @@ def generate_html(inc, summ, words):
             sub = traw if re.match(r"\d{1,2}:\d{2}", traw) else ("" if r.get("time_basis") == "手動" else r.get("time_basis", ""))
             tcell = tlabel + (f'<br><span class="ex">{sub}</span>' if sub else "")
         name = f'{r["name"]}（{r["code"]}）'
+        if r.get("earn"):
+            name += f'<br><span class="tag t1" title="公表日の前後に決算発表（{r["earn"]}）が重なる。騰落は漏洩だけの反応ではない">{earn_tag(r)}</span>'
         scale = f'{r.get("service", "")}<br><span class="ex">{r.get("scale", "")}</span>'
         if r.get("auto"):
             scale = '<span class="tag t4" title="報道見出しから自動検出。内容は未確認">自動検出</span> ' + scale
@@ -721,7 +787,7 @@ def make_card(inc, summ, words, only_latest=True):
 
     # ---- 下段: 事案ボード
     by0 = top_y + top_h + 12
-    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "Incidents since Sep 2026  —  1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明(引け後扱い)")
+    panel(20, by0, W - 20, H - 60, "事案一覧（公表日順）", "1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明   決算m/d=公表前後に決算発表が重なる（漏洩だけの反応ではない）")
     cols = [("公表", 32), ("銘柄", 100), ("コード", 330), ("種別", 400), ("1日", 520), ("5日", 620), ("10日", 720), ("直近", 820), ("日目", 905), ("対象", 960)]
     yy = by0 + 32
     for lab, x in cols:
@@ -737,6 +803,8 @@ def make_card(inc, summ, words, only_latest=True):
         d.text((32, yy), r["date"][5:].replace("-", "/"), font=f14, fill=col_name)
         d.text((76, yy + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
         d.text((100, yy), r["name"][:14], font=f14, fill=col_name)
+        if r.get("earn"):
+            d.text((100 + d.textlength(r["name"][:14], font=f14) + 6, yy + 3), earn_tag(r), font=f12, fill=AMB)
         d.text((330, yy), r["code"], font=f14, fill=GR)
         d.text((400, yy), r.get("type", "")[:6], font=f12, fill=GR)
         for n, x in ((1, 520), (5, 620), (10, 720)):
@@ -803,6 +871,8 @@ def make_card(inc, summ, words, only_latest=True):
             d2.text((32, yy2), r["date"][5:].replace("-", "/"), font=f14, fill=WH)
             d2.text((76, yy2 + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
             d2.text((100, yy2), r["name"][:14], font=f14, fill=WH)
+            if r.get("earn"):
+                d2.text((100 + d2.textlength(r["name"][:14], font=f14) + 6, yy2 + 3), earn_tag(r), font=f12, fill=AMB)
             d2.text((330, yy2), r["code"], font=f14, fill=GR)
             d2.text((400, yy2), r.get("type", "")[:6], font=f12, fill=GR)
             for n, x in ((1, 520), (5, 620), (10, 720)):
@@ -871,12 +941,15 @@ def week_stats(inc, today=None):
     st = [ret1(r)["stock"] for r in first_week]
     ex = [ret1(r)["excess"] for r in first_week if ret1(r).get("excess") is not None]
     # 今週公表の銘柄で、直近終値の公表前比が最も悪い/良い
-    tracked = [r for r in new_week if r.get("last") and r["last"].get("stock") is not None]
+    # 公表前比の最悪/最良は決算が重なる銘柄を除いて選ぶ（ANA +6.3%・中部電力 −8.1% は決算の反応だった、2026-11-03）
+    tracked_all = [r for r in new_week if r.get("last") and r["last"].get("stock") is not None]
+    tracked = [r for r in tracked_all if not r.get("earn")]
+    n_earn = len(tracked_all) - len(tracked)
     worst = min(tracked, key=lambda r: r["last"]["stock"]) if tracked else None
     best = max(tracked, key=lambda r: r["last"]["stock"]) if tracked else None
     pending = [r for r in ok if not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない" and iso(r["date"]) <= today]
     return {"monday": monday, "friday": friday, "new": new_week, "first": first_week, "first_med": med(st), "first_med_ex": med(ex),
-            "first_neg": sum(1 for v in st if v < 0), "worst": worst, "best": best, "pending": pending}
+            "first_neg": sum(1 for v in st if v < 0), "worst": worst, "best": best, "n_earn": n_earn, "pending": pending}
 
 
 def make_week_card(inc, summ, words):
@@ -946,10 +1019,11 @@ def make_week_card(inc, summ, words):
         exs = f'TOPIX比 {ws["first_med_ex"]:+.1f}' if ws["first_med_ex"] is not None else ""
         d.text((px[1] + 170, top_y + 58), exs, font=f14, fill=c(ws["first_med_ex"]))
         d.text((px[1] + 10, top_y + 88), f'下げた {ws["first_neg"]}社 ／ 上げた {n - ws["first_neg"]}社', font=f14, fill=WH)
-        w_ = ws["first"][0]
+        clean = [r for r in ws["first"] if not r.get("earn")] or ws["first"]   # 決算が重なる銘柄は除外
+        w_ = clean[0]
         d.text((px[1] + 10, top_y + 112), f'最大下落 {w_["name"][:10]} {ret1(w_)["stock"]:+.1f}', font=f14, fill=RD)
-        b_ = ws["first"][-1]
-        d.text((px[1] + 10, top_y + 130), f'最大上昇 {b_["name"][:10]} {ret1(b_)["stock"]:+.1f}', font=f12, fill=GN)
+        b_ = clean[-1]
+        d.text((px[1] + 10, top_y + 130), f'最大上昇 {b_["name"][:10]} {ret1(b_)["stock"]:+.1f}' + ("" if len(clean) == len(ws["first"]) else f"（決算が重なる{len(ws['first']) - len(clean)}社を除く）"), font=f12, fill=GN)
     else:
         d.text((px[1] + 10, top_y + 44), "今週 初日を迎えた銘柄なし", font=f16, fill=GR)
     # P3 全事案 中央値
@@ -974,7 +1048,7 @@ def make_week_card(inc, summ, words):
     avail = H - 60 - yy - 6
     maxrows = max(1, avail // 25)
     more = f"（新しい{maxrows}件を表示、ほか{len(rows) - maxrows}件は roei.html に）" if len(rows) > maxrows else ""
-    panel(20, by0, W - 20, H - 60, f"今週 公表の事案（{len(rows)}件・公表日順）", f"1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明{more}")
+    panel(20, by0, W - 20, H - 60, f"今週 公表の事案（{len(rows)}件・公表日順）", f"1 / 5 / 10 days   公表: 前=寄り前 中=場中 後=引け後 ?=不明   決算m/d=決算発表が重なる{more}")
     for lab, x in cols:
         d.text((x, by0 + 32), lab, font=f12, fill=GR)
     rh = min(30, avail // max(1, min(len(rows), maxrows)))
@@ -983,6 +1057,8 @@ def make_week_card(inc, summ, words):
         d.text((32, yy), r["date"][5:].replace("-", "/"), font=f14, fill=col_name)
         d.text((76, yy + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
         d.text((100, yy), r["name"][:14], font=f14, fill=col_name)
+        if r.get("earn"):
+            d.text((100 + d.textlength(r["name"][:14], font=f14) + 6, yy + 3), earn_tag(r), font=f12, fill=AMB)
         d.text((330, yy), r["code"], font=f14, fill=GR)
         d.text((400, yy), r.get("type", "")[:6], font=f12, fill=GR)
         for n, x in ((1, 520), (5, 620), (10, 720)):
@@ -1092,6 +1168,10 @@ def main():
         fill_buzz(inc)
     except Exception as e:
         log(f"  話題度の調査失敗（0扱いで続行）: {e}")
+    try:
+        fill_earnings(inc)
+    except Exception as e:
+        log(f"  決算日の照合失敗（印なしで続行）: {e}")
     for r in inc:
         if r.get("ok") and r.get("ret"):
             r1 = r["ret"].get(1)
@@ -1107,7 +1187,7 @@ def main():
         json.dump({
             "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "market_day": market_day,
-            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "auto", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err", "buzz")}
+            "incidents": [{k: r.get(k) for k in ("date", "time", "time_auto", "timing", "time_unknown", "time_basis", "same_day", "auto", "code", "name", "service", "type", "scale", "day0", "ret", "last", "ok", "err", "buzz", "earn")}
                           for r in inc],
             "summary": {g: {str(n): v for n, v in d.items()} for g, d in summ.items()},
             "words": [{k: w.get(k) for k in ("label", "last7", "prev7", "ratio", "peak_day", "peak")} for w in words],
