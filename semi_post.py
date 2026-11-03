@@ -4,7 +4,7 @@
 
 書き出しは固定「かぶチワワよ。今日も戦士として、半導体ゾンビと戦ってきたぞ。」（2026-10-25 ユーザー指定）。
 中身は比喩を使わず「株価」「信用倍率」「X投稿数」の素の言葉で書く（知らない人が読んでも分かるように、ユーザー指摘 10/25）。
-項目は毎日固定（2026-10-29 更新）: 今日いちばん下げたゾンビ1体 → いちばん上げたゾンビ1体 → 信用倍率が平常比で膨らんだ3/しぼんだ3 → 締め。カードの戦士のセリフも下げ1体＋上げ1体。
+項目は毎日固定（2026-11-03 更新）: 「かぶチワワよ、今日、株価を下げた半導体ゾンビ ワースト3は…」→「株価を上げた半導体ゾンビ トップ3は…」→ 信用倍率が平常比で膨らんだ3/しぼんだ3 → 締め（固定の書き出し「今日も戦士として…」は廃止）。カードは需給2列の下に ワースト3/トップ3 の小表、戦士のセリフは下げ1体＋上げ1体。
 （旧案: ゾンビの数 → 株価が高値からいちばん落ちている銘柄 → 今日沈んだ3 → 浮いた2 → 信用倍率が平常比で膨らんだ/しぼんだ1ずつ →
 復活度の最上位 →（あれば）今日 X で話題の銘柄 → 締め。売買の言葉は使わない（kabuchiwa_post.FORBIDDEN_WORDS で検査）。
 
@@ -53,18 +53,25 @@ def compose(d, today=None):
     s, by = d["summary"], {r["code"]: r for r in d["rows"]}
     asof = datetime.date.fromisoformat(s["asof"])
     day = "今日" if (today is None or asof == today) else f"{asof.month}/{asof.day}（{WD[asof.weekday()]}）"
-    lines = [OPENING]
+    # 2026-11-03 ユーザー指定: 入りを「下げた ワースト3 / 上げた トップ3」に（旧: 固定の書き出し＋下げ1体＋上げ1体）
     zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
-    # 2026-10-29 ユーザー要望: 下げた1体だけでなく、上げた1体も毎日書く（カードの戦士のセリフも同じ）
-    worst = min(zombies, key=lambda r: r["d1"])
-    best = max(zombies, key=lambda r: r["d1"])
-    if worst["d1"] < 0 and best["d1"] > 0:
-        lines.append(f"{day}、いちばん株価を下げたゾンビは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
-        lines.append(f"いちばん株価を上げたゾンビは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
-    elif worst["d1"] >= 0:
-        lines.append(f"{day}は ゾンビが 1体も 下げなかった。いちばん上げたのは {best['name']} 前日比{best['d1']:+.1f}%（高値から {best['dd']:+.0f}%）。")
+    dn = sorted([r for r in zombies if r["d1"] < 0], key=lambda r: r["d1"])[:3]
+    up = sorted([r for r in zombies if r["d1"] > 0], key=lambda r: -r["d1"])[:3]
+    def rk(rows, first_label=True):
+        out = []
+        for i, r in enumerate(rows):
+            dd = f"高値から {r['dd']:+.0f}%" if i == 0 else f"{r['dd']:+.0f}%"
+            out.append(f"{r['name']} {r['d1']:+.1f}%（{dd}）")
+        return "、".join(out)
+    lines = []
+    if dn:
+        lines.append(f"かぶチワワよ、{day}、株価を下げた半導体ゾンビ ワースト{len(dn)}は {rk(dn)}。")
     else:
-        lines.append(f"{day}は ゾンビが 1体も 上げなかった。いちばん下げたのは {worst['name']} 前日比{worst['d1']:+.1f}%（高値から {worst['dd']:+.0f}%）。")
+        lines.append(f"かぶチワワよ、{day}は 株価を下げた半導体ゾンビが 1体もいなかった。")
+    if up:
+        lines.append(f"株価を上げた半導体ゾンビ トップ{len(up)}は {rk(up)}。")
+    else:
+        lines.append("株価を上げた半導体ゾンビは 1体もいなかった。")
     heavy = [by[c] for c in s["heavy"][:3]]
     light = [by[c] for c in s["light"][:3]]
     if heavy:
@@ -170,6 +177,10 @@ CARD = """<!DOCTYPE html>
   td.hd {{ color: #94a3b8; font-size: 12px; border-bottom: none; padding: 0 2px 2px; }}
   td.hd.r {{ text-align: right; }}
   .pos {{ color: #4ade80 !important; }} .neg {{ color: #f87171 !important; }}
+  .col h4 {{ margin-top: 14px; padding-top: 8px; border-top: 1px dashed #475569; font-size: 17px; font-weight: normal; white-space: nowrap; }}
+  .col h4 span {{ font-size: 12px; color: #94a3b8; margin-left: 10px; }}
+  .col h4.dn {{ color: #fca5a5; }} .col h4.up {{ color: #86efac; }}
+  table.px td {{ padding: 5px 2px; }} table.px td.d1 {{ text-align: right; font-size: 20px; }} table.px td.dd {{ text-align: right; font-size: 15px; color: #94a3b8; }}
   .foot {{ position: absolute; left: 36px; right: 36px; bottom: 14px; display: flex; align-items: baseline; font-size: 15px; color: #64748b; white-space: nowrap; overflow: hidden; }}
   .foot .url {{ font-size: 19px; color: #93c5fd; }}
   .foot .url b {{ color: #f8fafc; font-weight: normal; margin-right: 10px; }}
@@ -186,11 +197,15 @@ CARD = """<!DOCTYPE html>
   <div class="strip">{strip}</div>
   <div class="col heavy"><h3>信用倍率が ふだんより 高い</h3><div class="sub">制度信用倍率｜ふだん（50営業日の中央値）との比｜買残・売残の10営業日比</div>
     <table><colgroup><col><col style="width:56px"><col style="width:64px"><col style="width:54px"><col style="width:54px"></colgroup>
-    <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{heavy_rows}</table></div>
+    <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{heavy_rows}</table>
+    <h4 class="dn">今日 株価を下げた ワースト3<span>前日比｜高値から</span></h4>
+    <table class="px"><colgroup><col><col style="width:90px"><col style="width:80px"></colgroup>{down_rows}</table></div>
   <div class="col light"><h3>信用倍率が ふだんより 低い</h3><div class="sub">制度信用倍率｜ふだん（50営業日の中央値）との比｜買残・売残の10営業日比</div>
     <table><colgroup><col><col style="width:56px"><col style="width:64px"><col style="width:54px"><col style="width:54px"></colgroup>
-    <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{light_rows}</table></div>
-  <div class="defs">半導体ゾンビ＝1年高値から−30%以上の銘柄　制度信用倍率＝制度買残÷制度売残　ふだん比＝直近50営業日の倍率中央値との比（売り残僅少の日は除く）　観測の記録であり判断材料ではない</div>
+    <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{light_rows}</table>
+    <h4 class="up">今日 株価を上げた トップ3<span>前日比｜高値から</span></h4>
+    <table class="px"><colgroup><col><col style="width:90px"><col style="width:80px"></colgroup>{up_rows}</table></div>
+  <div class="defs">半導体ゾンビ＝1年高値から−30%以上の銘柄　制度信用倍率＝制度買残÷制度売残　ふだん比＝直近50営業日の倍率中央値との比（売り残僅少日は除く）　観測の記録であり判断材料ではない</div>
 </div>
 <div class="foot"><span class="url"><b>かぶチワワの分析デッキ「半導体ゾンビ」</b>https://{deck}/semi.html</span><span>需給: JPX {margin_date} 分　@kabuchiwa</span></div>
 </body></html>
@@ -245,8 +260,16 @@ def card_html(d, today, top=6):
     nk_cls = "pos" if s["nk_d1"] > 0 else "neg"
     strip = (f'日経 <b class="{nk_cls}">{s["nk_d1"]:+.2f}%</b>｜{s["n"]}銘柄: 今日 上げ <b>{sum(1 for r in d["rows"] if r["d1"] > 0)}</b>・下げ <b>{sum(1 for r in d["rows"] if r["d1"] < 0)}</b>・'
              f'安値更新 <b>{s.get("n_bottom", 0)}</b>｜制度信用倍率 中央値 <b>{med_ratio:.1f}倍</b>・ふだん比 <b>{med_exp:.2f}倍</b>')
+    zombies = [r for r in d["rows"] if r["zombie"]] or d["rows"]
+    dn = sorted([r for r in zombies if r["d1"] < 0], key=lambda r: r["d1"])[:3]
+    up = sorted([r for r in zombies if r["d1"] > 0], key=lambda r: -r["d1"])[:3]
+    def px_rows(lst, cls):
+        if not lst:
+            return '<tr><td class="nm" colspan="3" style="color:#94a3b8">該当なし</td></tr>'
+        return "".join(f'<tr><td class="nm">{CARD_SHORT.get(r["name"], r["name"])}</td><td class="d1 {cls}">{r["d1"]:+.1f}%</td><td class="dd">{r["dd"]:+.0f}%</td></tr>' for r in lst)
     return CARD.format(W=kp.CARD_W, H=kp.CARD_H, chiwawa=kp.CHIWAWA_SVG, warrior=warrior_svg(9), speech=card_speech(d),
                        date_s=f"{today:%Y/%m/%d}（{WD[today.weekday()]}）", strip=strip, heavy_rows=rows(heavy), light_rows=rows(light),
+                       down_rows=px_rows(dn, "neg"), up_rows=px_rows(up, "pos"),
                        deck=DECK_URL_SHORT, margin_date=mmdd(s["margin_date"]) if s.get("margin_date") else "-")
 
 
