@@ -159,10 +159,10 @@ CARD = """<!DOCTYPE html>
   .window::before {{ content: "＊「"; }}
   .window .who {{ position: absolute; top: -20px; left: 18px; background: #000; padding: 0 10px; font-size: 18px; color: #fca5a5; }}
   .right {{ position: absolute; left: 364px; top: 96px; right: 36px; bottom: 56px; }}
-  .defs {{ position: absolute; left: 0; right: 0; bottom: 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; }}
+  .defs {{ position: absolute; left: 0; right: 0; bottom: 0; font-size: 11px; line-height: 1.2; color: #64748b; max-height: 27px; overflow: hidden; }}  /* 2行まで折り返し（1行nowrapだと右端が切れた、11/3） */
   .strip {{ position: absolute; left: 0; right: 0; top: 0; height: 30px; font-size: 16px; color: #cbd5e1; white-space: nowrap; overflow: hidden; }}
   .strip b {{ color: #f8fafc; font-weight: normal; }}
-  .col {{ position: absolute; top: 38px; bottom: 24px; width: 392px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 10px 12px; overflow: hidden; }}
+  .col {{ position: absolute; top: 38px; bottom: 30px; width: 392px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 10px 12px; overflow: hidden; }}
   .col.heavy {{ left: 0; }} .col.light {{ right: 0; }}
   .col h3 {{ font-size: 20px; font-weight: normal; white-space: nowrap; overflow: hidden; line-height: 1.2; }}
   .col .sub {{ font-size: 12px; color: #94a3b8; margin: 1px 0 4px; white-space: nowrap; overflow: hidden; }}
@@ -195,12 +195,12 @@ CARD = """<!DOCTYPE html>
 </div>
 <div class="right">
   <div class="strip">{strip}</div>
-  <div class="col heavy"><h3>信用倍率が ふだんより 高い</h3><div class="sub">制度信用倍率｜ふだん（50営業日の中央値）との比｜買残・売残の10営業日比</div>
+  <div class="col heavy"><h3>信用倍率が ふだんより 高い</h3><div class="sub">ふだん＝50営業日の倍率中央値｜買残・売残＝10営業日比</div>
     <table><colgroup><col><col style="width:56px"><col style="width:64px"><col style="width:54px"><col style="width:54px"></colgroup>
     <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{heavy_rows}</table>
     <h4 class="dn">今日 株価を下げた ワースト3<span>前日比｜高値から</span></h4>
     <table class="px"><colgroup><col><col style="width:90px"><col style="width:80px"></colgroup>{down_rows}</table></div>
-  <div class="col light"><h3>信用倍率が ふだんより 低い</h3><div class="sub">制度信用倍率｜ふだん（50営業日の中央値）との比｜買残・売残の10営業日比</div>
+  <div class="col light"><h3>信用倍率が ふだんより 低い</h3><div class="sub">ふだん＝50営業日の倍率中央値｜買残・売残＝10営業日比</div>
     <table><colgroup><col><col style="width:56px"><col style="width:64px"><col style="width:54px"><col style="width:54px"></colgroup>
     <tr><td class="hd">銘柄</td><td class="hd r">倍率</td><td class="hd r">ふだん比</td><td class="hd r">買残10日</td><td class="hd r">売残10日</td></tr>{light_rows}</table>
     <h4 class="up">今日 株価を上げた トップ3<span>前日比｜高値から</span></h4>
