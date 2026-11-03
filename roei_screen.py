@@ -13,7 +13,9 @@
   snsデッキと同じ Yahooリアルタイム検索の推移APIで「不正アクセス」「情報漏洩」等の日次投稿数を取り、
   直近7日の合計と、その前の3週間の平均（7日換算）を比べる
 
-実行: 月〜金 22:00（2026-10-28〜。10/6〜10/27 は 20:00。18:00 の半導体ゾンビと2時間窓が重ならないように後ろへ。roei_run.bat。休場日は投稿をスキップ）。--nopush でpush省略。--card で速報カード画像（drafts/）を生成。
+実行: 月〜金 22:00 に roei_run.bat（デッキ更新＋速報カード。**毎日の X 投稿は 2026-11-03 に廃止**、roei_post.py は --force が無いと投稿しない）
+      日曜 18:30 に roei_week_run.bat（--card --week-card → roei_post.py --weekly で「週まとめ」を投稿）。
+      --nopush でpush省略。--card で速報カード画像（drafts/roei_card_YYYYMMDD.png）、--week-card で週まとめカード（drafts/roei_week_YYYYMMDD.png）。
 事案の追加: roei_incidents.json に1行足して実行するだけ。
 """
 
@@ -465,7 +467,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   {chiwawa}
   {nav}
   <h1>情報漏洩銘柄検証 — 不正アクセス・情報漏洩を公表した企業の株価は、その後どう動いたか</h1>
-  <p class="subtitle">最終更新: {updated}（月〜金 22:00） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
+  <p class="subtitle">最終更新: {updated}（月〜金 22:00 更新・X投稿は日曜18:30の週まとめ） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
   <div class="evidence">
     <b>見方:</b>
     <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。
@@ -833,6 +835,198 @@ def make_card(inc, summ, words, only_latest=True):
     return outs
 
 
+def scale_num(s):
+    """「最大約2726万件」「346,247件」「約9.2万人」→ 件数の概算（並べ替え用）。取れなければ 0"""
+    if not s:
+        return 0
+    m = re.search(r"([\d,]+(?:\.\d+)?)\s*(億|万)?", str(s).replace("，", ","))
+    if not m:
+        return 0
+    try:
+        v = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return 0
+    return v * {"億": 1e8, "万": 1e4}.get(m.group(2), 1)
+
+
+def week_range(today=None):
+    """週まとめの対象週（月〜金）。日曜実行なら直前の月曜〜金曜、平日なら今週（テスト用）"""
+    today = today or datetime.date.today()
+    monday = today - datetime.timedelta(days=today.weekday())
+    return monday, monday + datetime.timedelta(days=4)
+
+
+def week_stats(inc, today=None):
+    """roei_post.py（--weekly）とカードで共用する週の集計"""
+    today = today or datetime.date.today()
+    monday, friday = week_range(today)
+    ok = [r for r in inc if r.get("ok")]
+    iso = lambda s: datetime.date.fromisoformat(s)
+    new_week = sorted([r for r in ok if monday <= iso(r["date"]) <= today], key=lambda r: (-scale_num(r.get("scale")), r["date"]))
+    def ret1(r):   # ret のキーは roei_screen 内では int、roei_post.json を経由すると str
+        return (r.get("ret") or {}).get(1) or (r.get("ret") or {}).get("1")
+    first_week = [r for r in ok if ret1(r) and r.get("day0") and monday <= iso(r["day0"]) <= friday]
+    first_week.sort(key=lambda r: ret1(r)["stock"])
+    med = lambda xs: float(np.median(xs)) if xs else None
+    st = [ret1(r)["stock"] for r in first_week]
+    ex = [ret1(r)["excess"] for r in first_week if ret1(r).get("excess") is not None]
+    # 今週公表の銘柄で、直近終値の公表前比が最も悪い/良い
+    tracked = [r for r in new_week if r.get("last") and r["last"].get("stock") is not None]
+    worst = min(tracked, key=lambda r: r["last"]["stock"]) if tracked else None
+    best = max(tracked, key=lambda r: r["last"]["stock"]) if tracked else None
+    pending = [r for r in ok if not r.get("ret") and r.get("err") == "翌営業日がまだ来ていない" and iso(r["date"]) <= today]
+    return {"monday": monday, "friday": friday, "new": new_week, "first": first_week, "first_med": med(st), "first_med_ex": med(ex),
+            "first_neg": sum(1 for v in st if v < 0), "worst": worst, "best": best, "pending": pending}
+
+
+def make_week_card(inc, summ, words):
+    """週まとめカード（日曜 18:30 の投稿用）: 上段＝今週の新規／今週の初日騰落／全事案中央値、下段＝今週公表の事案ボード"""
+    from PIL import Image, ImageDraw, ImageFont
+    os.makedirs(DRAFTS_DIR, exist_ok=True)
+    today = datetime.date.today()
+    if "--date" in sys.argv:   # テスト用: 過去の日曜を指定して前週のカードを描く
+        today = datetime.date.fromisoformat(sys.argv[sys.argv.index("--date") + 1])
+    ws = week_stats(inc, today)
+    monday, friday = ws["monday"], ws["friday"]
+    W, H = 1200, 675
+    BG = (0, 85, 234); PANEL = (10, 16, 32); BAR = (22, 34, 60); LINE = (90, 150, 240)
+    WH = (240, 240, 235); GR = (150, 165, 190); AMB = (255, 196, 60); GN = (80, 220, 110); RD = (255, 85, 80); BOXBG = (235, 238, 242); BOXTX = (10, 14, 30)
+    im = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(im)
+    fp = next((p for p in [r"C:\Windows\Fonts\meiryob.ttc", r"C:\Windows\Fonts\YuGothB.ttc", r"C:\Windows\Fonts\msgothic.ttc",
+                          "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"] if os.path.exists(p)), None)
+    F = lambda sz: ImageFont.truetype(fp, sz) if fp else ImageFont.load_default()
+    f28, f22, f19, f16, f14, f12 = F(28), F(22), F(19), F(16), F(14), F(12)
+
+    def panel(x0, y0, x1, y1, title, en):
+        d.rectangle([x0, y0, x1, y1], fill=PANEL, outline=LINE)
+        d.rectangle([x0, y0, x1, y0 + 26], fill=BAR)
+        d.text((x0 + 10, y0 + 4), title, font=f16, fill=WH)
+        d.text((x0 + 12 + d.textlength(title, font=f16), y0 + 8), en, font=f12, fill=GR)
+
+    def box(x, y, w, text, col=BOXTX, fnt=None, h=32):
+        fnt = fnt or f22
+        d.rectangle([x, y, x + w, y + h], fill=BOXBG)
+        tw = d.textlength(text, font=fnt)
+        bb = d.textbbox((0, 0), text, font=fnt)
+        d.text((x + w - tw - 8, y + (h - (bb[3] - bb[1])) / 2 - bb[1]), text, font=fnt, fill=col)
+
+    def c(v):
+        return GN if v is None or v >= 0 else RD
+
+    def ret1(r):
+        return r["ret"].get(1) or r["ret"].get("1")
+
+    TITLE = "「情報漏洩銘柄」株価ウォッチ 週まとめ"
+    d.text((20, 10), TITLE, font=f28, fill=(255, 255, 255))
+    d.text((20 + d.textlength(TITLE, font=f28) + 14, 20), "Weekly Recap", font=f14, fill=(190, 210, 240))
+    hdr = f"{monday:%m/%d}（月）〜{friday:%m/%d}（金）の週  数字＝公表前終値比の騰落率 %"
+    d.text((W - 20 - d.textlength(hdr, font=f14), 14), hdr, font=f14, fill=(220, 230, 245))
+    d.text((W - 20 - d.textlength("小数字＝TOPIX(1306)比の超過", font=f12), 32), "小数字＝TOPIX(1306)比の超過", font=f12, fill=(190, 210, 240))
+
+    top_y, top_h = 56, 150
+    pw = (W - 20 * 2 - 12 * 2) // 3
+    px = [20, 20 + pw + 12, 20 + 2 * (pw + 12)]
+    # P1 今週の新規公表（件数の大きい順）
+    panel(px[0], top_y, px[0] + pw, top_y + top_h, f"今週 新たに公表 {len(ws['new'])}社", "New this week (by size)")
+    yy = top_y + 34
+    for r in ws["new"][:4]:
+        d.text((px[0] + 10, yy), f'{r["date"][5:].replace("-", "/")} {r["name"][:12]}', font=f14, fill=WH)
+        sc = (r.get("scale") or "")[:14]
+        d.text((px[0] + pw - 10 - d.textlength(sc, font=f12), yy + 3), sc, font=f12, fill=AMB)
+        yy += 27
+    if not ws["new"]:
+        d.text((px[0] + 10, yy + 10), "今週の新規公表なし", font=f16, fill=GR)
+    # P2 今週 公表後初日の騰落
+    panel(px[1], top_y, px[1] + pw, top_y + top_h, "今週 公表後初日の騰落", "First-session reaction")
+    if ws["first"]:
+        n = len(ws["first"])
+        box(px[1] + 10, top_y + 36, 150, f'{ws["first_med"]:+.1f}', col=(170, 20, 20) if ws["first_med"] < 0 else (0, 110, 50), fnt=f28, h=42)
+        d.text((px[1] + 170, top_y + 40), f"中央値（{n}社）", font=f12, fill=GR)
+        exs = f'TOPIX比 {ws["first_med_ex"]:+.1f}' if ws["first_med_ex"] is not None else ""
+        d.text((px[1] + 170, top_y + 58), exs, font=f14, fill=c(ws["first_med_ex"]))
+        d.text((px[1] + 10, top_y + 88), f'下げた {ws["first_neg"]}社 ／ 上げた {n - ws["first_neg"]}社', font=f14, fill=WH)
+        w_ = ws["first"][0]
+        d.text((px[1] + 10, top_y + 112), f'最大下落 {w_["name"][:10]} {ret1(w_)["stock"]:+.1f}', font=f14, fill=RD)
+        b_ = ws["first"][-1]
+        d.text((px[1] + 10, top_y + 130), f'最大上昇 {b_["name"][:10]} {ret1(b_)["stock"]:+.1f}', font=f12, fill=GN)
+    else:
+        d.text((px[1] + 10, top_y + 44), "今週 初日を迎えた銘柄なし", font=f16, fill=GR)
+    # P3 全事案 中央値
+    panel(px[2], top_y, px[2] + pw, top_y + top_h, "全事案 中央値", "Median excess vs TOPIX")
+    g = summ.get("全事案", {})
+    yy = top_y + 34
+    for n in HORIZONS[:5]:
+        cc = g.get(n) or g.get(str(n))
+        d.text((px[2] + 10, yy), f"{n}営業日後", font=f14, fill=GR)
+        if cc:
+            d.text((px[2] + 110, yy), f'{cc["med"]:+.1f}', font=f16, fill=c(cc["med"]))
+            d.text((px[2] + 175, yy + 2), f'N={cc["n"]}  下落率{cc["neg"]:.0f}%', font=f12, fill=GR)
+        else:
+            d.text((px[2] + 110, yy), "—", font=f16, fill=GR)
+        yy += 23
+
+    # 下段: 今週公表の事案ボード（公表日順）
+    by0 = top_y + top_h + 12
+    rows = sorted(ws["new"], key=lambda r: (r["date"], r["code"]), reverse=True)
+    cols = [("公表", 32), ("銘柄", 100), ("コード", 330), ("種別", 400), ("1日", 520), ("5日", 620), ("10日", 720), ("直近", 820), ("日目", 905), ("対象", 960)]
+    yy = by0 + 32 + 18
+    avail = H - 60 - yy - 6
+    maxrows = max(1, avail // 25)
+    more = f"（新しい{maxrows}件を表示、ほか{len(rows) - maxrows}件は roei.html に）" if len(rows) > maxrows else ""
+    panel(20, by0, W - 20, H - 60, f"今週 公表の事案（{len(rows)}件・公表日順）", f"1 / 5 / 10 days, latest   公表: 前=寄り前 中=場中 後=引け後 休=休場日 ?=時刻不明{more}")
+    for lab, x in cols:
+        d.text((x, by0 + 32), lab, font=f12, fill=GR)
+    rh = min(30, avail // max(1, min(len(rows), maxrows)))
+    for r in rows[:maxrows]:
+        col_name = WH if r.get("ret") else (150, 200, 255)
+        d.text((32, yy), r["date"][5:].replace("-", "/"), font=f14, fill=col_name)
+        d.text((76, yy + 3), "?" if r.get("time_unknown") else {"pre": "前", "intra": "中", "after": "後", "closed": "休"}.get(r.get("timing"), "?"), font=f12, fill=GR)
+        d.text((100, yy), r["name"][:14], font=f14, fill=col_name)
+        d.text((330, yy), r["code"], font=f14, fill=GR)
+        d.text((400, yy), r.get("type", "")[:6], font=f12, fill=GR)
+        for n, x in ((1, 520), (5, 620), (10, 720)):
+            cc = (r.get("ret") or {}).get(n) or (r.get("ret") or {}).get(str(n))
+            if cc:
+                d.text((x, yy), f'{cc["stock"]:+.1f}', font=f16, fill=c(cc["stock"]))
+                if cc.get("excess") is not None:
+                    d.text((x + 52, yy + 3), f'{cc["excess"]:+.1f}', font=f12, fill=GR)
+            else:
+                d.text((x, yy), "—", font=f16, fill=(70, 85, 115))
+        L = r.get("last")
+        if L:
+            d.text((820, yy), f'{L["stock"]:+.1f}', font=f16, fill=c(L["stock"]))
+            d.text((905, yy + 2), f'{L["days"]}', font=f14, fill=GR)
+        else:
+            sd = r.get("same_day")
+            if sd and sd.get("stock") is not None:
+                d.text((820, yy), f'{sd["stock"]:+.1f}', font=f16, fill=c(sd["stock"]))
+                d.text((872, yy + 3), "当日", font=f12, fill=GR)
+            else:
+                d.text((820, yy + 2), "来週が初日", font=f12, fill=GR)
+            d.text((905, yy + 2), "0", font=f14, fill=GR)
+        d.text((960, yy + 2), (r.get("scale") or "")[:18], font=f12, fill=GR)
+        yy += rh
+        d.line([(28, yy - 5), (W - 28, yy - 5)], fill=(24, 36, 60))
+
+    fy = H - 50
+    d.rectangle([20, fy, W - 20, H - 12], fill=PANEL, outline=LINE)
+    d.text((32, fy + 6), "X 投稿数（直近7日 / 前3週平均）", font=f12, fill=GR)
+    x = 230
+    for w in (words or [])[:3]:
+        if not w.get("ratio"):
+            continue
+        d.text((x, fy + 4), w["label"], font=f14, fill=WH)
+        d.text((x, fy + 22), f'{w["last7"]:,}件', font=f12, fill=GR)
+        d.text((x + 110, fy + 8), f'×{w["ratio"]:.1f}', font=f19, fill=RD if w["ratio"] >= 2 else GN)
+        x += 215
+    d.text((W - 290, fy + 14), "ichikon77.github.io/minervini/roei.html", font=f12, fill=GR)
+    out = os.path.join(DRAFTS_DIR, f"roei_week_{today:%Y%m%d}.png")
+    im.save(out)
+    log(f"週まとめカード: {out}（{monday}〜{friday}、新規{len(ws['new'])}件・初日{len(ws['first'])}件）")
+    return out
+
+
 # -----------------------------------------
 # push
 # -----------------------------------------
@@ -925,6 +1119,11 @@ def main():
             make_card(inc, summ, words)
         except Exception as e:
             log(f"速報カード生成失敗: {e}")
+    if "--week-card" in sys.argv:
+        try:
+            make_week_card(inc, summ, words)
+        except Exception as e:
+            log(f"週まとめカード生成失敗: {e}")
     if "--nopush" in sys.argv:
         log("push スキップ")
     else:

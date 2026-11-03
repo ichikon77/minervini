@@ -16,6 +16,15 @@ Xの投稿数はカード画像のフッターにだけ残す。
   python roei_post.py --enable / --disable / --status
   python roei_post.py --dry-run   （下書きだけ）  --force（休場日チェック無視）
 王様の朝の投稿（kabuchiwa_post.py）と同じ認証・同じ禁止語チェックを使う。
+
+■ 2026-11-03 の方針変更（ユーザー判断）
+  平日22:00の毎日投稿は廃止（10/28〜11/2 の中央値 31imp・4週でフォロー0）。roei_run.bat は従来どおり毎日走るが、
+  この main() は DAILY_RETIRED=True のため --force が無いと投稿しない（大きな事案の日に手で出す逃げ道は残す:
+  python roei_post.py --force [--lead CODE]）。
+  代わりに **日曜 18:30 に「週まとめ」1本**: python roei_post.py --weekly（roei_week_run.bat → タスク RoeiWeekly）。
+  今週の新規公表（件数順）／公表後初日の騰落（中央値・下げた社数・最大下落）／今週公表で公表前比が最悪・最良／
+  全事案中央値（1・5・10営業日）／来週 初日を迎える銘柄、をニュース体で。カードは roei_screen.py --week-card の
+  drafts/roei_week_YYYYMMDD.png。二重投稿ガードのキーは roei_posted.json の "week:月曜日付"。
 """
 
 import os
@@ -33,6 +42,8 @@ DRAFTS_DIR = os.path.join(SCRIPT_DIR, "drafts")
 POSTED_JSON = os.path.join(SCRIPT_DIR, "roei_posted.json")   # {日付: 投稿時刻} 二重投稿ガード用（gitignore対象）
 CLOSING = "不正アクセス、サイバー攻撃、個人情報流出には十分にお気をつけください。"   # ハッシュタグは使わない（Xは不要と公言・多用は減点）。検索語は本文に自然に含める
 DECK_URL = "https://ichikon77.github.io/minervini/roei.html"
+DAILY_RETIRED = True   # 2026-11-03: 平日の毎日投稿を止める（--force で手動投稿は可）。週まとめ（--weekly）に集約
+WD = "月火水木金土日"
 
 
 def log(msg):
@@ -126,6 +137,117 @@ def compose(d, today, lead_code=None):
     return body, bool(first or same or adds or worst)
 
 
+def compose_weekly(d, today):
+    """日曜 18:30 の週まとめ（2026-11-03 新設）。集計は roei_screen.week_stats と共用"""
+    import roei_screen as rs
+    ws = rs.week_stats(d["incidents"], today)
+    mon, fri = ws["monday"], ws["friday"]
+    ret1 = lambda r: (r.get("ret") or {}).get("1") or (r.get("ret") or {}).get(1)
+    lines = []
+    # 見出し: 今週いちばん件数の大きい新規事案（話題性の代わり）
+    new = ws["new"]
+    if new:
+        top = new[0]
+        sc = f"の{top['scale']}" if top.get("scale") and not str(top["scale"]).startswith("（") else ""
+        lines.append(f"今週は {top['name']}（{top['code']}）{sc}をはじめ、{len(new)}社が情報漏洩を公表。")
+    lines.append(f"{mon.month}/{mon.day}（月）〜{fri.month}/{fri.day}（金）の「情報漏洩銘柄」株価ウォッチ、週まとめのお時間です。")
+    # 1) 今週の新規公表（件数順、最大6社）
+    if new:
+        names = "、".join(f"{r['name']}（{r['code']}" + (f"・{r['scale']}" if r.get("scale") and not str(r["scale"]).startswith("（") else "") + "）" for r in new[:6])
+        more = f" ほか{len(new) - 6}社" if len(new) > 6 else ""
+        lines.append(f"今週 新たに公表したのは {names}{more} です。")
+    # 2) 今週 初日を迎えた銘柄の騰落（下げた順）
+    first = ws["first"]
+    if first:
+        n = len(first)
+        lines.append(f"今週、公表後 初めて終値がついた {n}社の騰落率は、中央値 {pct(ws['first_med'])}"
+                     + (f"（TOPIX比 {pct(ws['first_med_ex'])}）" if ws["first_med_ex"] is not None else "") + f"、下げたのは {ws['first_neg']}社でした。")
+        def fmt_r(r):
+            c = ret1(r)
+            ex = f"（TOPIX比 {pct(c['excess'])}）" if c.get("excess") is not None else ""
+            return f"{r['name']}（{r['code']}）{pct(c['stock'])}{ex}"
+        neg = [r for r in first if ret1(r)["stock"] < 0][:4]
+        pos = [r for r in reversed(first) if ret1(r)["stock"] > 0][:2]
+        if neg:
+            lines.append("下げたのは " + "、".join(fmt_r(r) for r in neg) + ("" if len(neg) == ws["first_neg"] else f" ほか{ws['first_neg'] - len(neg)}社") + "。")
+        if pos:
+            lines.append("上げたのは " + "、".join(fmt_r(r) for r in pos) + ("" if len(pos) == n - ws["first_neg"] else f" ほか{n - ws['first_neg'] - len(pos)}社") + "。")
+    # 3) 今週公表の銘柄で、公表前比が最悪・最良（直近終値）
+    w, b = ws["worst"], ws["best"]
+    if w and w["last"]["stock"] < 0:
+        lines.append(f"今週公表の銘柄で、公表前からの下げがいちばん大きいのは {w['name']}（{w['code']}）{pct(w['last']['stock'])}（{w['last']['days']}日目）。"
+                     + (f"いちばん戻しているのは {b['name']}（{b['code']}）{pct(b['last']['stock'])}。" if b and b is not w and b["last"]["stock"] > 0 else ""))
+    # 4) 全事案中央値
+    g = d.get("summary", {}).get("全事案", {})
+    med = []
+    for k in ("1", "5", "10"):
+        cc = g.get(k)
+        if cc:
+            med.append(f"{k}営業日後 {pct(cc['med'])}（N={cc['n']}・下落率{cc['neg']:.0f}%）")
+    if med:
+        lines.append("9月からの全事案の TOPIX比 中央値は、" + "、".join(med) + "。")
+    # 5) 来週 初日を迎える銘柄
+    pend = ws["pending"]
+    if pend:
+        names = "、".join(f"{r['name']}（{r['code']}・{r.get('type', '')}）" for r in pend[:6]) + (f" ほか{len(pend) - 6}社" if len(pend) > 6 else "")
+        lines.append(f"来週、公表後 初めて終値がつくのは {names} です。")
+    lines.append(CLOSING)
+    return "\n".join(lines), bool(new or first)
+
+
+def run_weekly(args, today):
+    force = "--force" in args
+    log("情報漏洩 週まとめ投稿 開始")
+    if not force and today.weekday() != 6:
+        log(f"{today}（{WD[today.weekday()]}）は日曜ではない → スキップ（テストは --force）")
+        return
+    if not os.path.exists(DATA_JSON):
+        log("roei_post.json がありません（roei_screen.py を先に実行）")
+        return
+    d = json.load(open(DATA_JSON, encoding="utf-8"))
+    gen = datetime.datetime.fromisoformat(d["generated"])
+    if (datetime.datetime.now() - gen).total_seconds() > 6 * 3600 and not force:
+        log("データが古いので投稿しません")
+        return
+    text, worth = compose_weekly(d, today)
+    os.makedirs(os.path.join(DRAFTS_DIR, today.isoformat()), exist_ok=True)
+    with open(os.path.join(DRAFTS_DIR, today.isoformat(), "roei_week.txt"), "w", encoding="utf-8") as f:
+        f.write(text + "\n")
+    log(f"投稿文（{kp.weighted_len(text)}）:\n{text}")
+    hits = kp.check_forbidden(text)
+    if hits:
+        log(f"⚠ 禁止語を検出したため投稿しません: {hits}")
+        return
+    pngs = [p for p in [os.path.join(DRAFTS_DIR, f"roei_week_{today:%Y%m%d}.png")] if os.path.exists(p)]
+    log(f"  添付画像 {len(pngs)} 枚: {[os.path.basename(p) for p in pngs]}")
+    cfg = kp.load_config()
+    if "--dry-run" in args or not cfg.get("roei_post_enabled"):
+        log("下書きのみ（roei_post_enabled=false または --dry-run）")
+        return
+    if not worth:
+        log("今週は新規も初日もないため投稿しません")
+        return
+    import roei_screen as rs
+    key = f"week:{rs.week_range(today)[0].isoformat()}"
+    posted = {}
+    if os.path.exists(POSTED_JSON):
+        try:
+            posted = json.load(open(POSTED_JSON, encoding="utf-8"))
+        except Exception:
+            posted = {}
+    if posted.get(key) and not ("--repost" in args and force):
+        log(f"この週は既に投稿済み（{posted[key]}）→ スキップ。やり直すなら --force --repost")
+        return
+    try:
+        kp.post_to_x(cfg, text, pngs, None)
+        posted[key] = datetime.datetime.now().isoformat(timespec="seconds")
+        posted = {k: v for k, v in sorted(posted.items())[-60:]}
+        json.dump(posted, open(POSTED_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    except Exception as e:
+        log(f"投稿失敗: {e}")
+    log("完了")
+
+
 def main():
     args = sys.argv[1:]
     if any(a in args for a in ("--enable", "--disable", "--status")):
@@ -136,13 +258,19 @@ def main():
             cfg["roei_post_enabled"] = False
         cfg.pop("_comment", None)
         json.dump(cfg, open(kp.CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        print(f"情報漏洩ウォッチの夕方投稿: {'オン（月〜金 22:00ごろ・休場日は自動スキップ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
+        print(f"情報漏洩ウォッチの投稿: {'オン（日曜 18:30 週まとめ。平日の毎日投稿は 2026-11-03 廃止、--force で手動のみ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
         return
     today = datetime.date.today()
     if "--date" in args:
         today = datetime.date.fromisoformat(args[args.index("--date") + 1])
     force = "--force" in args
+    if "--weekly" in args:
+        run_weekly(args, today)
+        return
     log("情報漏洩 株価ウォッチ投稿 開始")
+    if DAILY_RETIRED and not force:
+        log("平日の毎日投稿は 2026-11-03 に廃止 → 投稿しません（週まとめは日曜 18:30 の --weekly。大きな事案の日に手で出すなら --force [--lead CODE]）")
+        return
     if not force and kp.is_market_holiday(today):
         log(f"{today} は休場日 → スキップ")
         return

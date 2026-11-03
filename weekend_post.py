@@ -45,6 +45,7 @@ FLAT_HIT = 0.5  # 「ほぼ横」と言った日に、実際の寄りが±この
 ADR_TH = 0.5    # ADRギャップがこの%以上動いた銘柄だけ採点
 
 WD = ["月", "火", "水", "木", "金", "土", "日"]
+RETIRED_MODES = {"weekly", "preview"}   # 2026-11-03 廃止（run() 冒頭で止める）。残るのは kazami（日 9:50）と storm（平日16:30 条件付き）
 
 # yorimae_screen.ADR_LIST と同じ15銘柄（import すると yfinance を引くので写し）
 ADR_NAMES = {"7203": "トヨタ", "6758": "ソニーG", "8306": "三菱UFJ", "8316": "三井住友FG", "8411": "みずほFG", "7267": "ホンダ",
@@ -877,6 +878,16 @@ def run(mode, args):
         today = datetime.date.fromisoformat(args[args.index("--date") + 1])
     log(f"かぶチワワ 週末投稿（{mode}） 開始")
 
+    # 2026-11-03 ユーザー判断: 土曜8:00 成績表（weekly）と日曜18:30 来週予告（preview）は廃止。
+    # 4週間（10/11〜11/1）で 13〜114imp・フォロー0。タスク WeekendWeekly / WeekendPreview も削除済み。
+    # 文面を見たいときだけ --force --dry-run で下書き生成できる（本番投稿は常に止める）
+    if mode in RETIRED_MODES:
+        if force and dry_run:
+            log(f"{mode} は 2026-11-03 に廃止済み（--force --dry-run なので下書きだけ作る）")
+        else:
+            log(f"{mode} は 2026-11-03 に廃止済み → 投稿しません（下書き確認は --force --dry-run）")
+            return
+
     if mode == "storm":
         # 平日の引け後のみ。日経が STORM_TH 以下に下げた日だけ出す（--force で無視）
         if not force and (today.weekday() >= 5 or is_holiday(today)):
@@ -1025,7 +1036,7 @@ def main():
         cfg.pop("_comment", None)
         if "--status" not in args or len(args) > 1:
             json.dump(cfg, open(kp.CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        print(f"週末投稿（土曜8:00 成績表・日曜10:00 風見表・日曜18:30 来週予告）: {'オン' if cfg.get('weekend_post_enabled') else 'オフ（下書きのみ）'}")
+        print(f"週末投稿（日曜9:50 風見表・平日16:30 嵐の日。成績表・来週予告は 2026-11-03 廃止）: {'オン' if cfg.get('weekend_post_enabled') else 'オフ（下書きのみ）'}")
         return
     mode = next((a for a in args if a in ("weekly", "preview", "kazami", "storm")), None)
     if not mode:
