@@ -64,12 +64,17 @@ def compose(d, today=None):
             out.append(f"{r['name']} {r['d1']:+.1f}%（{dd}）")
         return "、".join(out)
     lines = []
-    if dn:
-        lines.append(f"かぶチワワよ、{day}、株価を下げた半導体ゾンビ ワースト{len(dn)}は {rk(dn)}。")
+    # 3体に満たない日は「ワースト1は」が不自然なので「…の 1体だけ」と言う（11/4 本番で「トップ1は 栗田工業」が出た）
+    if len(dn) >= 3:
+        lines.append(f"かぶチワワよ、{day}、株価を下げた半導体ゾンビ ワースト3は {rk(dn)}。")
+    elif dn:
+        lines.append(f"かぶチワワよ、{day}、株価を下げた半導体ゾンビは {rk(dn)} の {len(dn)}体だけ。")
     else:
         lines.append(f"かぶチワワよ、{day}は 株価を下げた半導体ゾンビが 1体もいなかった。")
-    if up:
-        lines.append(f"株価を上げた半導体ゾンビ トップ{len(up)}は {rk(up)}。")
+    if len(up) >= 3:
+        lines.append(f"株価を上げた半導体ゾンビ トップ3は {rk(up)}。")
+    elif up:
+        lines.append(f"株価を上げた半導体ゾンビは {rk(up)} の {len(up)}体だけ。")
     else:
         lines.append("株価を上げた半導体ゾンビは 1体もいなかった。")
     heavy = [by[c] for c in s["heavy"][:3]]
