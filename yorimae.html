@@ -113,7 +113,7 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: 2026-11-04 07:24 | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）</p>
+  <p class="subtitle">最終更新: 2026-11-04 09:30 | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
     <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ベーシス − ①前日終値）＝ 今朝の寄り付き目安。ベーシス＝先物と現物の構造的な差（配当落ち・金利分）で、配当月のSQ後に大きくなる。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
@@ -127,7 +127,7 @@
     <div class="cards">
     <div class="card"><div class="label"><b class="num">①</b> 前日終値</div><div class="value">63,082円</div><div class="sub">11/02 大引け</div></div>
     <div class="card"><div class="label big"><b class="num">②</b> 夜間先物の終値（CME日経先物・6:00）</div><div class="value">63,060円</div><div class="sub">NIY=F。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）<br>ベーシス（先物−現物）+83円 → 現物換算 62,977円（直近3営業日の中央値）</div></div>
-    <div class="card"><div class="label"><b class="num">③</b> 当日始値</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">9:00に確定 → 9:30の更新で入る</div></div>
+    <div class="card"><div class="label"><b class="num">③</b> 当日始値</div><div class="value">62,973円</div><div class="sub">9:00に確定 → 9:30の更新で入る</div></div>
     <div class="card"><div class="label"><b class="num">④</b> 当日終値</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">15:30に確定 → 15:45の更新で入る</div></div>
     <div class="card"><div class="label"><b class="num">参考</b> S&amp;P500（前日）</div><div class="value"><span class="neg">-0.15%</span></div><div class="sub">NASDAQ <span class="neg">-0.26%</span></div></div>
     <div class="card"><div class="label"><b class="num">参考</b> ドル円</div><div class="value">158.72円</div><div class="sub">NY前日終値比 <span class="pos">+0.58%</span></div></div>
@@ -135,15 +135,15 @@
     <div class="rowcap">問い1 夜間先物ギャップは、寄り付きを当てたか</div>
     <div class="cards">
     <div class="card"><div class="label big"><b class="num">⑤</b> 夜間先物ギャップ（②−ベーシス−①）＝ 今朝の寄り付き目安</div><div class="value"><span class="neg">-0.17%</span></div><div class="sub">-105円。現物はこの水準に揃って寄り付きやすい</div></div>
-    <div class="card"><div class="label"><b class="num">⑥</b> 実際の寄り付きギャップ（③−①）</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">9:30の更新で入る</div></div>
-    <div class="card"><div class="label"><b class="num">⑦</b> 寄りまでの変化（⑥−⑤）</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">6:00〜9:00の間に動いた分</div></div>
+    <div class="card"><div class="label"><b class="num">⑥</b> 実際の寄り付きギャップ（③−①）</div><div class="value"><span class="neg">-0.17%</span></div><div class="sub">9:30の更新で入る</div></div>
+    <div class="card"><div class="label"><b class="num">⑦</b> 寄りまでの変化（⑥−⑤）</div><div class="value">-0.01%</div><div class="sub">6:00〜9:00の間に動いた分</div></div>
     </div>
     <div class="rowcap">問い2 理論値との乖離は、引けまでに埋まったか（⑨6:00 → ⑪9:00 → ⑫15:30）</div>
     <div class="cards">
     <div class="card"><div class="label"><b class="num">⑧</b> 理論値（米株・ドル円から）</div><div class="value"><span class="neg">-0.23%</span></div><div class="sub">S&amp;P500 -0.15%×1.02 + ドル円 +0.58%×-0.14<br>「米株とドル円だけ見たら本来こう動くはず」の値</div></div>
     <div class="card"><div class="label big"><b class="num">⑨</b> 乖離（6:00時点）＝ ⑤ − ⑧</div><div class="value"><span class="ok">+0.06%</span></div><div class="sub">⑤ <span class="neg">-0.17%</span> − ⑧ <span class="neg">-0.23%</span>。米株・ドル円で説明できない分</div></div>
     <div class="card"><div class="label big"><b class="num">⑩</b> 判定（6:00時点）</div><div class="value" style="font-size:1.3rem"><span class="ok">理論通り</span></div><div class="sub">|⑨|が0.5%以内。米株・ドル円で説明がつく動き</div></div>
-    <div class="card"><div class="label"><b class="num">⑪</b> 乖離（9:00時点）＝ ⑥ − ⑧</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">寄り付きで乖離がどう変わったか（9:30の更新で入る）</div></div>
+    <div class="card"><div class="label"><b class="num">⑪</b> 乖離（9:00時点）＝ ⑥ − ⑧</div><div class="value"><span class="pos">+0.06%</span></div><div class="sub">寄り付きで乖離がどう変わったか（9:30の更新で入る）</div></div>
     <div class="card"><div class="label"><b class="num">⑫</b> 乖離（15:30時点）＝（④−①）− ⑧</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">引けで理論値との差がいくら残ったか（15:45の更新で入る）</div></div>
     <div class="card"><div class="label"><b class="num">⑬</b> 判定（15:30時点）</div><div class="value" style="color:#64748b">11/4（−）</div><div class="sub">⑩→⑬で 埋まった／残った／日中に発生／理論通り（15:45の更新で入る）</div></div>
     </div>
@@ -153,20 +153,20 @@
   <table>
     <thead><tr><th>銘柄</th><th>コード</th><th>東京前日終値</th><th>ADR円換算</th><th>ギャップ</th></tr></thead>
     <tbody>
-      <tr><td>ソニーG</td><td>6758 / SONY</td><td>3,966円</td><td>4,030円</td><td><span class="pos">+1.61%</span></td></tr>
-      <tr><td>任天堂</td><td>7974 / NTDOY</td><td>8,149円</td><td>8,197円</td><td><span class="pos">+0.59%</span></td></tr>
-      <tr><td>日立</td><td>6501 / HTHIY</td><td>4,970円</td><td>4,995円</td><td><span class="pos">+0.50%</span></td></tr>
-      <tr><td>オリックス</td><td>8591 / IX</td><td>5,747円</td><td>5,773円</td><td><span class="pos">+0.45%</span></td></tr>
-      <tr><td>コマツ</td><td>6301 / KMTUY</td><td>6,213円</td><td>6,230円</td><td><span class="pos">+0.28%</span></td></tr>
-      <tr><td>トヨタ</td><td>7203 / TM</td><td>3,051円</td><td>3,057円</td><td><span class="pos">+0.20%</span></td></tr>
-      <tr><td>三井住友FG</td><td>8316 / SMFG</td><td>3,155円</td><td>3,160円</td><td><span class="pos">+0.15%</span></td></tr>
-      <tr><td>ホンダ</td><td>7267 / HMC</td><td>1,799円</td><td>1,798円</td><td><span class="neg">-0.03%</span></td></tr>
-      <tr><td>ファーストリテ</td><td>9983 / FRCOY</td><td>75,360円</td><td>75,308円</td><td><span class="neg">-0.07%</span></td></tr>
-      <tr><td>野村HD</td><td>8604 / NMR</td><td>1,501円</td><td>1,497円</td><td><span class="neg">-0.25%</span></td></tr>
-      <tr><td>三菱UFJ</td><td>8306 / MUFG</td><td>3,383円</td><td>3,372円</td><td><span class="neg">-0.33%</span></td></tr>
-      <tr><td>みずほFG</td><td>8411 / MFG</td><td>7,587円</td><td>7,549円</td><td><span class="neg">-0.51%</span></td></tr>
-      <tr><td>武田薬品</td><td>4502 / TAK</td><td>6,647円</td><td>6,599円</td><td><span class="neg">-0.72%</span></td></tr>
-      <tr><td>ソフトバンクG</td><td>9984 / SFTBY</td><td>4,410円</td><td>4,313円</td><td><span class="neg">-2.21%</span></td></tr>
+      <tr><td>ソフトバンクG</td><td>9984 / SFTBY</td><td>4,157円</td><td>4,304円</td><td><span class="pos">+3.53%</span></td></tr>
+      <tr><td>日立</td><td>6501 / HTHIY</td><td>4,944円</td><td>4,984円</td><td><span class="pos">+0.81%</span></td></tr>
+      <tr><td>武田薬品</td><td>4502 / TAK</td><td>6,550円</td><td>6,585円</td><td><span class="pos">+0.54%</span></td></tr>
+      <tr><td>ソニーG</td><td>6758 / SONY</td><td>4,005円</td><td>4,021円</td><td><span class="pos">+0.41%</span></td></tr>
+      <tr><td>トヨタ</td><td>7203 / TM</td><td>3,048円</td><td>3,051円</td><td><span class="pos">+0.09%</span></td></tr>
+      <tr><td>三井住友FG</td><td>8316 / SMFG</td><td>3,151円</td><td>3,153円</td><td><span class="pos">+0.07%</span></td></tr>
+      <tr><td>コマツ</td><td>6301 / KMTUY</td><td>6,232円</td><td>6,217円</td><td><span class="neg">-0.24%</span></td></tr>
+      <tr><td>ホンダ</td><td>7267 / HMC</td><td>1,801円</td><td>1,795円</td><td><span class="neg">-0.35%</span></td></tr>
+      <tr><td>オリックス</td><td>8591 / IX</td><td>5,799円</td><td>5,761円</td><td><span class="neg">-0.65%</span></td></tr>
+      <tr><td>三菱UFJ</td><td>8306 / MUFG</td><td>3,388円</td><td>3,365円</td><td><span class="neg">-0.68%</span></td></tr>
+      <tr><td>みずほFG</td><td>8411 / MFG</td><td>7,595円</td><td>7,533円</td><td><span class="neg">-0.82%</span></td></tr>
+      <tr><td>野村HD</td><td>8604 / NMR</td><td>1,511円</td><td>1,494円</td><td><span class="neg">-1.11%</span></td></tr>
+      <tr><td>任天堂</td><td>7974 / NTDOY</td><td>8,303円</td><td>8,180円</td><td><span class="neg">-1.48%</span></td></tr>
+      <tr><td>ファーストリテ</td><td>9983 / FRCOY</td><td>76,410円</td><td>75,152円</td><td><span class="neg">-1.65%</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -191,21 +191,21 @@
   <table>
     <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>同勝率</th><th>ADR↓日の日中</th><th>同続落率</th></tr></thead>
     <tbody>
-      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">79%</span></td><td>89% (N=162)</td><td>0.90</td><td>0.77</td><td>1.87%</td><td><span class="pos">+0.17%</span> (N=99)</td><td><span class="">52%</span></td><td><span class="pos">+0.15%</span> (N=101)</td><td><span class="">50%</span></td></tr>
-      <tr><td>みずほFG</td><td>8411 / NYSE</td><td>250</td><td><span class="ok">78%</span></td><td>87% (N=107)</td><td>0.82</td><td>0.70</td><td>0.97%</td><td><span class="pos">+0.52%</span> (N=77)</td><td><span class="ok">62%</span></td><td><span class="neg">-0.19%</span> (N=81)</td><td><span class="">53%</span></td></tr>
-      <tr><td>三菱UFJ</td><td>8306 / NYSE</td><td>250</td><td><span class="ok">73%</span></td><td>89% (N=91)</td><td>0.71</td><td>0.65</td><td>0.84%</td><td><span class="pos">+0.40%</span> (N=74)</td><td><span class="ok">66%</span></td><td><span class="neg">-0.18%</span> (N=90)</td><td><span class="">53%</span></td></tr>
-      <tr><td>野村HD</td><td>8604 / NYSE</td><td>250</td><td><span class="ok">69%</span></td><td>84% (N=96)</td><td>0.73</td><td>0.65</td><td>1.03%</td><td><span class="pos">+0.14%</span> (N=63)</td><td><span class="ok">57%</span></td><td><span class="neg">-0.26%</span> (N=97)</td><td><span class="">55%</span></td></tr>
-      <tr><td>オリックス</td><td>8591 / NYSE</td><td>250</td><td><span class="ok">69%</span></td><td>86% (N=86)</td><td>0.77</td><td>0.64</td><td>0.94%</td><td><span class="neg">-0.08%</span> (N=64)</td><td><span class="">50%</span></td><td><span class="neg">-0.26%</span> (N=78)</td><td><span class="warn">56%</span></td></tr>
-      <tr><td>三井住友FG</td><td>8316 / NYSE</td><td>250</td><td><span class="ok">72%</span></td><td>88% (N=99)</td><td>0.73</td><td>0.64</td><td>0.99%</td><td><span class="pos">+0.32%</span> (N=69)</td><td><span class="ok">57%</span></td><td><span class="neg">-0.15%</span> (N=83)</td><td><span class="warn">55%</span></td></tr>
-      <tr><td>任天堂</td><td>7974 / OTC</td><td>250</td><td><span class="">64%</span></td><td>71% (N=103)</td><td>0.67</td><td>0.63</td><td>1.20%</td><td><span class="pos">+0.11%</span> (N=75)</td><td><span class="">55%</span></td><td><span class="neg">-0.59%</span> (N=80)</td><td><span class="warn">66%</span></td></tr>
-      <tr><td>日立</td><td>6501 / OTC</td><td>250</td><td><span class="ok">67%</span></td><td>86% (N=105)</td><td>0.78</td><td>0.63</td><td>1.15%</td><td><span class="neg">-0.06%</span> (N=79)</td><td><span class="">53%</span></td><td><span class="neg">-0.14%</span> (N=83)</td><td><span class="">53%</span></td></tr>
-      <tr><td>ホンダ</td><td>7267 / NYSE</td><td>250</td><td><span class="ok">68%</span></td><td>83% (N=95)</td><td>0.63</td><td>0.59</td><td>0.90%</td><td><span class="pos">+0.36%</span> (N=60)</td><td><span class="ok">62%</span></td><td><span class="neg">-0.21%</span> (N=91)</td><td><span class="warn">58%</span></td></tr>
-      <tr><td>トヨタ</td><td>7203 / NYSE</td><td>250</td><td><span class="ok">68%</span></td><td>87% (N=79)</td><td>0.72</td><td>0.59</td><td>0.92%</td><td><span class="neg">-0.17%</span> (N=74)</td><td><span class="">42%</span></td><td><span class="neg">-0.26%</span> (N=87)</td><td><span class="warn">59%</span></td></tr>
-      <tr><td>ファーストリテ</td><td>9983 / OTC</td><td>250</td><td><span class="">61%</span></td><td>80% (N=74)</td><td>0.70</td><td>0.57</td><td>0.95%</td><td><span class="pos">+0.19%</span> (N=65)</td><td><span class="">49%</span></td><td><span class="pos">+0.20%</span> (N=63)</td><td><span class="">49%</span></td></tr>
-      <tr><td>武田薬品</td><td>4502 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>84% (N=79)</td><td>0.59</td><td>0.57</td><td>0.81%</td><td><span class="pos">+0.20%</span> (N=62)</td><td><span class="">55%</span></td><td><span class="neg">-0.02%</span> (N=89)</td><td><span class="">49%</span></td></tr>
-      <tr><td>コマツ</td><td>6301 / OTC</td><td>250</td><td><span class="ok">69%</span></td><td>81% (N=95)</td><td>0.80</td><td>0.57</td><td>1.14%</td><td><span class="pos">+0.11%</span> (N=66)</td><td><span class="">50%</span></td><td><span class="neg">-0.10%</span> (N=89)</td><td><span class="warn">55%</span></td></tr>
-      <tr><td>ソニーG</td><td>6758 / NYSE</td><td>250</td><td><span class="ok">68%</span></td><td>80% (N=95)</td><td>0.68</td><td>0.50</td><td>1.10%</td><td><span class="pos">+0.15%</span> (N=80)</td><td><span class="">52%</span></td><td><span class="neg">-0.01%</span> (N=88)</td><td><span class="">45%</span></td></tr>
-      <tr><td>東京エレクトロン</td><td>8035 / OTC</td><td>250</td><td><span class="">64%</span></td><td>69% (N=169)</td><td>0.53</td><td>0.49</td><td>2.31%</td><td><span class="neg">-0.12%</span> (N=100)</td><td><span class="">47%</span></td><td><span class="pos">+0.22%</span> (N=97)</td><td><span class="">41%</span></td></tr>
+      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">80%</span></td><td>90% (N=162)</td><td>0.90</td><td>0.77</td><td>1.87%</td><td><span class="pos">+0.17%</span> (N=99)</td><td><span class="">52%</span></td><td><span class="pos">+0.13%</span> (N=101)</td><td><span class="">50%</span></td></tr>
+      <tr><td>みずほFG</td><td>8411 / NYSE</td><td>250</td><td><span class="ok">78%</span></td><td>88% (N=106)</td><td>0.83</td><td>0.70</td><td>0.97%</td><td><span class="pos">+0.52%</span> (N=77)</td><td><span class="ok">62%</span></td><td><span class="neg">-0.20%</span> (N=81)</td><td><span class="">53%</span></td></tr>
+      <tr><td>野村HD</td><td>8604 / NYSE</td><td>250</td><td><span class="ok">70%</span></td><td>85% (N=95)</td><td>0.76</td><td>0.66</td><td>1.02%</td><td><span class="pos">+0.14%</span> (N=63)</td><td><span class="ok">57%</span></td><td><span class="neg">-0.25%</span> (N=97)</td><td><span class="">54%</span></td></tr>
+      <tr><td>三菱UFJ</td><td>8306 / NYSE</td><td>250</td><td><span class="ok">72%</span></td><td>90% (N=90)</td><td>0.72</td><td>0.65</td><td>0.84%</td><td><span class="pos">+0.40%</span> (N=74)</td><td><span class="ok">66%</span></td><td><span class="neg">-0.20%</span> (N=90)</td><td><span class="">54%</span></td></tr>
+      <tr><td>オリックス</td><td>8591 / NYSE</td><td>250</td><td><span class="ok">69%</span></td><td>87% (N=85)</td><td>0.78</td><td>0.65</td><td>0.93%</td><td><span class="neg">-0.08%</span> (N=64)</td><td><span class="">50%</span></td><td><span class="neg">-0.24%</span> (N=77)</td><td><span class="warn">56%</span></td></tr>
+      <tr><td>三井住友FG</td><td>8316 / NYSE</td><td>250</td><td><span class="ok">72%</span></td><td>88% (N=98)</td><td>0.75</td><td>0.65</td><td>0.98%</td><td><span class="pos">+0.32%</span> (N=69)</td><td><span class="ok">57%</span></td><td><span class="neg">-0.16%</span> (N=82)</td><td><span class="warn">56%</span></td></tr>
+      <tr><td>任天堂</td><td>7974 / OTC</td><td>250</td><td><span class="">64%</span></td><td>72% (N=102)</td><td>0.67</td><td>0.63</td><td>1.19%</td><td><span class="pos">+0.11%</span> (N=75)</td><td><span class="">55%</span></td><td><span class="neg">-0.57%</span> (N=79)</td><td><span class="warn">66%</span></td></tr>
+      <tr><td>日立</td><td>6501 / OTC</td><td>250</td><td><span class="ok">67%</span></td><td>87% (N=104)</td><td>0.78</td><td>0.63</td><td>1.14%</td><td><span class="neg">-0.06%</span> (N=79)</td><td><span class="">53%</span></td><td><span class="neg">-0.13%</span> (N=82)</td><td><span class="">52%</span></td></tr>
+      <tr><td>ホンダ</td><td>7267 / NYSE</td><td>250</td><td><span class="ok">68%</span></td><td>83% (N=94)</td><td>0.64</td><td>0.60</td><td>0.89%</td><td><span class="pos">+0.36%</span> (N=60)</td><td><span class="ok">62%</span></td><td><span class="neg">-0.21%</span> (N=91)</td><td><span class="warn">57%</span></td></tr>
+      <tr><td>トヨタ</td><td>7203 / NYSE</td><td>250</td><td><span class="ok">68%</span></td><td>88% (N=78)</td><td>0.73</td><td>0.59</td><td>0.91%</td><td><span class="neg">-0.17%</span> (N=74)</td><td><span class="">42%</span></td><td><span class="neg">-0.24%</span> (N=86)</td><td><span class="warn">58%</span></td></tr>
+      <tr><td>武田薬品</td><td>4502 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>85% (N=79)</td><td>0.61</td><td>0.58</td><td>0.80%</td><td><span class="pos">+0.20%</span> (N=62)</td><td><span class="">55%</span></td><td><span class="neg">-0.01%</span> (N=89)</td><td><span class="">49%</span></td></tr>
+      <tr><td>ファーストリテ</td><td>9983 / OTC</td><td>250</td><td><span class="">61%</span></td><td>81% (N=73)</td><td>0.70</td><td>0.58</td><td>0.95%</td><td><span class="pos">+0.19%</span> (N=65)</td><td><span class="">49%</span></td><td><span class="pos">+0.24%</span> (N=63)</td><td><span class="">48%</span></td></tr>
+      <tr><td>コマツ</td><td>6301 / OTC</td><td>250</td><td><span class="ok">69%</span></td><td>83% (N=94)</td><td>0.81</td><td>0.57</td><td>1.13%</td><td><span class="pos">+0.11%</span> (N=66)</td><td><span class="">50%</span></td><td><span class="neg">-0.11%</span> (N=88)</td><td><span class="warn">56%</span></td></tr>
+      <tr><td>ソニーG</td><td>6758 / NYSE</td><td>250</td><td><span class="ok">67%</span></td><td>79% (N=95)</td><td>0.68</td><td>0.50</td><td>1.10%</td><td><span class="pos">+0.16%</span> (N=81)</td><td><span class="">53%</span></td><td><span class="neg">-0.01%</span> (N=87)</td><td><span class="">45%</span></td></tr>
+      <tr><td>東京エレクトロン</td><td>8035 / OTC</td><td>250</td><td><span class="">64%</span></td><td>69% (N=168)</td><td>0.53</td><td>0.48</td><td>2.31%</td><td><span class="neg">-0.12%</span> (N=100)</td><td><span class="">47%</span></td><td><span class="pos">+0.24%</span> (N=97)</td><td><span class="">40%</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -219,7 +219,7 @@
     赤の朝は、その乖離を9:00時点⑪→15:30時点⑫まで追い、引けまでに埋まればノイズ（需給）、残れば本物の材料（⑬）。
     埋まる日が多ければ「赤の朝は寄りで飛びつかず戻りを待つ」、残る日が多ければ「赤は順張り」という実務ルールに昇格できる。
   </div>
-  <div class="qbox"><div class="q"><div class="qt">問い1 夜間先物ギャップ⑤（6:00時点）は、寄り付き⑥を当てたか</div><div class="qv">平均誤差 0.43%</div><div class="qs">N=43。|⑦寄りまでの変化| の平均。方向一致 92%（|⑤|≥0.2%の36日）</div></div><div class="q"><div class="qt">問い2-a 6:00時点で日本固有要因（赤）があった頻度</div><div class="qv">28/43日</div><div class="qs">日本固有要因：買い 12日・売り 16日・理論通り 15日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div><div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div><div class="qv">赤→青 埋まった 8 ／ 赤→赤 残った 20 ／ 青→赤 日中に発生 9 ／ 青→青 6</div><div class="qs">⑩（6:00）→⑬（15:30）の組み合わせ。N=43。　赤の朝のうち、寄りでいったん拡大したのは 5日。<br>→ いまのところ夜の乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）</div></div></div>
+  <div class="qbox"><div class="q"><div class="qt">問い1 夜間先物ギャップ⑤（6:00時点）は、寄り付き⑥を当てたか</div><div class="qv">平均誤差 0.42%</div><div class="qs">N=44。|⑦寄りまでの変化| の平均。方向一致 92%（|⑤|≥0.2%の36日）</div></div><div class="q"><div class="qt">問い2-a 6:00時点で日本固有要因（赤）があった頻度</div><div class="qv">28/44日</div><div class="qs">日本固有要因：買い 12日・売り 16日・理論通り 16日。赤が多いほど「米株を見ているだけでは日本の寄りは読めない」相場</div></div><div class="q"><div class="qt">問い2-b 15:30時点⑫で、理論値との差は残ったか</div><div class="qv">赤→青 埋まった 8 ／ 赤→赤 残った 20 ／ 青→赤 日中に発生 9 ／ 青→青 6</div><div class="qs">⑩（6:00）→⑬（15:30）の組み合わせ。N=43。　赤の朝のうち、寄りでいったん拡大したのは 5日。<br>→ いまのところ夜の乖離は<b>残る</b>ことが多い＝本物の材料寄り。赤の方向に乗る（順張り）</div></div></div>
   <div class="table-wrap" style="max-width:none">
   <table class="compact">
     <thead>
@@ -237,7 +237,7 @@
         <th>⑬判定（15:30時点）<br><span style="font-weight:normal">（|⑫|と0.5%・⑩→⑬）</span></th></tr>
     </thead>
     <tbody>
-      <tr><td style="white-space:nowrap">11-04 <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③は9:30、④は15:45の更新で埋まる">◀ 今日</span></td><td class="sep">63,082</td><td>63,060<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B+83</span></td><td>-</td><td>-</td><td class="sep"><span class="neg">-0.17%</span></td><td>-</td><td>-</td><td class="sep"><span class="neg">-0.23%</span></td><td><span class="pos">+0.06%</span></td><td><span class="ok">理論通り</span></td><td class="sep">-</td><td>-</td><td class="read"><span class="small">9:30/15:45の更新で採点</span></td></tr>
+      <tr><td style="white-space:nowrap">11-04 <span class="num" style="font-size:0.75rem" title="上のカードと同じ数字。③は9:30、④は15:45の更新で埋まる">◀ 今日</span></td><td class="sep">63,082</td><td>63,060<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B+83</span></td><td>62,973</td><td>-</td><td class="sep"><span class="neg">-0.17%</span></td><td><span class="neg">-0.17%</span></td><td>-0.01%</td><td class="sep"><span class="neg">-0.23%</span></td><td><span class="pos">+0.06%</span></td><td><span class="ok">理論通り</span></td><td class="sep"><span class="pos">+0.06%</span></td><td>-</td><td class="read">-</td></tr>
       <tr><td style="white-space:nowrap">11-02</td><td class="sep">63,290</td><td>62,600<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B+96</span></td><td>62,972</td><td>63,082</td><td class="sep"><span class="neg">-1.24%</span></td><td><span class="neg">-0.50%</span></td><td>+0.74%</td><td class="sep"><span class="neg">-1.84%</span></td><td><span class="pos">+0.60%</span></td><td><span class="warn">日本固有要因：買い</span></td><td class="sep"><span class="pos">+1.34%</span></td><td><span class="pos">+1.51%</span></td><td class="read"><span class="warn">寄りで拡大後、残った（日本固有要因：買い）</span></td></tr>
       <tr><td style="white-space:nowrap">10-30<span class="small">※</span></td><td class="sep">64,660</td><td>64,115<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B+96</span></td><td>64,344</td><td>63,290</td><td class="sep"><span class="neg">-0.99%</span></td><td><span class="neg">-0.49%</span></td><td>+0.50%</td><td class="sep"><span class="neg">-0.29%</span></td><td><span class="neg">-0.70%</span></td><td><span class="warn">日本固有要因：売り</span></td><td class="sep"><span class="neg">-0.19%</span></td><td><span class="neg">-1.82%</span></td><td class="read"><span class="warn">寄りで縮小後、残った（日本固有要因：売り）</span></td></tr>
       <tr><td style="white-space:nowrap">10-29<span class="small">※</span></td><td class="sep">63,954</td><td>64,385<br><span class="small" title="ベーシス（先物−現物）。⑤はこれを引いて現物換算">B+127</span></td><td>64,126</td><td>64,660</td><td class="sep"><span class="pos">+0.47%</span></td><td><span class="pos">+0.27%</span></td><td>-0.21%</td><td class="sep"><span class="pos">+0.27%</span></td><td><span class="pos">+0.20%</span></td><td><span class="ok">理論通り</span></td><td class="sep"><span class="neg">-0.00%</span></td><td><span class="pos">+0.83%</span></td><td class="read"><span class="warn">日中に発生（日本固有要因：買い）</span></td></tr>
@@ -295,6 +295,6 @@
     データ異常として表から外す（2026-11-03〜。東京エレクトロンは TOELY の分割後データ停止で 10/16〜11/2 に偽の+20〜34%が出たため、原株 TOELF に差し替え）。<br>
     ・<b>回帰係数（過去250日）</b>: 日経リターン ≈ 1.02×S&P500前日 + -0.14×ドル円変化（決定係数R²=0.21）
   </p>
-  <p class="updated">最終更新: 2026-11-04 07:24</p>
+  <p class="updated">最終更新: 2026-11-04 09:30</p>
 </body>
 </html>
