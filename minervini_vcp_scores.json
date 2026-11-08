@@ -24,9 +24,9 @@
   "WST": 0,
   "ABBV": 0,
   "LLY": 0,
+  "CAH": 1,
   "KO": 1,
   "JNJ": 0,
-  "CAH": 1,
   "FDS": 0,
   "DGX": 0,
   "ABNB": 2,
@@ -50,9 +50,10 @@
   "IQV": 1,
   "MA": 0,
   "SOLV": 2,
+  "PM": 0,
   "WELL": 0,
   "ADP": 0,
-  "PM": 0,
+  "ROP": 1,
   "CDW": 0,
   "DAL": 0,
   "VRSN": 0,
@@ -72,5 +73,5 @@
   "MDLZ": 0,
   "MET": 1,
   "XYZ": 1,
-  "FAST": 1
+  "BMY": 1
 }
