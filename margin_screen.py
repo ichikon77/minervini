@@ -248,7 +248,8 @@ function medianOf(arr) {{
 
 async function loadData() {{
   if (DATA) return DATA;
-  const res = await fetch('margin_all_history.json');
+  // ?v=最新申込日 でキャッシュ破り（2026-11-11: HTMLは更新されたのにJSONがブラウザ/CDNの古いキャッシュのままで 11/6 までしか出なかった）
+  const res = await fetch('margin_all_history.json?v={latest_week}');
   DATA = await res.json();
   return DATA;
 }}
@@ -256,7 +257,7 @@ async function loadData() {{
 async function loadFund() {{
   if (FUND !== null) return FUND;
   try {{
-    const res = await fetch('margin_fundamentals.json');
+    const res = await fetch('margin_fundamentals.json?v={updated_date}');
     FUND = await res.json();
   }} catch (e) {{
     FUND = {{}};
@@ -509,6 +510,7 @@ def generate_html(hist):
         updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         n_codes=len(hist["names"]),
         n_weeks=len(weeks),
+        latest_week=weeks[-1] if weeks else "0",
     )
     path = os.path.join(SCRIPT_DIR, REPORT_HTML)
     with open(path, "w", encoding="utf-8") as f:
