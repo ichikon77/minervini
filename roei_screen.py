@@ -13,8 +13,8 @@
   snsデッキと同じ Yahooリアルタイム検索の推移APIで「不正アクセス」「情報漏洩」等の日次投稿数を取り、
   直近7日の合計と、その前の3週間の平均（7日換算）を比べる
 
-実行: 月〜金 22:00 に roei_run.bat（デッキ更新＋速報カード。**毎日の X 投稿は 2026-11-03 に廃止**、roei_post.py は --force が無いと投稿しない）
-      日曜 18:30 に roei_week_run.bat（--card --week-card → roei_post.py --weekly で「週まとめ」を投稿）。
+実行: 月〜金 22:00 に roei_run.bat（デッキ更新と push のみ。**毎日の X 投稿は 2026-11-03 に、日曜 18:30 の週まとめは 2026-11-15 に廃止**。
+      カード画像も bat からは作らない。手動で出すときだけ --card / --week-card → roei_post.py --force / --weekly --force）。
       --nopush でpush省略。--card で速報カード画像（drafts/roei_card_YYYYMMDD.png）、--week-card で週まとめカード（drafts/roei_week_YYYYMMDD.png）。
 事案の追加: roei_incidents.json に1行足して実行するだけ。
 """
@@ -531,7 +531,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   {chiwawa}
   {nav}
   <h1>情報漏洩銘柄検証 — 不正アクセス・情報漏洩を公表した企業の株価は、その後どう動いたか</h1>
-  <p class="subtitle">最終更新: {updated}（月〜金 22:00 更新・X投稿は日曜18:30の週まとめ） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
+  <p class="subtitle">最終更新: {updated}（月〜金 22:00 更新） | 対象: 国内上場企業、2026年9月以降の公表事案 {n_inc}件 | 株価: yfinance（配当調整済み終値） | 対照: TOPIX連動ETF 1306</p>
   <div class="evidence">
     <b>見方:</b>
     <b class="num">①</b> 事案ごとに、公表後 <b>1・3・5・10・15・30営業日</b> の終値を「公表前の最後の終値」と比べる（上段＝株価の騰落、下段の小文字＝同じ日のTOPIX(1306)を引いた<b>超過</b>）。

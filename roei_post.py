@@ -25,6 +25,13 @@ Xの投稿数はカード画像のフッターにだけ残す。
   今週の新規公表（件数順）／公表後初日の騰落（中央値・下げた社数・最大下落）／今週公表で公表前比が最悪・最良／
   全事案中央値（1・5・10営業日）／来週 初日を迎える銘柄、をニュース体で。カードは roei_screen.py --week-card の
   drafts/roei_week_YYYYMMDD.png。二重投稿ガードのキーは roei_posted.json の "week:月曜日付"。
+
+■ 2026-11-15 X 投稿を完全に廃止（ユーザー判断）
+  週まとめも 2 回（11/8・11/15）で終了。WEEKLY_RETIRED=True のため --weekly も --force が無いと投稿しない。
+  タスク RoeiWeekly は削除、roei_run.bat からは --card と本スクリプトの呼び出しを外した（カード画像も作らない）。
+  roei.html のデッキ更新（平日 22:00 の RoeiScreener）だけ継続。手で出すなら
+  python roei_screen.py --card --nopush → python roei_post.py --force [--lead CODE]（日次）
+  python roei_screen.py --card --week-card --nopush → python roei_post.py --weekly --force（週まとめ）
 """
 
 import os
@@ -42,7 +49,8 @@ DRAFTS_DIR = os.path.join(SCRIPT_DIR, "drafts")
 POSTED_JSON = os.path.join(SCRIPT_DIR, "roei_posted.json")   # {日付: 投稿時刻} 二重投稿ガード用（gitignore対象）
 CLOSING = "不正アクセス、サイバー攻撃、個人情報流出には十分にお気をつけください。"   # ハッシュタグは使わない（Xは不要と公言・多用は減点）。検索語は本文に自然に含める
 DECK_URL = "https://ichikon77.github.io/minervini/roei.html"
-DAILY_RETIRED = True   # 2026-11-03: 平日の毎日投稿を止める（--force で手動投稿は可）。週まとめ（--weekly）に集約
+DAILY_RETIRED = True    # 2026-11-03: 平日の毎日投稿を止める（--force で手動投稿は可）
+WEEKLY_RETIRED = True   # 2026-11-15: 日曜の週まとめも止める（--weekly --force で手動投稿は可）
 WD = "月火水木金土日"
 
 
@@ -210,6 +218,9 @@ def compose_weekly(d, today):
 def run_weekly(args, today):
     force = "--force" in args
     log("情報漏洩 週まとめ投稿 開始")
+    if WEEKLY_RETIRED and not force:
+        log("週まとめ投稿は 2026-11-15 に廃止 → 投稿しません（手で出すなら --weekly --force）")
+        return
     if not force and today.weekday() != 6:
         log(f"{today}（{WD[today.weekday()]}）は日曜ではない → スキップ（テストは --force）")
         return
@@ -270,7 +281,7 @@ def main():
             cfg["roei_post_enabled"] = False
         cfg.pop("_comment", None)
         json.dump(cfg, open(kp.CONFIG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-        print(f"情報漏洩ウォッチの投稿: {'オン（日曜 18:30 週まとめ。平日の毎日投稿は 2026-11-03 廃止、--force で手動のみ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
+        print(f"情報漏洩ウォッチの投稿: {'オン（ただし自動投稿は 2026-11-15 に全廃。--force 付きの手動投稿のみ）' if cfg.get('roei_post_enabled') else 'オフ（下書きのみ）'}")
         return
     today = datetime.date.today()
     if "--date" in args:
@@ -281,7 +292,7 @@ def main():
         return
     log("情報漏洩 株価ウォッチ投稿 開始")
     if DAILY_RETIRED and not force:
-        log("平日の毎日投稿は 2026-11-03 に廃止 → 投稿しません（週まとめは日曜 18:30 の --weekly。大きな事案の日に手で出すなら --force [--lead CODE]）")
+        log("平日の毎日投稿は 2026-11-03 に廃止（週まとめも 11-15 に廃止）→ 投稿しません。大きな事案の日に手で出すなら --force [--lead CODE]")
         return
     if not force and kp.is_market_holiday(today):
         log(f"{today} は休場日 → スキップ")
