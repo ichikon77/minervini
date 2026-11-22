@@ -113,7 +113,7 @@
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: 2026-11-22 09:30 | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
+  <p class="subtitle">最終更新: 2026-11-22 15:45 | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance） | <span class="warn">休場日</span>: カードの数字は直前の取引日の夜間の値。記録・採点は次の営業日から</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
     <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ベーシス − ①前日終値）＝ 今朝の寄り付き目安。ベーシス＝先物と現物の構造的な差（配当落ち・金利分）で、配当月のSQ後に大きくなる。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
@@ -192,7 +192,7 @@
   <table>
     <thead><tr><th>銘柄</th><th>コード/市場</th><th>N</th><th>寄り方向一致</th><th>同 |ADR|≥1%</th><th>感応度β</th><th>相関</th><th>平均誤差</th><th>ADR↑日の日中</th><th>同勝率</th><th>ADR↓日の日中</th><th>同続落率</th></tr></thead>
     <tbody>
-      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">80%</span></td><td>89% (N=167)</td><td>0.93</td><td>0.79</td><td>1.88%</td><td><span class="neg">-0.21%</span> (N=99)</td><td><span class="">47%</span></td><td><span class="pos">+0.19%</span> (N=102)</td><td><span class="">50%</span></td></tr>
+      <tr><td>ソフトバンクG</td><td>9984 / OTC</td><td>250</td><td><span class="ok">78%</span></td><td>88% (N=167)</td><td>0.93</td><td>0.79</td><td>1.88%</td><td><span class="neg">-0.21%</span> (N=99)</td><td><span class="">47%</span></td><td><span class="pos">+0.19%</span> (N=102)</td><td><span class="">50%</span></td></tr>
       <tr><td>みずほFG</td><td>8411 / NYSE</td><td>250</td><td><span class="ok">78%</span></td><td>86% (N=108)</td><td>0.88</td><td>0.71</td><td>1.01%</td><td><span class="pos">+0.52%</span> (N=78)</td><td><span class="ok">63%</span></td><td><span class="neg">-0.20%</span> (N=84)</td><td><span class="">52%</span></td></tr>
       <tr><td>野村HD</td><td>8604 / NYSE</td><td>250</td><td><span class="ok">70%</span></td><td>86% (N=96)</td><td>0.81</td><td>0.69</td><td>0.98%</td><td><span class="pos">+0.17%</span> (N=66)</td><td><span class="ok">58%</span></td><td><span class="neg">-0.28%</span> (N=95)</td><td><span class="">54%</span></td></tr>
       <tr><td>三菱UFJ</td><td>8306 / NYSE</td><td>250</td><td><span class="ok">73%</span></td><td>91% (N=92)</td><td>0.79</td><td>0.68</td><td>0.86%</td><td><span class="pos">+0.34%</span> (N=74)</td><td><span class="ok">64%</span></td><td><span class="neg">-0.22%</span> (N=93)</td><td><span class="">54%</span></td></tr>
@@ -297,6 +297,6 @@
     データ異常として表から外す（2026-11-03〜。東京エレクトロンは TOELY の分割後データ停止で 10/16〜11/2 に偽の+20〜34%が出たため、原株 TOELF に差し替え）。<br>
     ・<b>回帰係数（過去250日）</b>: 日経リターン ≈ 1.03×S&P500前日 + -0.20×ドル円変化（決定係数R²=0.24）
   </p>
-  <p class="updated">最終更新: 2026-11-22 09:30</p>
+  <p class="updated">最終更新: 2026-11-22 15:45</p>
 </body>
 </html>
