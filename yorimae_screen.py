@@ -6,7 +6,7 @@
 「今日の寄り付きがどこから始まり、その動きは米株・為替で説明がつくのか」を1ページで出す。
 
 ① 夜間先物ギャップ
-  CME日経平均先物（円建て NIY=F、なければドル建て NKD=F）の夜間終値と
+  大証 日経225mini 期近の夜間引け（nikkei225jp.com、2026-11-24〜。取れなければ Yahoo の CME 円建て NIY=F→ドル建て NKD=F）と
   前日の日経平均終値のギャップ。現物はほぼ夜間先物の水準に揃って寄り付くため、
   これが「今朝の寄り付き目安」になる。
 
@@ -28,6 +28,7 @@
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -1114,7 +1115,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="kasetsu.html" style="border-color:#94a3b8">仮説検証</a>
   </nav>
   <h1>寄り前チェック — 夜間先物ギャップ × ADR</h1>
-  <p class="subtitle">最終更新: {updated} | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: CME日経先物・S&amp;P500・ドル円・主要ADR（yfinance）{holiday_note}</p>
+  <p class="subtitle">最終更新: {updated} | 1日3回更新: 7:15（予告①②⑤⑧⑨⑩＝6:00時点の値）→ 9:30（③⑥⑦⑪）→ 15:45（④⑫⑬） | データ: 大証日経225先物（夜間）・S&amp;P500・ドル円・主要ADR{holiday_note}</p>
   <div class="evidence">
     <b>見方（番号①〜⑬は下の答え合わせ表の列と共通。「ギャップ」は全部「①前日終値から何%離れているか」）:</b><br>
     <b class="num">⑤ 夜間先物ギャップ</b>（②夜間先物の終値 − ベーシス − ①前日終値）＝ 今朝の寄り付き目安。ベーシス＝先物と現物の構造的な差（配当落ち・金利分）で、配当月のSQ後に大きくなる。日経平均の現物は夜間先物の水準にほぼ揃って寄り付く。<br>
@@ -1193,7 +1194,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <p class="note" style="margin-top:8px">
     ・%の列はすべて「①前日終値に対する%」。②〜④は円。<br>
-    ・<b>②夜間先物の終値</b>＝CME日経先物の6:00（日本時間）のバーの終値。CME先物は6:00〜7:00に休憩、大証ナイトセッションも6:00終了なので「夜間の終値」に相当。7:15の実行時刻ではなく6:00の値を取るため、PCの起動が遅れて8:50や10:00に走っても同じ値になる。<br>
+    ・<b>②夜間先物の終値</b>＝大証 日経225mini 期近の夜間セッション（〜6:00）の引け値。取得できない日は CME日経先物（Yahoo）の6:00のバーで代用し、その値が6:00より1時間以上古いときは「○時時点」と明示する。7:15の実行時刻ではなく6:00の値を取るため、PCの起動が遅れて8:50や10:00に走っても同じ値になる。<br>
     ・<b>ベーシス</b>＝先物−現物の構造的な差（金利分と、限月内の配当落ち分）。特に3月・9月はSQで限月が替わった直後から、新限月が月末の配当落ち分（日経平均で200〜400円）を織り込んで現物より安く取引されるため、②をそのまま①と比べると⑤が下にズレる。直近3営業日の（15:30の先物−現物終値）の中央値をベーシスとして②から引き、現物換算で⑤を計算する。②の欄の「B±nn」がその値。SQ当日は限月交代のため未調整（注記が出る）。<br>
     ・<b>⑦寄りまでの変化</b>が大きい日は、6:00以降のニュース（7:00〜の先物再開・8:50の国内指標など）か寄り付きの板の偏り。<br>
     ・<b>⑧理論値</b>＝「米株とドル円だけを見たら本来こう動くはず」の値。b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰、ページ最下部に表示）。<br>
@@ -1206,7 +1207,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     ・土日・祝日の実行は記録しない（表に行が増えるのは平日の朝だけ）。
   </p>
   <p class="note">
-    ・<b>②夜間先物の終値</b> = CME日経平均先物（円建てNIY=F、取得不可時はドル建てNKD=F）の6:00の値。<b>⑤夜間先物ギャップ</b>はこれと①前日終値の差。<br>
+    ・<b>②夜間先物の終値</b> = 大証 日経225mini 夜間引け（6:00）。取得不可時は CME日経平均先物（円建てNIY=F→ドル建てNKD=F）の6:00の値。<b>⑤夜間先物ギャップ</b>はこれと①前日終値の差。<br>
     ・<b>⑧理論値</b> = b1×S&amp;P500前日騰落% + b2×ドル円変化%（係数は過去1年の日次回帰で自前推定、下の行に係数表示）。
     ドル円の起点はNY終値で近似しているため厳密な分解ではなく目安。<br>
     ・<b>ADR換算比率</b> = 直近{ratio_window}日の（ADR価格×ドル円）÷東京終値の中央値。倍率をハードコードしないため株式分割にも自動追随する。
@@ -1285,10 +1286,12 @@ def generate_html(data, hist=None):
                             f'先物が織り込む配当分はその{bd["div_share"]}%（9月末は中間配当なので年間の3〜4割が目安）')
         basis_line = (f'<br>ベーシス（先物−現物）{b:+,}円 → 現物換算 {fut - b:,.0f}円（{data.get("basis_note") or ""}）{bd_line}'
                       if b is not None else f'<br><span class="warn">ベーシス未調整</span>: {data.get("basis_note") or ""}')
-        row1.append(card("②", f"夜間先物の終値（CME日経先物・{obs}）", val(f"{fut:,.0f}円"),
-                         f'{data["fut_ticker"]}。何時に実行しても6:00時点の値を取る（大証ナイト終値と同水準）{basis_line}', big=True))
+        src = "大証 日経225mini 期近の夜間引け" if data.get("fut_ticker") == "OSE-mini" else f'CME日経先物 {data.get("fut_ticker")}（Yahoo、大証が取れなかった日の代用）'
+        if data.get("fut_stale"):
+            src += f'<br><span class="warn">⚠ 配信が {obs} で止まっていた値（6:00の実勢とズレている可能性）</span>'
+        row1.append(card("②", f"夜間先物の終値（{obs}）", val(f"{fut:,.0f}円"), f'{src}{basis_line}', big=True))
     else:
-        row1.append(card("②", "夜間先物の終値（CME日経先物）", val("取得失敗"), "yfinance側の一時的な問題の可能性", big=True))
+        row1.append(card("②", "夜間先物の終値", val("取得失敗"), "大証・Yahoo とも取得できず", big=True))
     row1.append(card("③", "当日始値", pv("p3", "yen"), "9:00に確定 → 9:30の更新で入る"))
     row1.append(card("④", "当日終値", pv("p4", "yen"), "15:30に確定 → 15:45の更新で入る"))
     # 参考（⑧理論値の材料）
@@ -1527,6 +1530,42 @@ OPEN_READY = datetime.time(9, 20)  # この時刻以降の実行で③当日始�
 CLOSE_READY = datetime.time(15, 40)  # この時刻以降の実行で④当日終値を取り込む
 
 
+OSE_URL = "https://nikkei225jp.com/cme/"   # 大証 夜間セッションの引け値（riron と同じサイト、HTML の表 id=nkftbl）
+
+
+def ose_night_close(today, log_fn=None):
+    """大証ミニ 期近の夜間引け（6:00）を nikkei225jp.com から取る。2026-11-19 の事故（Yahoo の CME 円建て NIY=F が
+    0:30 のはずれ約定 58,500 で止まり、王様が実勢 58,865 より 365 円低い値を告げた）の対策で、こちらを第1源にする。
+    返り値 (price, time(aware JST), high, low) または None。表の「時間」が 05:30〜08:44 のとき＝夜間が終わって日中が
+    始まる前の値だけ採用する（8:45 以降は日中立会の値に置き換わるので使わない→Yahoo の 6:00 バーに戻す）"""
+    try:
+        import riron_screen as rs
+        html = rs.fetch_with_retry(OSE_URL, tries=2, timeout=30, wait=5)
+        m = re.search(r"<tr><th><nobr>大証ミニ\s*(\d+)年(\d+)月限</nobr></th>((?:<td[^>]*>[^<]*</td>){7})", html)
+        if not m:
+            raise ValueError("大証ミニの行が見つからない")
+        cells = re.findall(r"<td[^>]*>([^<]*)</td>", m.group(3))
+        price = float(cells[0].replace(",", ""))
+        high = float(cells[3].replace(",", "")) if cells[3] not in ("-", "") else None
+        low = float(cells[4].replace(",", "")) if cells[4] not in ("-", "") else None
+        hh, mm = cells[6].split(":")
+        jst = datetime.timezone(datetime.timedelta(hours=9))
+        t = datetime.datetime.combine(today, datetime.time(int(hh), int(mm)), tzinfo=jst)
+        if not (datetime.time(5, 30) <= t.time() <= datetime.time(8, 44)):
+            if log_fn:
+                log_fn(f"  大証ミニ夜間: 表の時刻 {cells[6]} は夜間引けの範囲外（05:30〜08:44）→ 不採用")
+            return None
+        if price < 10000:
+            raise ValueError(f"価格が不正 {price}")
+        if log_fn:
+            log_fn(f"  大証ミニ {m.group(1)}年{m.group(2)}月限 夜間引け {price:,.0f}（{cells[6]}、高値 {cells[3]}・安値 {cells[4]}）")
+        return price, t, high, low
+    except Exception as e:
+        if log_fn:
+            log_fn(f"  大証ミニ夜間の取得失敗 → Yahoo にフォールバック: {e}")
+        return None
+
+
 def bar_close_at(ticker, when):
     """5分足で when（JSTのaware datetime）以前の最後のバーの終値と、その時刻を返す。無ければ (None, None)"""
     try:
@@ -1590,12 +1629,21 @@ def observe_morning(today):
         except Exception as e:
             log(f"  前日終値の復元失敗（日足の最終日を使用）: {e}")
 
-    # ②夜間先物の終値（円建て優先）: 5分足の6:00直前のバー。取れなければ最新値で代用（時刻を記録）
-    fut_last, fut_ticker, fut_time, anchored = None, None, None, False
-    for tk in ("NIY=F", "NKD=F"):
+    # ②夜間先物の終値: 第1源＝大証ミニ期近の夜間引け（nikkei225jp.com、2026-11-24〜）。
+    # 第2源＝Yahoo CME 円建て NIY=F（なければドル建て NKD=F）の 6:00 直前の5分足バー。取れなければ最新値で代用（時刻を記録）
+    fut_last, fut_ticker, fut_time, anchored, fut_stale = None, None, None, False, False
+    ose = ose_night_close(today, log)
+    if ose:
+        fut_last, fut_time, _, _ = ose
+        fut_ticker, anchored = "OSE-mini", True
+    for tk in (() if fut_last else ("NIY=F", "NKD=F")):
         v, t = bar_close_at(tk, anchor)
         if v and v > 10000:
             fut_last, fut_ticker, fut_time, anchored = v, tk, t, True
+            # Yahoo の最終バーが 6:00 より 60 分以上前なら、配信が途中で止まった値（11/19 は 0:30 で停止）→ 鮮度フラグ
+            if (anchor - t).total_seconds() > 3600:
+                fut_stale = True
+                log(f"  ⚠ {tk}: 最終バーが {t:%H:%M} で 6:00 より古い → 投稿では時刻を明示し強調語を外す")
             break
     if fut_last is None:
         for tk in ("NIY=F", "NKD=F"):
@@ -1665,7 +1713,9 @@ def observe_morning(today):
     return {
         "prev_close": n225_prev, "n225_date": n225_date,
         "fut": fut_last, "fut_ticker": fut_ticker,
-        "obs_time": (lambda t: f"{t.hour}:{t.minute:02d}")(fut_time + datetime.timedelta(minutes=5)) if fut_time else None,
+        # obs_time: Yahoo の5分足は「バー開始時刻」なので +5分で終値時刻にする。大証の表は「最終約定時刻」なのでそのまま
+        "obs_time": (lambda t: f"{t.hour}:{t.minute:02d}")(fut_time + (datetime.timedelta(0) if fut_ticker == "OSE-mini" else datetime.timedelta(minutes=5))) if fut_time else None,
+        "fut_stale": fut_stale,
         "basis": basis, "basis_n": basis_n, "basis_note": basis_note, "basis_checked": True,
         "basis_bd": basis_breakdown(basis, fut_last, today),
         "gap": None if gap_pct is None else round(gap_pct, 3),
@@ -1762,7 +1812,7 @@ def main():
         # 旧形式（参考値なし）のレコードは参考値だけ補う
         if "spx_ret" not in rec:
             obs = observe_morning(today)
-            for k2 in ("spx_ret", "ndx_ret", "fx_now", "fx_chg", "betas", "n225_date", "fut_ticker", "obs_time"):
+            for k2 in ("spx_ret", "ndx_ret", "fx_now", "fx_chg", "betas", "n225_date", "fut_ticker", "obs_time", "fut_stale"):
                 rec.setdefault(k2, obs.get(k2))
 
     # 壁（X投稿カード用）: ②夜間先物の終値を基準に、上下で最も近いPER理論株価・前月高安
@@ -1794,7 +1844,7 @@ def main():
     gap_pct, theo = rec.get("gap"), rec.get("theo")
     data = {
         "n225_prev": rec["prev_close"], "n225_date": rec.get("n225_date", ""),
-        "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"),
+        "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"), "fut_stale": bool(rec.get("fut_stale")),
         "gap_pct": gap_pct, "gap_yen": (rec["fut"] - (rec.get("basis") or 0) - rec["prev_close"]) if rec.get("fut") else None,
         "basis": rec.get("basis"), "basis_note": rec.get("basis_note"),
         "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
@@ -1811,7 +1861,7 @@ def main():
         json.dump({
             "generated": now.isoformat(timespec="seconds"), "phase": phase, "created_today": created,
             "n225_prev": rec["prev_close"], "n225_date": rec.get("n225_date", ""),
-            "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"),
+            "fut_last": rec.get("fut"), "fut_ticker": rec.get("fut_ticker"), "obs_time": rec.get("obs_time"), "fut_stale": bool(rec.get("fut_stale")),
             "gap_pct": gap_pct, "gap_yen": data["gap_yen"],
             "spx_ret": rec.get("spx_ret"), "ndx_ret": rec.get("ndx_ret"),
             "fx_now": rec.get("fx_now"), "fx_chg": rec.get("fx_chg"),

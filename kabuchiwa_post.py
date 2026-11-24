@@ -206,17 +206,21 @@ def gap_phrase(d):
     fut, gap, yen = d.get("fut_last"), d.get("gap_pct"), d.get("gap_yen")
     if fut is None or gap is None:
         return "夜間先物は 霧の中で 見えぬ（取得失敗）"
+    # 2026-11-19: Yahoo の先物配信が 0:30 で止まり、はずれ値 58,500 を「大きく下で」と告げた事故の対策。
+    # fut_stale（最終バーが 6:00 より 60 分以上古い）のときは時刻を明示し、「大きく」の強調を外す
+    stale = d.get("fut_stale")
     if gap >= 1.0:
-        mood = "大きく 上で 寄りそうじゃ"
+        mood = "上で 寄りそうじゃ" if stale else "大きく 上で 寄りそうじゃ"
     elif gap >= 0.3:
         mood = "上で 寄りそうじゃ"
     elif gap <= -1.0:
-        mood = "大きく 下で 寄りそうじゃ"
+        mood = "下で 寄りそうじゃ" if stale else "大きく 下で 寄りそうじゃ"
     elif gap <= -0.3:
         mood = "下で 寄りそうじゃ"
     else:
         mood = "ほぼ 横で 寄りそうじゃ"
-    return f"日経先物は {fut:,.0f}円（{gap:+.2f}%・{yen:+,.0f}円）。{mood}"
+    when = f"（{d.get('obs_time')}時点の値じゃ）" if stale and d.get("obs_time") else ""
+    return f"日経先物は {fut:,.0f}円（{gap:+.2f}%・{yen:+,.0f}円）{when}。{mood}"
 
 
 def us_phrase(d):
