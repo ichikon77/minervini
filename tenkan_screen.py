@@ -242,6 +242,7 @@ NAV = [
     ("jpminervini.html", "日本株 (Minervini)", "#db2777"),
     ("haitou.html", "日本株 (配当)", "#db2777"),
     ("tenkan.html", "並び転換", "#db2777"),
+    ("jukyu.html", "需給×並び", "#db2777"),
     ("insider.html", "インサイダー売買", "#db2777"),
     ("margin.html", "銘柄チェッカー", "#db2777"),
     ("buffett.html", "バフェット", "#db2777"),

@@ -296,6 +296,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <a href="jpminervini.html" style="border-color:#db2777">日本株 (Minervini)</a>
     <a href="haitou.html" style="border-color:#db2777">日本株 (配当)</a>
     <a href="tenkan.html" style="border-color:#db2777">並び転換</a>
+    <a href="jukyu.html" style="border-color:#db2777">需給×並び</a>
     <a href="insider.html" style="border-color:#db2777">インサイダー売買</a>
     <a href="margin.html" style="border-color:#db2777">銘柄チェッカー</a>
     <a href="buffett.html" style="border-color:#db2777">バフェット</a>
