@@ -4,3 +4,5 @@ set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
 set PYTHONUNBUFFERED=1
 powershell -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $OutputEncoding=[Text.Encoding]::UTF8; & 'C:\Users\ichik\AppData\Local\Programs\Python\Python314\python.exe' -X utf8 -u 'C:\Users\ichik\Documents\minervini\tenkan_screen.py' 2>&1 | ForEach-Object { $_; Add-Content -Path 'C:\Users\ichik\Documents\minervini\tenkan_log.txt' -Value $_ -Encoding UTF8 }"
+rem -- 2026-11-25: jukyu (credit ratio < 1 x MA shape) runs right after tenkan, reusing the same 18:00 task --
+call "%~dp0jukyu_run.bat"
