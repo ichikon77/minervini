@@ -10,7 +10,7 @@
 ・並びの判定は tenkan_screen.py と同じ定義（states() が全日付でベクトル計算。最終日の A/B/C 件数は tenkan と一致する）
 ・信用残は margin_all_history.json（MarginScreener 16:40 が更新）。公表の遅れを入れて「その日の夜に見られた数字」だけを使う
 ・仮説検証は毎晩、手元の全期間（信用残の蓄積開始 2026-06-12 以降）で計算し直す。履歴ファイルは持たない
-・出力: jukyu.html / txt/Jukyu_oshime.txt, Jukyu_B.txt。push はしない（23:00 の nightly に任せる。tenkan と同じ）
+・出力: jukyu.html / txt/Jukyu.txt（押し目候補→Bの順、重複は1回）。push はしない（23:00 の nightly に任せる。tenkan と同じ）
 
 2026-11-25 作成。同日、転換初期（並び転換A）のリストは外し、注意3条件で絞る形にした（本人の指示）。
 注意3条件は 6/16〜8/25 掲載分の60営業日後の結果を見てから決めたもの。RULE_DATE より後の掲載分が本当の答え合わせ。
@@ -423,8 +423,8 @@ def main():
     OUT_HTML.write_text(build_html(ctx), encoding="utf-8")
     try:
         TXT_DIR.mkdir(exist_ok=True)
-        (TXT_DIR / "Jukyu_oshime.txt").write_text("".join(f"{r['code']}\t,\n" for r in picks["p"]), encoding="utf-8")
-        (TXT_DIR / "Jukyu_B.txt").write_text("".join(f"{r['code']}\t,\n" for r in picks["b"]), encoding="utf-8")
+        both = list(dict.fromkeys([r["code"] for r in picks["p"]] + [r["code"] for r in picks["b"]]))   # 押し目候補→Bの順、重複は1回
+        (TXT_DIR / "Jukyu.txt").write_text("".join(f"{c}\t,\n" for c in both), encoding="utf-8")
     except Exception as e:
         log(f"txt出力失敗: {e}")
     log(f"完了: 押し目候補 {len(picks['p'])} / B {len(picks['b'])} → {OUT_HTML.name}")
