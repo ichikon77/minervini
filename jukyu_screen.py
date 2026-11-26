@@ -10,15 +10,18 @@
 ・並びの判定は tenkan_screen.py と同じ定義（states() が全日付でベクトル計算。最終日の A/B/C 件数は tenkan と一致する）
 ・信用残は margin_all_history.json（MarginScreener 16:40 が更新）。公表の遅れを入れて「その日の夜に見られた数字」だけを使う
 ・仮説検証は毎晩、手元の全期間（信用残の蓄積開始 2026-06-12 以降）で計算し直す。履歴ファイルは持たない
-・出力: jukyu.html / txt/Jukyu.txt（押し目候補→Bの順、重複は1回）。push はしない（23:00 の nightly に任せる。tenkan と同じ）
+・出力: jukyu.html / txt/Jukyu.txt（押し目候補→Bの順、重複は1回）。終わったら自分で push する（2026-11-26〜。並び転換のページも一緒に上げる）。--nopush で省略
 
 2026-11-25 作成。同日、転換初期（並び転換A）のリストは外し、注意3条件で絞る形にした（本人の指示）。
 注意3条件は 6/16〜8/25 掲載分の60営業日後の結果を見てから決めたもの。RULE_DATE より後の掲載分が本当の答え合わせ。
 しきい値はすべて暫定（仮説）。
 """
 import os
+import sys
 import json
+import time
 import bisect
+import subprocess
 import datetime as dt
 import warnings
 from pathlib import Path
@@ -428,6 +431,43 @@ def main():
     except Exception as e:
         log(f"txt出力失敗: {e}")
     log(f"完了: 押し目候補 {len(picks['p'])} / B {len(picks['b'])} → {OUT_HTML.name}")
+    push_to_github()
+
+
+# ---------------- 公開 ----------------
+def push_to_github():
+    """jukyu.html を GitHub Pages に上げる。直前に走った並び転換（自分では push しない）のページも一緒に上げる"""
+    if os.name != "nt" or "--nopush" in sys.argv or os.environ.get("JUKYU_OUT"):
+        log("push はスキップ（--nopush / 出力先の差し替え / Windows 以外）")
+        return
+    repo = str(BASE)
+    try:
+        from git_lock_helper import wait_for_git_lock
+        wait_for_git_lock(repo)
+    except Exception:
+        pass
+    log("GitHub Pages に公開中...")
+    today = dt.date.today().isoformat()
+    subprocess.run(["git", "-C", repo, "add", "jukyu.html", "jukyu_screen.py", "jukyu_run.bat",
+                    "tenkan.html", "tenkan_history.json", "tenkan_run.bat"], check=False)
+    result = subprocess.run(["git", "-C", repo, "commit", "-m", "update jukyu report " + today], capture_output=True)
+    if result.returncode != 0:
+        msg = result.stdout.decode(errors="ignore") + result.stderr.decode(errors="ignore")
+        if "nothing to commit" in msg:
+            log("  commit skip (already committed)")
+        else:
+            log("  commit failed: " + msg)
+            return
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(["git", "-C", repo, "pull", "--rebase", "--autostash"], check=True)
+            subprocess.run(["git", "-C", repo, "push"], check=True)
+            log("  Done: https://ichikon77.github.io/minervini/jukyu.html")
+            return
+        except subprocess.CalledProcessError as e:
+            log(f"  push failed (attempt {attempt}/5): {e}")
+            time.sleep(10)
+    log("  push failed finally")
 
 
 # ---------------- HTML ----------------
